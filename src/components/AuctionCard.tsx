@@ -10,20 +10,23 @@ interface AuctionCardProps {
   currentBid: number;
   timeRemaining: string;
   location: string;
-  bidders: number;
+  bidders?: number;
   image: string;
   status: "live" | "upcoming" | "ended";
+  distance?: string;
 }
 
 export const AuctionCard = ({
+  id,
   title,
   artist,
   currentBid,
   timeRemaining,
   location,
-  bidders,
+  bidders = 0,
   image,
-  status
+  status,
+  distance
 }: AuctionCardProps) => {
   const getStatusBadge = () => {
     switch (status) {
@@ -65,7 +68,7 @@ export const AuctionCard = ({
           <div>
             <p className="text-xs text-muted-foreground">Current Bid</p>
             <p className="text-xl font-bold text-gradient">
-              ${currentBid.toLocaleString()}
+              R{currentBid.toLocaleString()}
             </p>
           </div>
           <div className="text-right">

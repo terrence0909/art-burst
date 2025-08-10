@@ -40,7 +40,7 @@ export const FeatureSection = () => {
       <div className="container px-4">
         <div className="text-center mb-16">
           <h2 className="font-playfair text-4xl font-bold mb-4">
-            Why Choose ArtBid Local?
+            Why Choose ArtBurst?
           </h2>
           <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
             We're revolutionizing how art lovers discover and collect local artwork. 
