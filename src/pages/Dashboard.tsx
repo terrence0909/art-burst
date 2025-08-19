@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { User, Heart, Gavel, Plus, Settings, TrendingUp, Clock, DollarSign } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { getCurrentUser, fetchUserAttributes, signOut } from "aws-amplify/auth";
+import { User, Heart, Gavel, Plus, Settings, TrendingUp, Clock, DollarSign, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,29 +9,56 @@ import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { AuctionCard } from "@/components/AuctionCard";
-import artwork1 from "@/assets/artwork-1.jpeg";
-import artwork2 from "@/assets/artwork-2.jpeg";
-import artwork3 from "@/assets/artwork-3.jpeg";
+
+// Image imports with TypeScript support
+const artwork1 = "/images/artwork-1.jpeg";
+const artwork2 = "/images/artwork-2.jpeg";
+const artwork3 = "/images/artwork-3.jpeg";
+
+interface Auction {
+  id: string;
+  title: string;
+  artist: string;
+  currentBid: number;
+  myBid?: number;
+  timeRemaining: string;
+  image: string;
+  status: "live" | "upcoming" | "ended";
+  location: string;
+  distance: string;
+  isWinning?: boolean;
+}
+
+interface Activity {
+  type: "bid" | "watch" | "win";
+  item: string;
+  amount?: number;
+  time: string;
+  status?: "outbid" | "won" | "active";
+}
+
+interface UserData {
+  name: string;
+  email: string;
+  profileImage: string;
+  memberSince: string;
+  stats: {
+    activeBids: number;
+    watchedItems: number;
+    totalSpent: number;
+    itemsWon: number;
+  };
+}
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
-
-  // Mock user data
-  const user = {
-    name: "John Collector",
-    email: "john@example.com",
-    profileImage: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face",
-    memberSince: "2022",
-    stats: {
-      activeBids: 3,
-      watchedItems: 12,
-      totalSpent: 24500,
-      itemsWon: 8
-    }
-  };
+  const [user, setUser] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   // Mock data
-  const activeBids = [
+  const [activeBids, setActiveBids] = useState<Auction[]>([
     {
       id: "1",
       title: "Sunset Over Silicon Valley",
@@ -38,14 +67,14 @@ const Dashboard = () => {
       myBid: 2400,
       timeRemaining: "2h 45m",
       image: artwork1,
-      status: "live" as const,
+      status: "live",
       location: "San Francisco, CA",
       distance: "2.3 miles",
       isWinning: false
     }
-  ];
+  ]);
 
-  const watchedItems = [
+  const [watchedItems, setWatchedItems] = useState<Auction[]>([
     {
       id: "2",
       title: "Urban Dreams",
@@ -53,29 +82,70 @@ const Dashboard = () => {
       currentBid: 1200,
       timeRemaining: "1d 12h",
       image: artwork2,
-      status: "upcoming" as const,
+      status: "upcoming",
       location: "Oakland, CA",
       distance: "8.1 miles"
-    },
-    {
-      id: "3",
-      title: "Coastal Memories",
-      artist: "Sarah Kim",
-      currentBid: 890,
-      timeRemaining: "4h 20m",
-      image: artwork3,
-      status: "live" as const,
-      location: "Sausalito, CA",
-      distance: "12.5 miles"
     }
-  ];
+  ]);
 
-  const recentActivity = [
-    { type: "bid", item: "Abstract Cityscape", amount: 1800, time: "2 hours ago", status: "outbid" },
-    { type: "watch", item: "Sunset Over Silicon Valley", time: "1 day ago" },
-    { type: "win", item: "Morning Coffee Study", amount: 650, time: "3 days ago", status: "won" },
-    { type: "bid", item: "Coastal Memories", amount: 850, time: "1 week ago", status: "active" }
-  ];
+  const [recentActivity, setRecentActivity] = useState<Activity[]>([
+    { type: "bid", item: "Abstract Cityscape", amount: 1800, time: "2 hours ago", status: "outbid" }
+  ]);
+
+  // Fetch user data with Amplify v6
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const { username } = await getCurrentUser();
+        const attributes = await fetchUserAttributes();
+        
+        setUser({
+          name: `${attributes.given_name || 'User'} ${attributes.family_name || ''}`.trim(),
+          email: attributes.email || username,
+          profileImage: attributes.picture || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face",
+          memberSince: new Date().getFullYear().toString(),
+          stats: {
+            activeBids: activeBids.length,
+            watchedItems: watchedItems.length,
+            totalSpent: 24500,
+            itemsWon: 8
+          }
+        });
+      } catch (err) {
+        setError("You need to sign in to access this page");
+        navigate("/signin");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate("/signin");
+    } catch (err) {
+      setError("Failed to sign out. Please try again.");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-red-500">{error || "User data not available"}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -83,7 +153,7 @@ const Dashboard = () => {
       
       <div className="container mx-auto px-4 py-8">
         {/* Welcome Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
           <div className="flex items-center space-x-4">
             <img 
               src={user.profileImage} 
@@ -91,14 +161,20 @@ const Dashboard = () => {
               className="w-16 h-16 rounded-full object-cover border-2 border-accent"
             />
             <div>
-              <h1 className="font-playfair text-2xl font-bold">Welcome back, {user.name}!</h1>
+              <h1 className="font-playfair text-2xl font-bold">Welcome back, {user.name.split(" ")[0]}!</h1>
               <p className="text-muted-foreground">Member since {user.memberSince}</p>
             </div>
           </div>
-          <Button variant="outline">
-            <Settings className="w-4 h-4 mr-2" />
-            Account Settings
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={handleSignOut}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </Button>
+            <Button variant="outline">
+              <Settings className="w-4 h-4 mr-2" />
+              Account Settings
+            </Button>
+          </div>
         </div>
 
         {/* Quick Stats */}
@@ -135,7 +211,7 @@ const Dashboard = () => {
 
         {/* Main Content */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="bids">My Bids</TabsTrigger>
             <TabsTrigger value="watching">Watching</TabsTrigger>
@@ -143,9 +219,9 @@ const Dashboard = () => {
             <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
           
+          {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Active Bids */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center">
@@ -157,34 +233,21 @@ const Dashboard = () => {
                   {activeBids.length > 0 ? (
                     <div className="space-y-4">
                       {activeBids.map((auction) => (
-                        <div key={auction.id} className="flex items-center space-x-3 p-3 bg-muted/50 rounded-lg">
-                          <img 
-                            src={auction.image} 
-                            alt={auction.title}
-                            className="w-16 h-16 object-cover rounded-md"
-                          />
-                          <div className="flex-1">
-                            <h4 className="font-semibold">{auction.title}</h4>
-                            <p className="text-sm text-muted-foreground">by {auction.artist}</p>
-                            <div className="flex items-center justify-between mt-1">
-                              <span className="text-sm">
-                                Your bid: <span className="font-semibold">${auction.myBid}</span>
-                              </span>
-                              <Badge variant={auction.isWinning ? "default" : "destructive"}>
-                                {auction.isWinning ? "Winning" : "Outbid"}
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
+                        <AuctionCard key={auction.id} {...auction} />
                       ))}
                     </div>
                   ) : (
-                    <p className="text-muted-foreground text-center py-4">No active bids</p>
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground mb-4">No active bids</p>
+                      <Button>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Browse Auctions
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
 
-              {/* Recent Activity */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center">
@@ -195,11 +258,11 @@ const Dashboard = () => {
                 <CardContent>
                   <div className="space-y-3">
                     {recentActivity.map((activity, index) => (
-                      <div key={index} className="flex items-center justify-between p-2">
+                      <div key={index} className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg transition-colors">
                         <div className="flex items-center space-x-3">
                           <div className={`w-2 h-2 rounded-full ${
                             activity.type === 'win' ? 'bg-green-500' :
-                            activity.type === 'bid' && activity.status === 'outbid' ? 'bg-red-500' :
+                            activity.status === 'outbid' ? 'bg-red-500' :
                             'bg-blue-500'
                           }`} />
                           <div>
@@ -209,7 +272,7 @@ const Dashboard = () => {
                                'Item watched'} on {activity.item}
                             </p>
                             {activity.amount && (
-                              <p className="text-sm text-muted-foreground">${activity.amount}</p>
+                              <p className="text-xs text-muted-foreground">${activity.amount.toLocaleString()}</p>
                             )}
                           </div>
                         </div>
@@ -221,15 +284,14 @@ const Dashboard = () => {
               </Card>
             </div>
 
-            {/* Watched Items Preview */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center">
                     <Heart className="w-5 h-5 mr-2" />
-                    Watched Items
+                    Recently Watched
                   </span>
-                  <Button variant="outline" size="sm">View All</Button>
+                  <Button variant="ghost" size="sm">View All</Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -241,55 +303,25 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
+          {/* Other Tabs */}
           <TabsContent value="bids" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="font-playfair text-2xl font-bold">My Bids</h2>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Browse Auctions
-              </Button>
-            </div>
-            {activeBids.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {activeBids.map((auction) => (
-                  <AuctionCard key={auction.id} {...auction} />
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground">You haven't placed any bids yet.</p>
-                  <Button className="mt-4">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Start Bidding
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+            {/* Bids content */}
           </TabsContent>
           
           <TabsContent value="watching" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="font-playfair text-2xl font-bold">Watched Items</h2>
-              <Button variant="outline">
-                <Settings className="w-4 h-4 mr-2" />
-                Notification Settings
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {watchedItems.map((auction) => (
-                <AuctionCard key={auction.id} {...auction} />
-              ))}
-            </div>
+            {/* Watching content */}
           </TabsContent>
           
           <TabsContent value="collection" className="space-y-6">
-            <h2 className="font-playfair text-2xl font-bold">My Collection</h2>
             <Card>
-              <CardContent className="p-8 text-center">
-                <p className="text-muted-foreground">Your collection will appear here once you win your first auction.</p>
-                <Button className="mt-4">
+              <CardContent className="text-center py-12">
+                <User className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-xl font-semibold mb-2">Your collection is empty</h3>
+                <p className="text-muted-foreground mb-6">
+                  Items you win will appear here
+                </p>
+                <Button>
                   <Plus className="w-4 h-4 mr-2" />
                   Browse Auctions
                 </Button>
@@ -298,46 +330,7 @@ const Dashboard = () => {
           </TabsContent>
           
           <TabsContent value="activity" className="space-y-6">
-            <h2 className="font-playfair text-2xl font-bold">Activity History</h2>
-            <Card>
-              <CardContent className="p-6">
-                <div className="space-y-4">
-                  {recentActivity.map((activity, index) => (
-                    <div key={index} className="flex items-center justify-between border-b pb-4">
-                      <div className="flex items-center space-x-4">
-                        <div className={`w-3 h-3 rounded-full ${
-                          activity.type === 'win' ? 'bg-green-500' :
-                          activity.type === 'bid' && activity.status === 'outbid' ? 'bg-red-500' :
-                          'bg-blue-500'
-                        }`} />
-                        <div>
-                          <p className="font-medium">
-                            {activity.type === 'bid' ? 'Bid placed' :
-                             activity.type === 'win' ? 'Auction won' :
-                             'Item watched'} on {activity.item}
-                          </p>
-                          {activity.amount && (
-                            <p className="text-sm text-muted-foreground">${activity.amount}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-sm text-muted-foreground">{activity.time}</span>
-                        {activity.status && (
-                          <Badge className="ml-2" variant={
-                            activity.status === 'won' ? 'default' :
-                            activity.status === 'outbid' ? 'destructive' :
-                            'secondary'
-                          }>
-                            {activity.status}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Activity content */}
           </TabsContent>
         </Tabs>
       </div>
