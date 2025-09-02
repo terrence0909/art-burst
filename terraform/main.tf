@@ -1,3 +1,6 @@
+# -------------------------
+# S3 Bucket for ArtBurst
+# -------------------------
 resource "aws_s3_bucket" "art_burst" {
   bucket = "art-burst"
   tags = {
@@ -37,12 +40,15 @@ resource "aws_s3_bucket_public_access_block" "art_burst_access" {
   restrict_public_buckets = true
 }
 
+# -------------------------
 # Cognito User Pool
+# -------------------------
 resource "aws_cognito_user_pool" "artburst_user_pool" {
   name                     = "artburst-user-pool"
   auto_verified_attributes = ["email"]
 
-  alias_attributes = ["email", "preferred_username"]
+  # ✅ Use email as username
+  username_attributes = ["email"]
 
   schema {
     name                = "given_name"
@@ -59,11 +65,11 @@ resource "aws_cognito_user_pool" "artburst_user_pool" {
   }
 
   password_policy {
-    minimum_length    = 8
-    require_lowercase = true
-    require_numbers   = true
-    require_symbols   = true
-    require_uppercase = true
+    minimum_length                   = 8
+    require_lowercase                = true
+    require_numbers                  = true
+    require_symbols                  = true
+    require_uppercase                = true
     temporary_password_validity_days = 7
   }
 
@@ -87,12 +93,16 @@ resource "aws_cognito_user_pool" "artburst_user_pool" {
   }
 }
 
+# -------------------------
+# Cognito User Pool Client
+# -------------------------
 resource "aws_cognito_user_pool_client" "artburst_user_pool_client" {
   name         = "artburst-app-client"
   user_pool_id = aws_cognito_user_pool.artburst_user_pool.id
 
   explicit_auth_flows = [
     "ALLOW_USER_PASSWORD_AUTH",
+    "ALLOW_USER_SRP_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH"
   ]
 
@@ -108,31 +118,30 @@ resource "aws_cognito_user_pool_client" "artburst_user_pool_client" {
   access_token_validity  = 60
   id_token_validity      = 60
   refresh_token_validity = 30
-
-  allowed_oauth_flows_user_pool_client = true
-  allowed_oauth_flows  = ["implicit", "code"]
-  allowed_oauth_scopes = ["email", "openid", "profile"]
-  callback_urls        = ["https://your-app-domain.com/callback"]
-  logout_urls          = ["https://your-app-domain.com/logout"]
 }
 
+# -------------------------
+# Cognito Domain
+# -------------------------
 resource "aws_cognito_user_pool_domain" "artburst_domain" {
   domain       = "artburst-auth"
   user_pool_id = aws_cognito_user_pool.artburst_user_pool.id
 }
 
-# Modern IAM role configuration
+# -------------------------
+# IAM Role for Lambda
+# -------------------------
 resource "aws_iam_role" "lambda_exec_role" {
   name = "artburst_lambda_exec_role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [ {
+    Statement = [{
       Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
         Service = "lambda.amazonaws.com"
       }
-    } ]
+    }]
   })
 }
 
@@ -141,14 +150,13 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# Cognito access policy
 resource "aws_iam_role_policy" "lambda_cognito_access" {
   name = "lambda_cognito_access"
   role = aws_iam_role.lambda_exec_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [ {
+    Statement = [{
       Effect = "Allow"
       Action = [
         "cognito-idp:AdminInitiateAuth",
@@ -157,6 +165,7 @@ resource "aws_iam_role_policy" "lambda_cognito_access" {
         "cognito-idp:AdminGetUser"
       ]
       Resource = aws_cognito_user_pool.artburst_user_pool.arn
-    } ]
+    }]
   })
 }
+

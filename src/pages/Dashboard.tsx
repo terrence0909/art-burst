@@ -1,19 +1,28 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser, fetchUserAttributes, signOut } from "aws-amplify/auth";
-import { User, Heart, Gavel, Plus, Settings, TrendingUp, Clock, DollarSign, LogOut } from "lucide-react";
+import {
+  User,
+  Heart,
+  Gavel,
+  Plus,
+  Settings,
+  TrendingUp,
+  Clock,
+  DollarSign,
+  LogOut,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { AuctionCard } from "@/components/AuctionCard";
 
 // Image imports with TypeScript support
-const artwork1 = "/images/artwork-1.jpeg";
-const artwork2 = "/images/artwork-2.jpeg";
-const artwork3 = "/images/artwork-3.jpeg";
+const artwork1 = "/assets/artwork-1.jpeg";
+const artwork2 = "/assets/artwork-2.jpeg";
+const artwork3 = "/assets/artwork-3.jpeg";
 
 interface Auction {
   id: string;
@@ -51,7 +60,6 @@ interface UserData {
 }
 
 const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -70,8 +78,8 @@ const Dashboard = () => {
       status: "live",
       location: "San Francisco, CA",
       distance: "2.3 miles",
-      isWinning: false
-    }
+      isWinning: false,
+    },
   ]);
 
   const [watchedItems, setWatchedItems] = useState<Auction[]>([
@@ -84,12 +92,18 @@ const Dashboard = () => {
       image: artwork2,
       status: "upcoming",
       location: "Oakland, CA",
-      distance: "8.1 miles"
-    }
+      distance: "8.1 miles",
+    },
   ]);
 
   const [recentActivity, setRecentActivity] = useState<Activity[]>([
-    { type: "bid", item: "Abstract Cityscape", amount: 1800, time: "2 hours ago", status: "outbid" }
+    {
+      type: "bid",
+      item: "Abstract Cityscape",
+      amount: 1800,
+      time: "2 hours ago",
+      status: "outbid",
+    },
   ]);
 
   // Fetch user data with Amplify v6
@@ -98,18 +112,22 @@ const Dashboard = () => {
       try {
         const { username } = await getCurrentUser();
         const attributes = await fetchUserAttributes();
-        
+
         setUser({
-          name: `${attributes.given_name || 'User'} ${attributes.family_name || ''}`.trim(),
+          name: `${attributes.given_name || "User"} ${
+            attributes.family_name || ""
+          }`.trim(),
           email: attributes.email || username,
-          profileImage: attributes.picture || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face",
+          profileImage:
+            attributes.picture ||
+            "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face",
           memberSince: new Date().getFullYear().toString(),
           stats: {
             activeBids: activeBids.length,
             watchedItems: watchedItems.length,
             totalSpent: 24500,
-            itemsWon: 8
-          }
+            itemsWon: 8,
+          },
         });
       } catch (err) {
         setError("You need to sign in to access this page");
@@ -150,19 +168,23 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <div className="container mx-auto px-4 py-8">
         {/* Welcome Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
           <div className="flex items-center space-x-4">
-            <img 
-              src={user.profileImage} 
+            <img
+              src={user.profileImage}
               alt={user.name}
               className="w-16 h-16 rounded-full object-cover border-2 border-accent"
             />
             <div>
-              <h1 className="font-playfair text-2xl font-bold">Welcome back, {user.name.split(" ")[0]}!</h1>
-              <p className="text-muted-foreground">Member since {user.memberSince}</p>
+              <h1 className="font-playfair text-2xl font-bold">
+                Welcome back, {user.name.split(" ")[0]}!
+              </h1>
+              <p className="text-muted-foreground">
+                Member since {user.memberSince}
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -196,7 +218,9 @@ const Dashboard = () => {
           <Card>
             <CardContent className="p-4 text-center">
               <DollarSign className="w-8 h-8 mx-auto mb-2 text-accent" />
-              <p className="text-2xl font-bold">${user.stats.totalSpent.toLocaleString()}</p>
+              <p className="text-2xl font-bold">
+                R {user.stats.totalSpent.toLocaleString()}
+              </p>
               <p className="text-sm text-muted-foreground">Total Spent</p>
             </CardContent>
           </Card>
@@ -218,7 +242,7 @@ const Dashboard = () => {
             <TabsTrigger value="collection">Collection</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
-          
+
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -258,25 +282,39 @@ const Dashboard = () => {
                 <CardContent>
                   <div className="space-y-3">
                     {recentActivity.map((activity, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg transition-colors">
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg transition-colors"
+                      >
                         <div className="flex items-center space-x-3">
-                          <div className={`w-2 h-2 rounded-full ${
-                            activity.type === 'win' ? 'bg-green-500' :
-                            activity.status === 'outbid' ? 'bg-red-500' :
-                            'bg-blue-500'
-                          }`} />
+                          <div
+                            className={`w-2 h-2 rounded-full ${
+                              activity.type === "win"
+                                ? "bg-green-500"
+                                : activity.status === "outbid"
+                                ? "bg-red-500"
+                                : "bg-blue-500"
+                            }`}
+                          />
                           <div>
                             <p className="text-sm font-medium">
-                              {activity.type === 'bid' ? 'Bid placed' :
-                               activity.type === 'win' ? 'Auction won' :
-                               'Item watched'} on {activity.item}
+                              {activity.type === "bid"
+                                ? "Bid placed"
+                                : activity.type === "win"
+                                ? "Auction won"
+                                : "Item watched"}{" "}
+                              on {activity.item}
                             </p>
                             {activity.amount && (
-                              <p className="text-xs text-muted-foreground">${activity.amount.toLocaleString()}</p>
+                              <p className="text-xs text-muted-foreground">
+                                R {activity.amount.toLocaleString()}
+                              </p>
                             )}
                           </div>
                         </div>
-                        <span className="text-xs text-muted-foreground">{activity.time}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {activity.time}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -291,7 +329,9 @@ const Dashboard = () => {
                     <Heart className="w-5 h-5 mr-2" />
                     Recently Watched
                   </span>
-                  <Button variant="ghost" size="sm">View All</Button>
+                  <Button variant="ghost" size="sm">
+                    View All
+                  </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -308,16 +348,18 @@ const Dashboard = () => {
           <TabsContent value="bids" className="space-y-6">
             {/* Bids content */}
           </TabsContent>
-          
+
           <TabsContent value="watching" className="space-y-6">
             {/* Watching content */}
           </TabsContent>
-          
+
           <TabsContent value="collection" className="space-y-6">
             <Card>
               <CardContent className="text-center py-12">
                 <User className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-xl font-semibold mb-2">Your collection is empty</h3>
+                <h3 className="text-xl font-semibold mb-2">
+                  Your collection is empty
+                </h3>
                 <p className="text-muted-foreground mb-6">
                   Items you win will appear here
                 </p>
@@ -328,7 +370,7 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="activity" className="space-y-6">
             {/* Activity content */}
           </TabsContent>
