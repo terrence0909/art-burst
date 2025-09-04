@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getCurrentUser, fetchUserAttributes, signOut } from "aws-amplify/auth";
+import { getCurrentUser, fetchUserAttributes } from "aws-amplify/auth";
 import {
   User,
   Heart,
@@ -10,7 +10,6 @@ import {
   TrendingUp,
   Clock,
   DollarSign,
-  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,6 +79,19 @@ const Dashboard = () => {
       distance: "2.3 miles",
       isWinning: false,
     },
+    {
+      id: "3",
+      title: "Ocean Reflections",
+      artist: "David Kim",
+      currentBid: 3200,
+      myBid: 3200,
+      timeRemaining: "5h 20m",
+      image: artwork3,
+      status: "live",
+      location: "Santa Cruz, CA",
+      distance: "45.2 miles",
+      isWinning: true,
+    },
   ]);
 
   const [watchedItems, setWatchedItems] = useState<Auction[]>([
@@ -94,6 +106,17 @@ const Dashboard = () => {
       location: "Oakland, CA",
       distance: "8.1 miles",
     },
+    {
+      id: "4",
+      title: "Mountain Majesty",
+      artist: "Sarah Johnson",
+      currentBid: 1800,
+      timeRemaining: "3d 4h",
+      image: artwork1,
+      status: "upcoming",
+      location: "Lake Tahoe, CA",
+      distance: "125.7 miles",
+    },
   ]);
 
   const [recentActivity, setRecentActivity] = useState<Activity[]>([
@@ -103,6 +126,25 @@ const Dashboard = () => {
       amount: 1800,
       time: "2 hours ago",
       status: "outbid",
+    },
+    {
+      type: "watch",
+      item: "Coastal Dreams",
+      time: "5 hours ago",
+    },
+    {
+      type: "win",
+      item: "Vintage Portrait",
+      amount: 2200,
+      time: "1 day ago",
+      status: "won",
+    },
+    {
+      type: "bid",
+      item: "Modern Abstract",
+      amount: 1500,
+      time: "2 days ago",
+      status: "active",
     },
   ]);
 
@@ -131,7 +173,7 @@ const Dashboard = () => {
         });
       } catch (err) {
         setError("You need to sign in to access this page");
-        navigate("/signin");
+        navigate("/auth");
       } finally {
         setLoading(false);
       }
@@ -140,18 +182,9 @@ const Dashboard = () => {
     fetchUser();
   }, []);
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      navigate("/signin");
-    } catch (err) {
-      setError("Failed to sign out. Please try again.");
-    }
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent"></div>
       </div>
     );
@@ -159,8 +192,13 @@ const Dashboard = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-red-500">{error || "User data not available"}</p>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error || "User data not available"}</p>
+          <Button onClick={() => navigate("/auth")}>
+            Go to Sign In
+          </Button>
+        </div>
       </div>
     );
   }
@@ -188,10 +226,6 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={handleSignOut}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </Button>
             <Button variant="outline">
               <Settings className="w-4 h-4 mr-2" />
               Account Settings
@@ -284,7 +318,7 @@ const Dashboard = () => {
                     {recentActivity.map((activity, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg transition-colors"
+                        className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg transition-colors"
                       >
                         <div className="flex items-center space-x-3">
                           <div
@@ -344,15 +378,65 @@ const Dashboard = () => {
             </Card>
           </TabsContent>
 
-          {/* Other Tabs */}
+          {/* Bids Tab */}
           <TabsContent value="bids" className="space-y-6">
-            {/* Bids content */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Gavel className="w-5 h-5 mr-2" />
+                  All Active Bids
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {activeBids.length > 0 ? (
+                  <div className="space-y-4">
+                    {activeBids.map((auction) => (
+                      <AuctionCard key={auction.id} {...auction} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground mb-4">No active bids</p>
+                    <Button>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Browse Auctions
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
+          {/* Watching Tab */}
           <TabsContent value="watching" className="space-y-6">
-            {/* Watching content */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Heart className="w-5 h-5 mr-2" />
+                  Watched Items
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {watchedItems.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {watchedItems.map((auction) => (
+                      <AuctionCard key={auction.id} {...auction} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground mb-4">No watched items</p>
+                    <Button>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Browse Auctions
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
+          {/* Collection Tab */}
           <TabsContent value="collection" className="space-y-6">
             <Card>
               <CardContent className="text-center py-12">
@@ -367,12 +451,60 @@ const Dashboard = () => {
                   <Plus className="w-4 h-4 mr-2" />
                   Browse Auctions
                 </Button>
-              </CardContent>
+                </CardContent>
             </Card>
           </TabsContent>
 
+          {/* Activity Tab */}
           <TabsContent value="activity" className="space-y-6">
-            {/* Activity content */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Clock className="w-5 h-5 mr-2" />
+                  All Activity
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {recentActivity.map((activity, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            activity.type === "win"
+                              ? "bg-green-500"
+                              : activity.status === "outbid"
+                              ? "bg-red-500"
+                              : "bg-blue-500"
+                          }`}
+                        />
+                        <div>
+                          <p className="text-sm font-medium">
+                            {activity.type === "bid"
+                              ? "Bid placed"
+                              : activity.type === "win"
+                              ? "Auction won"
+                              : "Item watched"}{" "}
+                            on {activity.item}
+                          </p>
+                          {activity.amount && (
+                            <p className="text-xs text-muted-foreground">
+                              R {activity.amount.toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {activity.time}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
