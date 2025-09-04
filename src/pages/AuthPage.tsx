@@ -1,184 +1,107 @@
-// src/pages/AuthPage.tsx
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  signUp,
-  signIn,
-  signOut,
-  confirmSignUp,
-  getCurrentUser,
-} from "@aws-amplify/auth";
+// src/AuthPage.tsx
+import React, { useState } from 'react';
+import { signIn } from 'aws-amplify/auth'; // <-- Specific import from auth module
+import { Link, useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-export default function AuthPage() {
-  const [activeTab, setActiveTab] = useState<"signup" | "signin" | "verify">("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [confirmationCode, setConfirmationCode] = useState("");
-  const [error, setError] = useState("");
-  const [tempUsername, setTempUsername] = useState("");
+const AuthPage: React.FC = () => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  // ✅ Redirect if already logged in
-  useEffect(() => {
-    async function checkUser() {
-      try {
-        const user = await getCurrentUser();
-        if (user) navigate("/dashboard");
-      } catch {
-        // not signed in
-      }
-    }
-    checkUser();
-  }, [navigate]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
+  const handleSignIn = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError('');
 
     try {
-      if (activeTab === "signup") {
-        // ✅ Sign Up
-        const result = await signUp({
-          username: email,
-          password,
-          options: {
-            userAttributes: {
-              email,
-              given_name: firstName,
-              family_name: lastName,
-            },
-          },
-        });
-
-        console.log("SignUp result:", result);
-
-        if (result.nextStep.signUpStep === "CONFIRM_SIGN_UP") {
-          setTempUsername(email);
-          setActiveTab("verify");
-        } else {
-          await signIn({ username: email, password });
-          navigate("/dashboard");
-        }
-
-      } else if (activeTab === "verify") {
-        // ✅ Confirm Code
-        await confirmSignUp(tempUsername, confirmationCode);
-        await signIn({ username: tempUsername, password });
-        navigate("/dashboard");
-
-      } else if (activeTab === "signin") {
-        // ✅ Sign In
-        try {
-          await getCurrentUser();
-          await signOut(); // prevent double sessions
-        } catch {}
-        await signIn({ username: email, password });
-        navigate("/dashboard");
-      }
-    } catch (err: any) {
-      console.error("Auth error:", err);
-      setError(err.message || "Something went wrong");
+      // Use the directly imported signIn function
+      const user = await signIn({ 
+        username, 
+        password 
+      });
+      console.log('Sign in successful:', user);
+      navigate('/dashboard'); // Redirect on success
+    } catch (err) {
+      console.error('Error signing in:', err);
+      // Handle specific error types if needed
+      setError(err instanceof Error ? err.message : 'An error occurred during sign in');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
-      <div className="bg-gray-800 p-8 rounded-2xl shadow-lg w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-6 text-center">Auth Page</h1>
-
-        {/* Toggle Tabs */}
-        <div className="flex justify-center gap-4 mb-6">
-          <button
-            className={`px-4 py-2 rounded-lg ${activeTab === "signin" ? "bg-blue-600" : "bg-gray-700"}`}
-            onClick={() => setActiveTab("signin")}
-          >
-            Sign In
-          </button>
-          <button
-            className={`px-4 py-2 rounded-lg ${activeTab === "signup" ? "bg-blue-600" : "bg-gray-700"}`}
-            onClick={() => setActiveTab("signup")}
-          >
-            Sign Up
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {activeTab === "signup" && (
-            <>
-              <input
-                type="text"
-                placeholder="First Name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="p-2 rounded bg-gray-700"
-                required
-              />
-              <input
-                type="text"
-                placeholder="Last Name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className="p-2 rounded bg-gray-700"
-                required
-              />
-            </>
-          )}
-
-          {(activeTab === "signup" || activeTab === "signin") && (
-            <>
-              <input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="p-2 rounded bg-gray-700"
-                required
-              />
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="p-2 rounded bg-gray-700"
-                required
-              />
-            </>
-          )}
-
-          {activeTab === "verify" && (
-            <input
-              type="text"
-              placeholder="Verification Code"
-              value={confirmationCode}
-              onChange={(e) => setConfirmationCode(e.target.value)}
-              className="p-2 rounded bg-gray-700"
-              required
-            />
-          )}
-
-          <button type="submit" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg">
-            {activeTab === "signup" ? "Sign Up" : activeTab === "signin" ? "Sign In" : "Verify"}
-          </button>
-        </form>
-
-        {error && <p className="text-red-400 text-sm mt-4">{error}</p>}
-
-        {activeTab === "signin" && (
-          <p className="mt-4 text-sm text-center">
-            Don’t have an account?{" "}
-            <button
-              type="button"
-              className="text-blue-400 hover:underline"
-              onClick={() => setActiveTab("signup")}
-            >
-              Sign Up
-            </button>
-          </p>
-        )}
+    <div className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10">
+      <div className="w-full max-w-sm">
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-xl">Welcome to ArtBurst</CardTitle>
+            <CardDescription>
+              Sign in to your account
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSignIn}>
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder="Enter your username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Password</Label>
+                    <Link
+                      to="/forgot-password"
+                      className="text-xs text-muted-foreground hover:underline"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                {error && (
+                  <div className="text-sm font-medium text-destructive">
+                    {error}
+                  </div>
+                )}
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? 'Signing in...' : 'Sign in'}
+                </Button>
+              </div>
+            </form>
+            <div className="mt-4 text-center text-sm">
+              Don't have an account?{' '}
+              <Link to="/signup" className="text-primary underline-offset-4 hover:underline">
+                Sign up
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
-}
+};
+
+export default AuthPage;

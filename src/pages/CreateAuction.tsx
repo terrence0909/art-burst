@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Upload, X, MapPin, Calendar, DollarSign, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,25 +11,197 @@ import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
+interface AuctionFormData {
+  title: string;
+  description: string;
+  medium: string;
+  year: string;
+  dimensions: {
+    width: string;
+    height: string;
+    depth: string;
+  };
+  startingBid: string;
+  reservePrice: string;
+  startDate: string;
+  endDate: string;
+  bidIncrement: string;
+  location: string;
+  shippingOptions: {
+    localPickup: boolean;
+    shippingAvailable: boolean;
+  };
+  shippingCost: string;
+}
+
 const CreateAuction = () => {
+  const navigate = useNavigate();
   const [images, setImages] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const [formData, setFormData] = useState<AuctionFormData>({
+    title: "",
+    description: "",
+    medium: "",
+    year: new Date().getFullYear().toString(),
+    dimensions: {
+      width: "",
+      height: "",
+      depth: ""
+    },
+    startingBid: "",
+    reservePrice: "",
+    startDate: "",
+    endDate: "",
+    bidIncrement: "100",
+    location: "",
+    shippingOptions: {
+      localPickup: true,
+      shippingAvailable: false
+    },
+    shippingCost: ""
+  });
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleDimensionChange = (dimension: keyof AuctionFormData['dimensions'], value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      dimensions: {
+        ...prev.dimensions,
+        [dimension]: value
+      }
+    }));
+  };
+
+  const handleShippingOptionChange = (option: keyof AuctionFormData['shippingOptions'], checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      shippingOptions: {
+        ...prev.shippingOptions,
+        [option]: checked
+      }
+    }));
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files) {
-      // In a real app, you'd upload to a server and get URLs back
+    if (files && files.length + images.length <= 8) {
       Array.from(files).forEach(file => {
+        if (!file.type.startsWith('image/')) {
+          setError("Please select image files only");
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          setError("Images must be less than 5MB");
+          return;
+        }
+
         const reader = new FileReader();
         reader.onload = (e) => {
           setImages(prev => [...prev, e.target?.result as string]);
+          setError("");
         };
         reader.readAsDataURL(file);
       });
+    } else if (files && files.length + images.length > 8) {
+      setError("Maximum 8 images allowed");
     }
   };
 
   const removeImage = (index: number) => {
     setImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const validateForm = (): boolean => {
+    if (!formData.title.trim()) {
+      setError("Please enter an artwork title");
+      return false;
+    }
+    if (!formData.description.trim()) {
+      setError("Please enter a description");
+      return false;
+    }
+    if (!formData.startingBid || parseFloat(formData.startingBid) <= 0) {
+      setError("Please enter a valid starting bid");
+      return false;
+    }
+    if (images.length === 0) {
+      setError("Please upload at least one image");
+      return false;
+    }
+    if (!formData.startDate || !formData.endDate) {
+      setError("Please set auction start and end dates");
+      return false;
+    }
+    if (new Date(formData.endDate) <= new Date(formData.startDate)) {
+      setError("Auction end date must be after start date");
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    if (!validateForm()) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Prepare auction data
+      const auctionData = {
+        ...formData,
+        images,
+        artistId: "current-user",  // Placeholder
+        artistName: "Your Name",   // Placeholder
+        status: "draft",
+        createdAt: new Date().toISOString()
+      };
+
+      console.log("Submitting auction:", auctionData);
+
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Success - redirect to dashboard
+      navigate("/dashboard");
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create auction");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    setLoading(true);
+    try {
+      const auctionData = {
+        ...formData,
+        images,
+        artistId: "current-user",  // Placeholder
+        status: "draft",
+        createdAt: new Date().toISOString()
+      };
+
+      console.log("Saving draft:", auctionData);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      navigate("/dashboard");
+    } catch (err) {
+      setError("Failed to save draft");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -41,326 +214,398 @@ const CreateAuction = () => {
           <p className="text-muted-foreground">Share your art with local collectors and art enthusiasts</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Form */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Artwork Images */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <ImageIcon className="w-5 h-5 mr-2" />
-                  Artwork Images
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {images.map((image, index) => (
-                    <div key={index} className="relative group">
-                      <img 
-                        src={image} 
-                        alt={`Artwork ${index + 1}`}
-                        className="w-full h-32 object-cover rounded-lg"
-                      />
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => removeImage(index)}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                      {index === 0 && (
-                        <Badge className="absolute bottom-2 left-2">Primary</Badge>
-                      )}
-                    </div>
-                  ))}
-                  
-                  <label className="w-full h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-accent transition-colors">
-                    <Upload className="w-8 h-8 text-muted-foreground mb-2" />
-                    <span className="text-sm text-muted-foreground">Add Image</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      multiple 
-                      className="hidden"
-                      onChange={handleImageUpload}
-                    />
-                  </label>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Upload up to 8 high-quality images. The first image will be your primary image.
-                </p>
-              </CardContent>
-            </Card>
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-700">{error}</p>
+          </div>
+        )}
 
-            {/* Basic Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Basic Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Artwork Title</Label>
-                  <Input 
-                    id="title" 
-                    placeholder="Enter the title of your artwork"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea 
-                    id="description" 
-                    placeholder="Describe your artwork, inspiration, technique, and any other relevant details..."
-                    rows={4}
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Main Form */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Artwork Images */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <ImageIcon className="w-5 h-5 mr-2" />
+                    Artwork Images
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {images.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <img 
+                          src={image} 
+                          alt={`Artwork ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeImage(index)}
+                          type="button"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                        {index === 0 && (
+                          <Badge className="absolute bottom-2 left-2">Primary</Badge>
+                        )}
+                      </div>
+                    ))}
+                    
+                    {images.length < 8 && (
+                      <label className="w-full h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-accent transition-colors">
+                        <Upload className="w-8 h-8 text-muted-foreground mb-2" />
+                        <span className="text-sm text-muted-foreground">Add Image</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          multiple 
+                          className="hidden"
+                          onChange={handleImageUpload}
+                        />
+                      </label>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Upload up to 8 high-quality images. The first image will be your primary image.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Basic Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Basic Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="medium">Medium</Label>
-                    <Select>
+                    <Label htmlFor="title">Artwork Title *</Label>
+                    <Input 
+                      id="title" 
+                      placeholder="Enter the title of your artwork"
+                      value={formData.title}
+                      onChange={(e) => handleInputChange('title', e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description *</Label>
+                    <Textarea 
+                      id="description" 
+                      placeholder="Describe your artwork, inspiration, technique, and any other relevant details..."
+                      rows={4}
+                      value={formData.description}
+                      onChange={(e) => handleInputChange('description', e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="medium">Medium</Label>
+                      <Select 
+                        value={formData.medium} 
+                        onValueChange={(value) => handleInputChange('medium', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select medium" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="oil">Oil on Canvas</SelectItem>
+                          <SelectItem value="acrylic">Acrylic on Canvas</SelectItem>
+                          <SelectItem value="watercolor">Watercolor</SelectItem>
+                          <SelectItem value="mixed">Mixed Media</SelectItem>
+                          <SelectItem value="digital">Digital Art</SelectItem>
+                          <SelectItem value="photography">Photography</SelectItem>
+                          <SelectItem value="sculpture">Sculpture</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="year">Year Created</Label>
+                      <Input 
+                        id="year" 
+                        type="number" 
+                        placeholder="2024"
+                        min="1900"
+                        max="2030"
+                        value={formData.year}
+                        onChange={(e) => handleInputChange('year', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="width">Width (inches)</Label>
+                      <Input 
+                        id="width" 
+                        type="number" 
+                        placeholder="24"
+                        value={formData.dimensions.width}
+                        onChange={(e) => handleDimensionChange('width', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="height">Height (inches)</Label>
+                      <Input 
+                        id="height" 
+                        type="number" 
+                        placeholder="36"
+                        value={formData.dimensions.height}
+                        onChange={(e) => handleDimensionChange('height', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="depth">Depth (inches)</Label>
+                      <Input 
+                        id="depth" 
+                        type="number" 
+                        placeholder="1.5"
+                        value={formData.dimensions.depth}
+                        onChange={(e) => handleDimensionChange('depth', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Auction Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <DollarSign className="w-5 h-5 mr-2" />
+                    Auction Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="startingBid">Starting Bid (R) *</Label>
+                      <Input 
+                        id="startingBid" 
+                        type="number" 
+                        placeholder="500"
+                        min="1"
+                        value={formData.startingBid}
+                        onChange={(e) => handleInputChange('startingBid', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="reservePrice">Reserve Price (R)</Label>
+                      <Input 
+                        id="reservePrice" 
+                        type="number" 
+                        placeholder="1000"
+                        value={formData.reservePrice}
+                        onChange={(e) => handleInputChange('reservePrice', e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">Minimum price you'll accept (optional)</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="startDate">Auction Start *</Label>
+                      <Input 
+                        id="startDate" 
+                        type="datetime-local"
+                        value={formData.startDate}
+                        onChange={(e) => handleInputChange('startDate', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="endDate">Auction End *</Label>
+                      <Input 
+                        id="endDate" 
+                        type="datetime-local"
+                        value={formData.endDate}
+                        onChange={(e) => handleInputChange('endDate', e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="bidIncrement">Bid Increment (R)</Label>
+                    <Select 
+                      value={formData.bidIncrement} 
+                      onValueChange={(value) => handleInputChange('bidIncrement', value)}
+                    >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select medium" />
+                        <SelectValue placeholder="Select bid increment" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="oil">Oil on Canvas</SelectItem>
-                        <SelectItem value="acrylic">Acrylic on Canvas</SelectItem>
-                        <SelectItem value="watercolor">Watercolor</SelectItem>
-                        <SelectItem value="mixed">Mixed Media</SelectItem>
-                        <SelectItem value="digital">Digital Art</SelectItem>
-                        <SelectItem value="photography">Photography</SelectItem>
-                        <SelectItem value="sculpture">Sculpture</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
+                        <SelectItem value="25">R25</SelectItem>
+                        <SelectItem value="50">R50</SelectItem>
+                        <SelectItem value="100">R100</SelectItem>
+                        <SelectItem value="250">R250</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Location & Shipping */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <MapPin className="w-5 h-5 mr-2" />
+                    Location & Shipping
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Artwork Location</Label>
+                    <Input 
+                      id="location" 
+                      placeholder="Bloemfontein, SA"
+                      value={formData.location}
+                      onChange={(e) => handleInputChange('location', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This helps local buyers find your artwork
+                    </p>
+                  </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="year">Year Created</Label>
-                    <Input 
-                      id="year" 
-                      type="number" 
-                      placeholder="2024"
-                      min="1900"
-                      max="2030"
-                    />
+                    <Label>Shipping Options</Label>
+                    <div className="space-y-2">
+                      <label className="flex items-center space-x-2">
+                        <input 
+                          type="checkbox" 
+                          className="rounded" 
+                          checked={formData.shippingOptions.localPickup}
+                          onChange={(e) => handleShippingOptionChange('localPickup', e.target.checked)}
+                        />
+                        <span className="text-sm">Local pickup available</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input 
+                          type="checkbox" 
+                          className="rounded" 
+                          checked={formData.shippingOptions.shippingAvailable}
+                          onChange={(e) => handleShippingOptionChange('shippingAvailable', e.target.checked)}
+                        />
+                        <span className="text-sm">Shipping available</span>
+                      </label>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="width">Width (inches)</Label>
-                    <Input 
-                      id="width" 
-                      type="number" 
-                      placeholder="24"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="height">Height (inches)</Label>
-                    <Input 
-                      id="height" 
-                      type="number" 
-                      placeholder="36"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="depth">Depth (inches)</Label>
-                    <Input 
-                      id="depth" 
-                      type="number" 
-                      placeholder="1.5"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Auction Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <DollarSign className="w-5 h-5 mr-2" />
-                  Auction Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="startingBid">Starting Bid (R)</Label>
-                    <Input 
-                      id="startingBid" 
-                      type="number" 
-                      placeholder="500"
-                      min="1"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reservePrice">Reserve Price (R)</Label>
-                    <Input 
-                      id="reservePrice" 
-                      type="number" 
-                      placeholder="1000"
-                    />
-                    <p className="text-xs text-muted-foreground">Minimum price you'll accept (optional)</p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="startDate">Auction Start</Label>
-                    <Input 
-                      id="startDate" 
-                      type="datetime-local"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="endDate">Auction End</Label>
-                    <Input 
-                      id="endDate" 
-                      type="datetime-local"
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="bidIncrement">Bid Increment (R)</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select bid increment" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="25">R25</SelectItem>
-                      <SelectItem value="50">R50</SelectItem>
-                      <SelectItem value="100">R100</SelectItem>
-                      <SelectItem value="250">R250</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Location & Shipping */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <MapPin className="w-5 h-5 mr-2" />
-                  Location & Shipping
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="location">Artwork Location</Label>
-                  <Input 
-                    id="location" 
-                    placeholder="Bloemfontein, SA"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    This helps local buyers find your artwork
-                  </p>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Shipping Options</Label>
-                  <div className="space-y-2">
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" className="rounded" />
-                      <span className="text-sm">Local pickup available</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" className="rounded" />
-                      <span className="text-sm">Shipping available</span>
-                    </label>
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="shippingCost">Shipping Cost (R)</Label>
-                  <Input 
-                    id="shippingCost" 
-                    type="number" 
-                    placeholder="50"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Preview & Summary */}
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Preview</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {images.length > 0 ? (
-                  <img 
-                    src={images[0]} 
-                    alt="Artwork preview"
-                    className="w-full h-48 object-cover rounded-lg frame-luxury"
-                  />
-                ) : (
-                  <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center">
-                    <ImageIcon className="w-12 h-12 text-muted-foreground" />
-                  </div>
-                )}
-                <div className="mt-4 space-y-2">
-                  <h3 className="font-semibold">Artwork Title</h3>
-                  <p className="text-sm text-muted-foreground">by Your Name</p>
-                  <p className="text-lg font-bold text-accent">Starting at R500</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Listing Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span>Listing Fee</span>
-                  <span>R0</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Success Fee</span>
-                  <span>5% of final price</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Payment Processing</span>
-                  <span>2.9% + R0.30</span>
-                </div>
-                <div className="border-t pt-2">
-                  <div className="flex justify-between font-semibold">
-                    <span>You'll receive</span>
-                    <span>~92% of final price</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-3">
-              <Button className="w-full btn-primary">
-                Publish Auction
-              </Button>
-              <Button variant="outline" className="w-full">
-                Save as Draft
-              </Button>
+                  
+                  {formData.shippingOptions.shippingAvailable && (
+                    <div className="space-y-2">
+                      <Label htmlFor="shippingCost">Shipping Cost (R)</Label>
+                      <Input 
+                        id="shippingCost" 
+                        type="number" 
+                        placeholder="50"
+                        value={formData.shippingCost}
+                        onChange={(e) => handleInputChange('shippingCost', e.target.value)}
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
 
-            <Card>
-              <CardContent className="p-4">
-                <h4 className="font-semibold mb-2">Tips for Success</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Use high-quality, well-lit photos</li>
-                  <li>• Write detailed descriptions</li>
-                  <li>• Set competitive starting prices</li>
-                  <li>• Respond quickly to buyer questions</li>
-                </ul>
-              </CardContent>
-            </Card>
+            {/* Preview & Summary */}
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Preview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {images.length > 0 ? (
+                    <img 
+                      src={images[0]} 
+                      alt="Artwork preview"
+                      className="w-full h-48 object-cover rounded-lg frame-luxury"
+                    />
+                  ) : (
+                    <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center">
+                      <ImageIcon className="w-12 h-12 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="mt-4 space-y-2">
+                    <h3 className="font-semibold">{formData.title || "Artwork Title"}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      by {"Your Name"}  {/* Placeholder instead of user data */}
+                    </p>
+                    <p className="text-lg font-bold text-accent">
+                      Starting at R{formData.startingBid || "500"}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Listing Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span>Listing Fee</span>
+                    <span>R0</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Success Fee</span>
+                    <span>5% of final price</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Payment Processing</span>
+                    <span>2.9% + R0.30</span>
+                  </div>
+                  <div className="border-t pt-2">
+                    <div className="flex justify-between font-semibold">
+                      <span>You'll receive</span>
+                      <span>~92% of final price</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="space-y-3">
+                <Button 
+                  type="submit" 
+                  className="w-full btn-primary"
+                  disabled={loading}
+                >
+                  {loading ? "Publishing..." : "Publish Auction"}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={handleSaveDraft}
+                  disabled={loading}
+                >
+                  {loading ? "Saving..." : "Save as Draft"}
+                </Button>
+              </div>
+
+              <Card>
+                <CardContent className="p-4">
+                  <h4 className="font-semibold mb-2">Tips for Success</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• Use high-quality, well-lit photos</li>
+                    <li>• Write detailed descriptions</li>
+                    <li>• Set competitive starting prices</li>
+                    <li>• Respond quickly to buyer questions</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
+        </form>
       </div>
 
       <Footer />
