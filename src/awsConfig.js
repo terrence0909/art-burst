@@ -1,27 +1,32 @@
-// src/awsConfig.js
 const awsConfig = {
-  // LEGACY STYLE - Add these top-level properties
-  aws_project_region: 'us-east-1',
-  aws_cognito_region: 'us-east-1',
-  aws_user_pools_id: 'us-east-1_yI7aBwAHv',
-  aws_user_pools_web_client_id: '7umintgt7opk611rtf4qc72pa4',
-  
-  // KEEP the modern format too for compatibility
+  // Legacy style (for compatibility)
+  aws_project_region: import.meta.env.VITE_AWS_REGION,
+  aws_cognito_region: import.meta.env.VITE_AWS_REGION,
+  aws_user_pools_id: import.meta.env.VITE_COGNITO_USER_POOL_ID,
+  aws_user_pools_web_client_id: import.meta.env.VITE_COGNITO_CLIENT_ID,
+
+  // Modern Amplify configuration
   Auth: {
-    region: 'us-east-1',
-    userPoolId: 'us-east-1_yI7aBwAHv',
-    userPoolWebClientId: '7umintgt7opk611rtf4qc72pa4',
-    authenticationFlowType: 'USER_PASSWORD_AUTH'
+    region: import.meta.env.VITE_AWS_REGION,
+    userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID,
+    userPoolWebClientId: import.meta.env.VITE_COGNITO_CLIENT_ID,
+    authenticationFlowType: 'USER_PASSWORD_AUTH',
   },
   API: {
     endpoints: [
       {
         name: 'artburst-api',
-        endpoint: 'https://a43a4dtk0l.execute-api.us-east-1.amazonaws.com/prod',
-        region: 'us-east-1'
-      }
-    ]
-  }
+        endpoint: import.meta.env.VITE_API_BASE_URL,
+        region: import.meta.env.VITE_AWS_REGION,
+      },
+    ],
+  },
+  Storage: {
+    AWSS3: {
+      bucket: import.meta.env.VITE_S3_BUCKET,
+      region: import.meta.env.VITE_AWS_REGION,
+    },
+  },
 };
 
 export default awsConfig;

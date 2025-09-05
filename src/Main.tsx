@@ -1,4 +1,3 @@
-// src/main.tsx
 import { Amplify } from 'aws-amplify';
 import awsConfig from './awsConfig.js';
 import React from 'react';
@@ -7,7 +6,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.tsx';
 import './index.css';
 
-// Configure Amplify - now it should work with your updated awsConfig.js
+// Configure Amplify
 Amplify.configure(awsConfig);
 
 createRoot(document.getElementById('root') as HTMLElement).render(
