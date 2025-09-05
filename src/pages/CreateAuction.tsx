@@ -1,3 +1,4 @@
+// src/pages/CreateAuction.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Upload, X, MapPin, Calendar, DollarSign, Image as ImageIcon } from "lucide-react";
@@ -10,6 +11,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+
+// AWS Amplify v6 imports
+import { getCurrentUser } from "aws-amplify/auth";
+import { generateClient } from "aws-amplify/api";
+import { uploadData } from "aws-amplify/storage";
+import { Amplify } from "aws-amplify";
+import awsConfig from "../awsConfig.js";
+
+// Configure Amplify
+Amplify.configure(awsConfig);
+
+// Generate API client
+const client = generateClient();
 
 interface AuctionFormData {
   title: string;
@@ -34,9 +48,41 @@ interface AuctionFormData {
   shippingCost: string;
 }
 
+interface AuctionItem {
+  id: string;
+  title: string;
+  description: string;
+  medium: string;
+  year: string;
+  dimensions: {
+    width: string;
+    height: string;
+    depth: string;
+  };
+  startingBid: number;
+  reservePrice?: number;
+  currentBid?: number;
+  startDate: string;
+  endDate: string;
+  bidIncrement: number;
+  location: string;
+  shippingOptions: {
+    localPickup: boolean;
+    shippingAvailable: boolean;
+  };
+  shippingCost?: number;
+  images: string[];
+  artistId: string;
+  artistName: string;
+  status: "draft" | "active" | "completed" | "cancelled";
+  createdAt: string;
+  updatedAt: string;
+}
+
 const CreateAuction = () => {
   const navigate = useNavigate();
   const [images, setImages] = useState<string[]>([]);
+  const [uploadedImageKeys, setUploadedImageKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -90,33 +136,57 @@ const CreateAuction = () => {
     }));
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files && files.length + images.length <= 8) {
-      Array.from(files).forEach(file => {
+    if (!files) return;
+
+    if (files.length + images.length > 8) {
+      setError("Maximum 8 images allowed");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      for (let file of Array.from(files)) {
         if (!file.type.startsWith('image/')) {
           setError("Please select image files only");
-          return;
+          continue;
         }
         if (file.size > 5 * 1024 * 1024) {
           setError("Images must be less than 5MB");
-          return;
+          continue;
         }
 
+        // Upload to S3
+        const key = `auctions/${Date.now()}_${file.name}`;
+        await uploadData({
+          key: key,
+          data: file,
+          options: {
+            contentType: file.type
+          }
+        }).result;
+
+        // Store both the data URL for preview and the S3 key for database
         const reader = new FileReader();
         reader.onload = (e) => {
           setImages(prev => [...prev, e.target?.result as string]);
+          setUploadedImageKeys(prev => [...prev, key]);
           setError("");
         };
         reader.readAsDataURL(file);
-      });
-    } else if (files && files.length + images.length > 8) {
-      setError("Maximum 8 images allowed");
+      }
+    } catch (err) {
+      setError("Failed to upload images");
+      console.error("Image upload error:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const removeImage = (index: number) => {
     setImages(prev => prev.filter((_, i) => i !== index));
+    setUploadedImageKeys(prev => prev.filter((_, i) => i !== index));
   };
 
   const validateForm = (): boolean => {
@@ -158,26 +228,60 @@ const CreateAuction = () => {
     }
 
     try {
+      // Get current user
+      const user = await getCurrentUser();
+      
       // Prepare auction data
       const auctionData = {
-        ...formData,
-        images,
-        artistId: "current-user",  // Placeholder
-        artistName: "Your Name",   // Placeholder
-        status: "draft",
-        createdAt: new Date().toISOString()
+        title: formData.title,
+        description: formData.description,
+        medium: formData.medium,
+        year: formData.year,
+        dimensions: {
+          width: parseFloat(formData.dimensions.width) || 0,
+          height: parseFloat(formData.dimensions.height) || 0,
+          depth: parseFloat(formData.dimensions.depth) || 0
+        },
+        startingBid: parseFloat(formData.startingBid),
+        reservePrice: formData.reservePrice ? parseFloat(formData.reservePrice) : undefined,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        bidIncrement: parseFloat(formData.bidIncrement),
+        location: formData.location,
+        shippingOptions: formData.shippingOptions,
+        shippingCost: formData.shippingCost ? parseFloat(formData.shippingCost) : undefined,
+        images: uploadedImageKeys,
+        artistId: user.userId,
+        artistName: user.username || "Unknown Artist",
+        status: "active" as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
       console.log("Submitting auction:", auctionData);
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      // Create auction using REST API
+      const response = await fetch(`${awsConfig.API.endpoints[0].endpoint}/auctions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(auctionData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create auction: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log("Auction created successfully:", result);
+
       // Success - redirect to dashboard
       navigate("/dashboard");
       
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create auction");
+      console.error("Error creating auction:", err);
     } finally {
       setLoading(false);
     }
@@ -186,19 +290,56 @@ const CreateAuction = () => {
   const handleSaveDraft = async () => {
     setLoading(true);
     try {
+      // Get current user
+      const user = await getCurrentUser();
+      
       const auctionData = {
-        ...formData,
-        images,
-        artistId: "current-user",  // Placeholder
-        status: "draft",
-        createdAt: new Date().toISOString()
+        title: formData.title,
+        description: formData.description,
+        medium: formData.medium,
+        year: formData.year,
+        dimensions: {
+          width: parseFloat(formData.dimensions.width) || 0,
+          height: parseFloat(formData.dimensions.height) || 0,
+          depth: parseFloat(formData.dimensions.depth) || 0
+        },
+        startingBid: parseFloat(formData.startingBid),
+        reservePrice: formData.reservePrice ? parseFloat(formData.reservePrice) : undefined,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        bidIncrement: parseFloat(formData.bidIncrement),
+        location: formData.location,
+        shippingOptions: formData.shippingOptions,
+        shippingCost: formData.shippingCost ? parseFloat(formData.shippingCost) : undefined,
+        images: uploadedImageKeys,
+        artistId: user.userId,
+        status: "draft" as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
       console.log("Saving draft:", auctionData);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Save draft using REST API
+      const response = await fetch(`${awsConfig.API.endpoints[0].endpoint}/auctions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(auctionData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save draft: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log("Draft saved successfully:", result);
+
       navigate("/dashboard");
     } catch (err) {
       setError("Failed to save draft");
+      console.error("Error saving draft:", err);
     } finally {
       setLoading(false);
     }
@@ -538,7 +679,7 @@ const CreateAuction = () => {
                   <div className="mt-4 space-y-2">
                     <h3 className="font-semibold">{formData.title || "Artwork Title"}</h3>
                     <p className="text-sm text-muted-foreground">
-                      by {"Your Name"}  {/* Placeholder instead of user data */}
+                      by {"Your Name"}
                     </p>
                     <p className="text-lg font-bold text-accent">
                       Starting at R{formData.startingBid || "500"}
