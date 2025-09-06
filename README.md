@@ -1,73 +1,156 @@
-# Welcome to your Lovable project
+# ArtBurst - Local Art Auction Platform
 
-## Project info
+ArtBurst is a modern web application that connects local artists with art enthusiasts through an engaging auction platform. Built with React, TypeScript, and AWS serverless infrastructure.
 
-**URL**: https://lovable.dev/projects/0f2b3451-ae70-482c-adb3-053233393120
+## 🚀 Live Demo
 
-## How can I edit this code?
+**Production URL**: coming soon... 
+**API Endpoint**: https://v3w12ytklh.execute-api.us-east-1.amazonaws.com/prod
 
-There are several ways of editing your application.
+## ✨ Features
 
-**Use Lovable**
+- 🎨 **Artwork Listings**: Create beautiful listings with multiple images
+- ⚡ **Real-time Bidding**: Live auction experience with bid updates
+- 📱 **Responsive Design**: Mobile-first design that works on all devices
+- 🔐 **Secure Authentication**: AWS Cognito user management
+- 🖼️ **Image Optimization**: Automatic image compression and CDN delivery
+- 🌍 **Local Focus**: Connect with artists in your community
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/0f2b3451-ae70-482c-adb3-053233393120) and start prompting.
+## 🛠️ Technology Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+### Frontend
+- **Vite** - Next-generation frontend tooling
+- **React 18** with TypeScript
+- **shadcn/ui** - Beautifully designed components
+- **Tailwind CSS** - Utility-first CSS framework
+- **AWS Amplify** - Frontend cloud services
 
-**Use your preferred IDE**
+### Backend
+- **AWS API Gateway** - RESTful API management
+- **AWS Lambda** - Serverless functions (Node.js 18.x)
+- **Amazon DynamoDB** - NoSQL database
+- **Amazon S3** - File storage with presigned URLs
+- **Terraform** - Infrastructure as Code
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🏗️ Project Structure
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+Art-Burst/
+├── src/                    # React frontend source
+│   ├── api/               # API client and utilities
+│   ├── components/        # Reusable React components
+│   ├── pages/            # Page components
+│   └── types/            # TypeScript definitions
+├── lambdas/              # AWS Lambda functions
+├── terraform/            # Infrastructure configuration
+└── docs/                 # Project documentation
 ```
 
-**Edit a file directly in GitHub**
+## 🚀 Getting Started
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Prerequisites
+- Node.js 18+ and npm
+- AWS Account with appropriate permissions
+- Git
 
-**Use GitHub Codespaces**
+### Local Development
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/terrence0909/Art-Burst.git
+   cd Art-Burst
+   ```
 
-## What technologies are used for this project?
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-This project is built with:
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   # Add your AWS and API configuration
+   ```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+4. **Start development server**
+   ```bash
+   npm run dev
+   ```
 
-## How can I deploy this project?
+5. **Open in browser**
+   Navigate to `http://localhost:8080`
 
-Simply open [Lovable](https://lovable.dev/projects/0f2b3451-ae70-482c-adb3-053233393120) and click on Share -> Publish.
+### AWS Deployment
 
-## Can I connect a custom domain to my Lovable project?
+1. **Set up AWS credentials**
+   ```bash
+   aws configure
+   ```
 
-Yes, you can!
+2. **Deploy infrastructure**
+   ```bash
+   cd terraform
+   terraform init
+   terraform apply
+   ```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+3. **Deploy frontend**
+   ```bash
+   npm run build
+   aws s3 sync dist/ s3://art-burst
+   ```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## 📋 Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run test` - Run test suite
+- `npm run lint` - Run ESLint
+
+## 🔧 Configuration
+
+### Environment Variables
+```env
+VITE_API_BASE_URL=https://v3w12ytklh.execute-api.us-east-1.amazonaws.com/prod
+VITE_AWS_REGION=us-east-1
+VITE_S3_BUCKET=art-burst
+VITE_USER_POOL_ID=us-east-1_XXXXXXXXX
+VITE_USER_POOL_CLIENT_ID=XXXXXXXXXXXXXX
+```
+
+## 🎯 Key Implementation Details
+
+- **Presigned URLs**: Secure temporary access to private S3 objects
+- **CORS Configuration**: Properly configured for API Gateway and S3
+- **Error Handling**: Comprehensive error handling throughout the stack
+- **Type Safety**: Full TypeScript implementation front to back
+- **Responsive Design**: Mobile-first responsive UI components
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+
+## 🆘 Support
+
+For support and questions:
+- 📧 Email: support@artburst.com
+- 🐛 [Issue Tracker](https://github.com/terrence0909/Art-Burst/issues)
+
+## 🙏 Acknowledgments
+
+- UI components by [shadcn/ui](https://ui.shadcn.com)
+- Icons by [Lucide](https://lucide.dev)
+- Deployment by [AWS](https://aws.amazon.com)
+
+---
+
+**ArtBurst** - Bringing local art communities together through technology 🎨
