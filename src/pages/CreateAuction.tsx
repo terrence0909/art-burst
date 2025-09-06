@@ -1,4 +1,3 @@
-// src/pages/CreateAuction.tsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Upload, X, MapPin, Calendar, DollarSign, Image as ImageIcon } from "lucide-react";
@@ -176,7 +175,7 @@ const CreateAuction = () => {
           continue;
         }
         if (file.size > 5 * 1024 * 1024) {
-          setError("Images must be less than 5MB");
+      setError("Images must be less than 5MB");
           continue;
         }
 
@@ -304,8 +303,16 @@ const CreateAuction = () => {
       const result = await response.json();
       console.log("Auction created successfully:", result);
 
-      // Success - redirect to dashboard
-      navigate("/dashboard");
+      // FIXED: Redirect to the new auction details page instead of dashboard
+      if (result.id) {
+        navigate(`/auction/${result.id}`); // Redirect to auction details
+      } else if (result.auctionId) {
+        navigate(`/auction/${result.auctionId}`); // Try different ID field names
+      } else {
+        // Fallback: redirect to dashboard if no ID is returned
+        console.warn("No auction ID returned from API, redirecting to dashboard");
+        navigate("/dashboard");
+      }
       
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create auction");
@@ -368,7 +375,14 @@ const CreateAuction = () => {
       const result = await response.json();
       console.log("Draft saved successfully:", result);
 
-      navigate("/dashboard");
+      // FIXED: Redirect to the draft auction or dashboard
+      if (result.id) {
+        navigate(`/auction/${result.id}`);
+      } else if (result.auctionId) {
+        navigate(`/auction/${result.auctionId}`);
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save draft");
       console.error("Error saving draft:", err);
@@ -589,7 +603,7 @@ const CreateAuction = () => {
                     <div className="space-y-2">
                       <Label htmlFor="startDate">Auction Start *</Label>
                       <Input 
-                                                id="startDate" 
+                        id="startDate" 
                         type="datetime-local"
                         value={formData.startDate}
                         onChange={(e) => handleInputChange('startDate', e.target.value)}
@@ -797,5 +811,4 @@ const CreateAuction = () => {
   );
 };
 
-export default CreateAuction; 
-                        
+export default CreateAuction;

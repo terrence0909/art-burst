@@ -1,62 +1,104 @@
-import { useParams } from "react-router-dom";
-import { ArrowLeft, Heart, Share2, Clock, Users, MapPin } from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { fetchAuctionById } from "@/api/auctions";
+import { ArrowLeft, Heart, Share2, Clock, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import artwork1 from "@/assets/artwork-1.jpeg";
 
+// ----------------------
+// TypeScript interfaces
+// ----------------------
+interface Bid {
+  amount: number;
+  bidder: string;
+  time: string;
+}
+
+interface Auction {
+  id: string;
+  title: string;
+  artist: string;
+  description: string;
+  currentBid?: number; // Made optional
+  bidIncrement: number;
+  timeRemaining: string;
+  image: string;
+  status: "live" | "upcoming" | "ended";
+  location: string;
+  distance: string;
+  totalBids: number;
+  watchers: number;
+  medium: string;
+  dimensions: string;
+  year: string;
+  condition?: string;
+  bidHistory?: Bid[];
+  startingBid?: number; // Added startingBid for fallback
+}
+
+// ----------------------
+// Component
+// ----------------------
 const AuctionDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const [auction, setAuction] = useState<Auction | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Mock auction data - would come from API
-  const auction = {
-    id: id,
-    title: "Sunset Over Silicon Valley",
-    artist: "Maria Rodriguez",
-    description: "A vibrant oil painting capturing the golden hour over the tech capital of the world. This piece represents the intersection of nature and innovation, painted from the artist's studio overlooking the valley.",
-    currentBid: 2450,
-    startingBid: 500,
-    bidIncrement: 50,
-    timeRemaining: "2h 45m",
-    endTime: "2024-03-15T18:00:00Z",
-    image: artwork1,
-    status: "live",
-    location: "San Francisco, CA",
-    distance: "2.3 miles",
-    dimensions: "24\" x 36\"",
-    medium: "Oil on Canvas",
-    year: "2024",
-    totalBids: 23,
-    watchers: 47,
-    condition: "Excellent",
-    provenance: "Direct from artist's studio",
-    bidHistory: [
-      { amount: 2450, bidder: "Anonymous", time: "2 minutes ago" },
-      { amount: 2400, bidder: "ArtLover123", time: "5 minutes ago" },
-      { amount: 2350, bidder: "CollectorSF", time: "12 minutes ago" },
-    ]
+  // Fetch auction data
+  useEffect(() => {
+    const loadAuction = async () => {
+      setLoading(true);
+      try {
+        const data = await fetchAuctionById(id!);
+        console.log("Raw API response:", data); // Debug logging
+        if (!data) throw new Error("Auction not found");
+        setAuction(data);
+      } catch (err: any) {
+        setError(err.message || "Failed to load auction");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAuction();
+  }, [id]);
+
+  // Placeholder for bidding
+  const handlePlaceBid = () => {
+    const currentBid = auction?.currentBid || auction?.startingBid || 0;
+    alert(`Bid submitted for R${currentBid + auction?.bidIncrement!}`);
+    // TODO: Connect to API to place bid
   };
+
+  if (loading) return <p className="text-center mt-10">Loading auction...</p>;
+  if (error) return <p className="text-center mt-10 text-red-500">{error}</p>;
+  if (!auction) return <p className="text-center mt-10">No auction details available.</p>;
+
+  const currentBid = auction.currentBid || auction.startingBid || 0;
+  const nextMinBid = currentBid + auction.bidIncrement;
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <div className="container mx-auto px-4 py-8">
         {/* Back Button */}
-        <Button variant="ghost" className="mb-6">
+        <Button variant="ghost" className="mb-6" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Auctions
         </Button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Artwork Image */}
+          {/* Artwork */}
           <div className="space-y-4">
             <div className="relative">
-              <img 
-                src={auction.image} 
+              <img
+                src={auction.image}
                 alt={auction.title}
                 className="w-full rounded-lg shadow-luxury frame-luxury"
               />
@@ -64,8 +106,7 @@ const AuctionDetails = () => {
                 {auction.status === "live" ? "Live Auction" : "Upcoming"}
               </Badge>
             </div>
-            
-            {/* Action Buttons */}
+
             <div className="flex space-x-2">
               <Button variant="outline" size="sm">
                 <Heart className="w-4 h-4 mr-2" />
@@ -78,8 +119,9 @@ const AuctionDetails = () => {
             </div>
           </div>
 
-          {/* Auction Details */}
+          {/* Auction Info */}
           <div className="space-y-6">
+            {/* Title & Artist */}
             <div>
               <h1 className="font-playfair text-3xl font-bold mb-2">{auction.title}</h1>
               <p className="text-lg text-muted-foreground">by {auction.artist}</p>
@@ -95,7 +137,9 @@ const AuctionDetails = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Current Bid</p>
-                    <p className="text-3xl font-bold text-accent">R{auction.currentBid.toLocaleString()}</p>
+                    <p className="text-3xl font-bold text-accent">
+                      R{currentBid.toLocaleString()}
+                    </p>
                   </div>
                   <div className="text-right">
                     <div className="flex items-center text-accent">
@@ -106,24 +150,25 @@ const AuctionDetails = () => {
                   </div>
                 </div>
 
-                {/* Bidding Interface */}
                 <div className="space-y-3">
                   <div className="flex space-x-2">
-                    <Input 
-                      placeholder={`Min bid: $${(auction.currentBid + auction.bidIncrement).toLocaleString()}`}
+                    <Input
+                      placeholder={`Min bid: R${nextMinBid.toLocaleString()}`}
                       className="flex-1"
                     />
-                    <Button className="btn-primary">Place Bid</Button>
+                    <Button className="btn-primary" onClick={handlePlaceBid}>
+                      Place Bid
+                    </Button>
                   </div>
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>{auction.totalBids} bids</span>
-                    <span>Next min: R{(auction.currentBid + auction.bidIncrement).toLocaleString()}</span>
+                    <span>Next min: R{nextMinBid.toLocaleString()}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Artwork Info */}
+            {/* Artwork Details */}
             <Card>
               <CardContent className="p-6">
                 <h3 className="font-semibold mb-4">Artwork Details</h3>
@@ -142,7 +187,7 @@ const AuctionDetails = () => {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Condition</p>
-                    <p className="font-medium">{auction.condition}</p>
+                    <p className="font-medium">{auction.condition || "N/A"}</p>
                   </div>
                 </div>
                 <div className="mt-4">
@@ -157,15 +202,18 @@ const AuctionDetails = () => {
               <CardContent className="p-6">
                 <h3 className="font-semibold mb-4">Recent Bids</h3>
                 <div className="space-y-3">
-                  {auction.bidHistory.map((bid, index) => (
+                  {auction.bidHistory?.map((bid, index) => (
                     <div key={index} className="flex justify-between items-center">
-                      <div>   
+                      <div>
                         <p className="font-medium">R{bid.amount.toLocaleString()}</p>
                         <p className="text-sm text-muted-foreground">{bid.bidder}</p>
                       </div>
                       <p className="text-sm text-muted-foreground">{bid.time}</p>
                     </div>
                   ))}
+                  {(!auction.bidHistory || auction.bidHistory.length === 0) && (
+                    <p className="text-muted-foreground text-center">No bids yet</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -179,4 +227,3 @@ const AuctionDetails = () => {
 };
 
 export default AuctionDetails;
-
