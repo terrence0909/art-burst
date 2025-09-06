@@ -1,8 +1,9 @@
 # -------------------------
-# S3 Bucket for ArtBurst
+# S3 Bucket
 # -------------------------
 resource "aws_s3_bucket" "art_burst" {
   bucket = var.s3_bucket_name
+
   tags = {
     Name        = "ArtBurst Storage"
     Environment = "Production"
@@ -11,6 +12,7 @@ resource "aws_s3_bucket" "art_burst" {
 
 resource "aws_s3_bucket_versioning" "art_burst_versioning" {
   bucket = aws_s3_bucket.art_burst.id
+
   versioning_configuration {
     status = "Enabled"
   }
@@ -18,6 +20,7 @@ resource "aws_s3_bucket_versioning" "art_burst_versioning" {
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "art_burst_encryption" {
   bucket = aws_s3_bucket.art_burst.id
+
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
@@ -27,17 +30,39 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "art_burst_encrypt
 
 resource "aws_s3_bucket_ownership_controls" "art_burst_ownership" {
   bucket = aws_s3_bucket.art_burst.id
+
   rule {
     object_ownership = "BucketOwnerEnforced"
   }
 }
 
 resource "aws_s3_bucket_public_access_block" "art_burst_access" {
-  bucket = aws_s3_bucket.art_burst.id
+  bucket                  = aws_s3_bucket.art_burst.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+# -------------------------
+# S3 Bucket CORS Configuration
+# -------------------------
+resource "aws_s3_bucket_cors_configuration" "art_burst_cors" {
+  bucket = aws_s3_bucket.art_burst.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["PUT", "POST", "GET", "DELETE", "HEAD"]
+    allowed_origins = [
+      "http://localhost:5173",
+      "http://localhost:3000",
+      "http://localhost:5174",
+      "http://localhost:4173",
+      "http://localhost:8080"
+    ]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
 }
 
 # -------------------------
@@ -107,15 +132,23 @@ resource "aws_cognito_user_pool_client" "artburst_user_pool_client" {
   generate_secret               = false
   prevent_user_existence_errors = "ENABLED"
 
+  # Corrected token validity
+  access_token_validity  = 60
+  id_token_validity      = 60
+  refresh_token_validity = 30
+
   token_validity_units {
     access_token  = "minutes"
     id_token      = "minutes"
     refresh_token = "days"
   }
 
-  access_token_validity  = 60
-  id_token_validity      = 60
-  refresh_token_validity = 30
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_flows                  = ["code", "implicit"]
+  allowed_oauth_scopes                 = ["email", "openid", "profile"]
+  callback_urls                        = ["http://localhost:5173/", "https://your-production-domain.com/"]
+  logout_urls                          = ["http://localhost:5173/logout", "https://your-production-domain.com/logout"]
+  supported_identity_providers         = ["COGNITO"]
 }
 
 # -------------------------
@@ -124,6 +157,103 @@ resource "aws_cognito_user_pool_client" "artburst_user_pool_client" {
 resource "aws_cognito_user_pool_domain" "artburst_domain" {
   domain       = "artburst-auth"
   user_pool_id = aws_cognito_user_pool.artburst_user_pool.id
+}
+
+# -------------------------
+# Cognito Identity Pool
+# -------------------------
+resource "aws_cognito_identity_pool" "artburst_identity_pool" {
+  identity_pool_name                = "artburst_identity_pool"
+  allow_unauthenticated_identities = false
+
+  cognito_identity_providers {
+    client_id               = aws_cognito_user_pool_client.artburst_user_pool_client.id
+    provider_name           = "cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.artburst_user_pool.id}"
+    server_side_token_check = false
+  }
+}
+
+# -------------------------
+# IAM Role for Cognito Authenticated Users
+# -------------------------
+resource "aws_iam_role" "cognito_authenticated_role" {
+  name = "ArtBurstCognitoAuthenticatedRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Effect = "Allow"
+        Principal = {
+          Federated = "cognito-identity.amazonaws.com"
+        }
+        Condition = {
+          StringEquals = {
+            "cognito-identity.amazonaws.com:aud" = aws_cognito_identity_pool.artburst_identity_pool.id
+          }
+          "ForAnyValue:StringLike" = {
+            "cognito-identity.amazonaws.com:amr" = "authenticated"
+          }
+        }
+      }
+    ]
+  })
+}
+
+# -------------------------
+# IAM Policy for S3 Access
+# -------------------------
+resource "aws_iam_policy" "cognito_s3_access" {
+  name        = "CognitoS3AccessPolicy"
+  description = "Allows Cognito users to access S3 bucket"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject",
+          "s3:PutObjectAcl"
+        ]
+        Resource = "${aws_s3_bucket.art_burst.arn}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket"
+        ]
+        Resource = aws_s3_bucket.art_burst.arn
+        Condition = {
+          StringLike = {
+            "s3:prefix" = ["*"]
+          }
+        }
+      }
+    ]
+  })
+}
+
+# -------------------------
+# Attach Policy to Role
+# -------------------------
+resource "aws_iam_role_policy_attachment" "cognito_s3_access" {
+  role       = aws_iam_role.cognito_authenticated_role.name
+  policy_arn = aws_iam_policy.cognito_s3_access.arn
+}
+
+# -------------------------
+# Identity Pool Role Attachment
+# -------------------------
+resource "aws_cognito_identity_pool_roles_attachment" "artburst_roles" {
+  identity_pool_id = aws_cognito_identity_pool.artburst_identity_pool.id
+
+  roles = {
+    "authenticated" = aws_iam_role.cognito_authenticated_role.arn
+  }
 }
 
 # -------------------------
@@ -139,6 +269,28 @@ resource "aws_dynamodb_table" "auctions" {
     type = "S"
   }
 
+  attribute {
+    name = "artistId"
+    type = "S"
+  }
+
+  attribute {
+    name = "status"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "ArtistIdIndex"
+    hash_key        = "artistId"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "StatusIndex"
+    hash_key        = "status"
+    projection_type = "ALL"
+  }
+
   tags = {
     Name = "ArtBurst Auctions Table"
   }
@@ -149,6 +301,7 @@ resource "aws_dynamodb_table" "auctions" {
 # -------------------------
 resource "aws_iam_role" "lambda_exec_role" {
   name = "artburst_lambda_exec_role"
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -179,9 +332,34 @@ resource "aws_iam_role_policy" "lambda_dynamodb_access" {
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:Scan",
-          "dynamodb:UpdateItem"
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+          "dynamodb:DeleteItem"
         ]
-        Resource = aws_dynamodb_table.auctions.arn
+        Resource = [
+          aws_dynamodb_table.auctions.arn,
+          "${aws_dynamodb_table.auctions.arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_s3_access" {
+  name = "lambda_s3_access"
+  role = aws_iam_role.lambda_exec_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = "${aws_s3_bucket.art_burst.arn}/*"
       }
     ]
   })
@@ -201,7 +379,8 @@ resource "aws_lambda_function" "create_auction" {
 
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.auctions.name
+      TABLE_NAME  = aws_dynamodb_table.auctions.name
+      BUCKET_NAME = aws_s3_bucket.art_burst.bucket
     }
   }
 }
@@ -220,6 +399,7 @@ resource "aws_api_gateway_resource" "auctions" {
   path_part   = "auctions"
 }
 
+# POST method
 resource "aws_api_gateway_method" "create_auction_post" {
   rest_api_id   = aws_api_gateway_rest_api.artburst_api.id
   resource_id   = aws_api_gateway_resource.auctions.id
@@ -228,10 +408,9 @@ resource "aws_api_gateway_method" "create_auction_post" {
 }
 
 resource "aws_api_gateway_integration" "create_auction_integration" {
-  rest_api_id = aws_api_gateway_rest_api.artburst_api.id
-  resource_id = aws_api_gateway_resource.auctions.id
-  http_method = aws_api_gateway_method.create_auction_post.http_method
-
+  rest_api_id             = aws_api_gateway_rest_api.artburst_api.id
+  resource_id             = aws_api_gateway_resource.auctions.id
+  http_method             = aws_api_gateway_method.create_auction_post.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.create_auction.invoke_arn
@@ -245,13 +424,71 @@ resource "aws_lambda_permission" "api_gateway_invoke" {
   source_arn    = "${aws_api_gateway_rest_api.artburst_api.execution_arn}/*/*"
 }
 
+# -------------------------
+# API Gateway Deployment
+# -------------------------
 resource "aws_api_gateway_deployment" "artburst_deployment" {
   rest_api_id = aws_api_gateway_rest_api.artburst_api.id
   depends_on  = [aws_api_gateway_integration.create_auction_integration]
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
+# -------------------------
+# API Gateway Stage
+# -------------------------
 resource "aws_api_gateway_stage" "prod" {
   rest_api_id   = aws_api_gateway_rest_api.artburst_api.id
   deployment_id = aws_api_gateway_deployment.artburst_deployment.id
   stage_name    = "prod"
+}
+
+# -------------------------
+# OPTIONS method for CORS
+# -------------------------
+resource "aws_api_gateway_method" "auctions_options" {
+  rest_api_id   = aws_api_gateway_rest_api.artburst_api.id
+  resource_id   = aws_api_gateway_resource.auctions.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "auctions_options_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.artburst_api.id
+  resource_id             = aws_api_gateway_resource.auctions.id
+  http_method             = aws_api_gateway_method.auctions_options.http_method
+  type                    = "MOCK"
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+
+  passthrough_behavior = "WHEN_NO_MATCH"
+}
+
+resource "aws_api_gateway_method_response" "auctions_options_response" {
+  rest_api_id = aws_api_gateway_rest_api.artburst_api.id
+  resource_id = aws_api_gateway_resource.auctions.id
+  http_method = aws_api_gateway_method.auctions_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "auctions_options_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.artburst_api.id
+  resource_id = aws_api_gateway_resource.auctions.id
+  http_method = aws_api_gateway_method.auctions_options.http_method
+  status_code = aws_api_gateway_method_response.auctions_options_response.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'*'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
 }

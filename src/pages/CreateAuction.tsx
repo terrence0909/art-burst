@@ -1,5 +1,5 @@
 // src/pages/CreateAuction.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Upload, X, MapPin, Calendar, DollarSign, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
 // AWS Amplify v6 imports
-import { getCurrentUser } from "aws-amplify/auth";
+import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { generateClient } from "aws-amplify/api";
 import { uploadData } from "aws-amplify/storage";
 import { Amplify } from "aws-amplify";
@@ -108,6 +108,29 @@ const CreateAuction = () => {
     },
     shippingCost: ""
   });
+
+  // Debug environment variables
+  useEffect(() => {
+    console.log('API Base URL:', import.meta.env.VITE_API_BASE_URL);
+    console.log('S3 Bucket:', import.meta.env.VITE_S3_BUCKET);
+    console.log('AWS Region:', import.meta.env.VITE_AWS_REGION);
+  }, []);
+
+  // Test S3 upload function
+  const testS3Upload = async () => {
+    try {
+      const testFile = new File(['test'], 'test.txt', { type: 'text/plain' });
+      const result = await uploadData({
+        key: `test/${Date.now()}_test.txt`,
+        data: testFile,
+      }).result;
+      console.log('✅ S3 upload successful:', result);
+      return true;
+    } catch (error) {
+      console.error('❌ S3 upload failed:', error);
+      return false;
+    }
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -228,8 +251,10 @@ const CreateAuction = () => {
     }
 
     try {
-      // Get current user
+      // Get current user and auth token
       const user = await getCurrentUser();
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString();
       
       // Prepare auction data
       const auctionData = {
@@ -258,19 +283,22 @@ const CreateAuction = () => {
         updatedAt: new Date().toISOString()
       };
 
-      console.log("Submitting auction:", auctionData);
+      console.log("Submitting auction to:", import.meta.env.VITE_API_BASE_URL);
+      console.log("Auction data:", auctionData);
 
-      // Create auction using REST API
-      const response = await fetch(`${awsConfig.API.endpoints[0].endpoint}/auctions`, {
+      // Create auction using REST API with authentication
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auctions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(idToken && { 'Authorization': `Bearer ${idToken}` })
         },
         body: JSON.stringify(auctionData)
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to create auction: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Failed to create auction: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const result = await response.json();
@@ -290,8 +318,10 @@ const CreateAuction = () => {
   const handleSaveDraft = async () => {
     setLoading(true);
     try {
-      // Get current user
+      // Get current user and auth token
       const user = await getCurrentUser();
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString();
       
       const auctionData = {
         title: formData.title,
@@ -318,19 +348,21 @@ const CreateAuction = () => {
         updatedAt: new Date().toISOString()
       };
 
-      console.log("Saving draft:", auctionData);
+      console.log("Saving draft to:", import.meta.env.VITE_API_BASE_URL);
 
-      // Save draft using REST API
-      const response = await fetch(`${awsConfig.API.endpoints[0].endpoint}/auctions`, {
+      // Save draft using REST API with authentication
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auctions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(idToken && { 'Authorization': `Bearer ${idToken}` })
         },
         body: JSON.stringify(auctionData)
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save draft: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Failed to save draft: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const result = await response.json();
@@ -338,7 +370,7 @@ const CreateAuction = () => {
 
       navigate("/dashboard");
     } catch (err) {
-      setError("Failed to save draft");
+      setError(err instanceof Error ? err.message : "Failed to save draft");
       console.error("Error saving draft:", err);
     } finally {
       setLoading(false);
@@ -557,7 +589,7 @@ const CreateAuction = () => {
                     <div className="space-y-2">
                       <Label htmlFor="startDate">Auction Start *</Label>
                       <Input 
-                        id="startDate" 
+                                                id="startDate" 
                         type="datetime-local"
                         value={formData.startDate}
                         onChange={(e) => handleInputChange('startDate', e.target.value)}
@@ -731,6 +763,17 @@ const CreateAuction = () => {
                 >
                   {loading ? "Saving..." : "Save as Draft"}
                 </Button>
+                
+                {/* Test button for debugging */}
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  className="w-full"
+                  onClick={testS3Upload}
+                  disabled={loading}
+                >
+                  Test S3 Connection
+                </Button>
               </div>
 
               <Card>
@@ -754,4 +797,5 @@ const CreateAuction = () => {
   );
 };
 
-export default CreateAuction;
+export default CreateAuction; 
+                        
