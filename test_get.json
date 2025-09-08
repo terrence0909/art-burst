@@ -1,0 +1,7 @@
+{
+  "httpMethod": "GET",
+  "path": "/auctions/sa_auc_001",
+  "pathParameters": {
+    "id": "sa_auc_001"
+  }
+}

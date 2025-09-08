@@ -74,9 +74,10 @@ exports.handler = async (event) => {
       const auctionId = event.pathParameters.id;
       console.log("Fetching auction ID:", auctionId);
 
+      // FIXED: Use 'id' as the key instead of 'auctionId'
       const result = await dynamo.get({
         TableName: TABLE_NAME,
-        Key: { auctionId: auctionId },
+        Key: { id: auctionId }, // CHANGED FROM: { auctionId: auctionId }
       }).promise();
 
       console.log("DynamoDB result:", JSON.stringify(result, null, 2));

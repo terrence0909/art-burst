@@ -1,0 +1,12 @@
+{
+  "httpMethod": "GET",
+  "path": "/auctions/sa_auc_001",
+  "pathParameters": {
+    "id": "sa_auc_001"
+  },
+  "resource": "/auctions/{id}",
+  "requestContext": {
+    "httpMethod": "GET",
+    "resourcePath": "/auctions/{id}"
+  }
+}

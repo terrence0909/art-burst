@@ -1,0 +1,6 @@
+{
+  "pathParameters": {
+    "id": "sa_auc_001"
+  },
+  "httpMethod": "GET"
+}
