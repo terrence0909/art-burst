@@ -68,7 +68,7 @@ export const AuctionCard = ({
           <div>
             <p className="text-xs text-muted-foreground">Current Bid</p>
             <p className="text-xl font-bold text-gradient">
-              R{currentBid.toLocaleString()}
+              R{currentBid?.toLocaleString() || '0'}
             </p>
           </div>
           <div className="text-right">
