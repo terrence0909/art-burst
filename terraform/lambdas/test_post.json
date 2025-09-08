@@ -1,5 +1,0 @@
-{
-  "httpMethod": "POST",
-  "path": "/auctions",
-  "body": "{\"title\": \"Test Auction\", \"startingBid\": 100}"
-}

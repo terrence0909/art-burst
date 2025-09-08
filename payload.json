@@ -1,6 +1,0 @@
-{
-  "httpMethod": "GET",
-  "path": "/auctions/test-id", 
-  "pathParameters": {"id": "test-id"},
-  "requestContext": {"httpMethod": "GET"}
-}
