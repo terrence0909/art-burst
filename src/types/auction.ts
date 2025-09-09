@@ -1,6 +1,7 @@
 export interface Auction {
   id: string;
   title: string;
+  artistName: string;
   artist: string;
   currentBid: number;
   timeRemaining: string;

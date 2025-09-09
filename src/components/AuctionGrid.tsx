@@ -148,7 +148,7 @@ export const AuctionGrid = () => {
                 key={auction.id}
                 id={auction.id}
                 title={auction.title}
-                artist={auction.artist}
+                artist={auction.artistName}
                 currentBid={auction.currentBid || auction.startingBid || 0}
                 timeRemaining={auction.timeRemaining}
                 location={auction.location || ""}
