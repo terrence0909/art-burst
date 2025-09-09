@@ -1,4 +1,4 @@
-// lambdas/index.js - COMPLETE FIXED VERSION
+// lambdas/index.js - COMPLETE UPDATED VERSION WITH FIXED BID FUNCTIONALITY
 const { v4: uuidv4 } = require("uuid");
 const AWS = require("aws-sdk");
 
@@ -69,6 +69,115 @@ exports.handler = async (event) => {
       };
     }
 
+    // ---- PLACE BID ----
+    if (event.httpMethod === "POST" && event.path === "/auctions/bid") {
+      console.log("Placing bid");
+      
+      // Validate request body
+      if (!body.auctionId || !body.bidAmount || !body.bidderId) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders(),
+          body: JSON.stringify({ message: "Missing required fields: auctionId, bidAmount, bidderId" }),
+        };
+      }
+
+      const { auctionId, bidAmount, bidderId } = body;
+
+      try {
+        // Get current auction - FIXED: Use auctionId as key
+        const auctionResult = await dynamo.get({
+          TableName: TABLE_NAME,
+          Key: { auctionId: auctionId }  // ✅ CORRECT: Using auctionId as primary key
+        }).promise();
+
+        if (!auctionResult.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders(),
+            body: JSON.stringify({ message: "Auction not found" }),
+          };
+        }
+
+        const auction = auctionResult.Item;
+
+        // Validate bid amount
+        const currentHighestBid = auction.currentBid || auction.startingBid;
+        if (bidAmount <= currentHighestBid) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders(),
+            body: JSON.stringify({ 
+              message: `Bid must be higher than current bid of R${currentHighestBid}` 
+            }),
+          };
+        }
+
+        // Create bid record (store in the same table with a bid prefix)
+        const bidId = uuidv4();
+        const bidItem = {
+          id: `bid#${bidId}`,
+          auctionId,
+          bidAmount,
+          bidderId,
+          bidTime: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          itemType: "bid" // Add type to distinguish from auctions
+        };
+
+        // ✅ FIXED: Update auction with new bid using correct syntax
+        await dynamo.update({
+          TableName: TABLE_NAME,
+          Key: { auctionId: auctionId },
+          UpdateExpression: 'SET currentBid = :bid, highestBidder = :bidder, updatedAt = :now ADD bidCount :inc',
+          ExpressionAttributeValues: {
+            ':bid': bidAmount,
+            ':bidder': bidderId,
+            ':inc': 1,  // ✅ FIXED: Using ADD operation with simple number
+            ':now': new Date().toISOString()
+          },
+          ConditionExpression: 'attribute_exists(auctionId)'
+        }).promise();
+
+        // Store bid record
+        await dynamo.put({
+          TableName: TABLE_NAME,
+          Item: bidItem
+        }).promise();
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders(),
+          body: JSON.stringify({ 
+            message: "Bid placed successfully",
+            bid: bidItem,
+            newBid: bidAmount
+          }),
+        };
+
+      } catch (error) {
+        console.error("Error placing bid:", error);
+        
+        if (error.code === "ConditionalCheckFailedException") {
+          return {
+            statusCode: 409,
+            headers: corsHeaders(),
+            body: JSON.stringify({ message: "Auction was modified concurrently. Please try again." }),
+          };
+        }
+        
+        return {
+          statusCode: 500,
+          headers: corsHeaders(),
+          body: JSON.stringify({ 
+            message: "Failed to place bid", 
+            error: error.message 
+          }),
+        };
+      }
+    }
+
     // ---- FETCH ALL AUCTIONS ----
     if (event.httpMethod === "GET" && event.path === "/auctions") {
       console.log("Fetching all auctions");
@@ -89,9 +198,12 @@ exports.handler = async (event) => {
           };
         }
         
+        // Filter out bid records and only return auctions
+        const auctions = result.Items.filter(item => !item.id.startsWith('bid#'));
+        
         // Generate presigned URLs for images in each auction
         const auctionsWithUrls = await Promise.all(
-          result.Items.map(async (auction) => {
+          auctions.map(async (auction) => {
             if (auction.images && auction.images.length > 0) {
               try {
                 const imageUrls = await Promise.all(
@@ -170,10 +282,10 @@ exports.handler = async (event) => {
       const auctionId = event.pathParameters.id;
       console.log("Fetching auction ID:", auctionId);
 
-      // Use 'id' as the key instead of 'auctionId'
+      // FIXED: Use 'auctionId' as the key instead of 'id'
       const result = await dynamo.get({
         TableName: TABLE_NAME,
-        Key: { id: auctionId },
+        Key: { auctionId: auctionId },  // ✅ CORRECT: Using auctionId as primary key
       }).promise();
 
       console.log("DynamoDB result:", JSON.stringify(result, null, 2));
@@ -291,7 +403,7 @@ function corsHeaders() {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
     "Access-Control-Allow-Credentials": true
   };
 }

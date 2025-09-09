@@ -257,15 +257,15 @@ resource "aws_cognito_identity_pool_roles_attachment" "artburst_roles" {
 }
 
 # -------------------------
-# DynamoDB Auctions Table
+# DynamoDB Auctions Table - CORRECTED
 # -------------------------
 resource "aws_dynamodb_table" "auctions" {
   name         = "artburst-auctions"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "auctionId"
+  hash_key     = "auctionId"  # This matches your actual table
 
   attribute {
-    name = "auctionId"
+    name = "auctionId"  # Changed from "id" to "auctionId"
     type = "S"
   }
 
@@ -357,16 +357,22 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
         Action = [
           "s3:GetObject",
           "s3:PutObject",
-          "s3:DeleteObject"
+          "s3:DeleteObject",
+          "s3:GetObjectVersion"  # Added for versioned buckets
         ]
         Resource = "${aws_s3_bucket.art_burst.arn}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = "s3:ListBucket"
+        Resource = aws_s3_bucket.art_burst.arn
       }
     ]
   })
 }
 
 # -------------------------
-# Lambda Function (Create Auction)
+# Lambda Function (Updated for multiple endpoints)
 # -------------------------
 resource "aws_lambda_function" "create_auction" {
   function_name = "createAuction"
@@ -374,7 +380,7 @@ resource "aws_lambda_function" "create_auction" {
   handler       = "index.handler"
   runtime       = "nodejs18.x"
 
-  filename         = "${path.module}/lambdas/createAuction.zip"
+  filename         = "${path.module}/lambdas/createAuction.zip"  
   source_code_hash = filebase64sha256("${path.module}/lambdas/createAuction.zip")
 
   environment {
@@ -383,6 +389,8 @@ resource "aws_lambda_function" "create_auction" {
       BUCKET_NAME = aws_s3_bucket.art_burst.bucket
     }
   }
+
+  timeout = 30  # Increased timeout for image processing
 }
 
 # -------------------------
@@ -399,13 +407,65 @@ resource "aws_api_gateway_resource" "auctions" {
   path_part   = "auctions"
 }
 
-# POST method
+# -------------------------
+# BID RESOURCE - NEW
+# -------------------------
+resource "aws_api_gateway_resource" "bid" {
+  rest_api_id = aws_api_gateway_rest_api.artburst_api.id
+  parent_id   = aws_api_gateway_resource.auctions.id
+  path_part   = "bid"
+}
+
+# -------------------------
+# SINGLE AUCTION RESOURCE - NEW
+# -------------------------
+resource "aws_api_gateway_resource" "auction" {
+  rest_api_id = aws_api_gateway_rest_api.artburst_api.id
+  parent_id   = aws_api_gateway_resource.auctions.id
+  path_part   = "{id}"
+}
+
+# -------------------------
+# METHODS
+# -------------------------
+
+# POST /auctions - Create auction
 resource "aws_api_gateway_method" "create_auction_post" {
   rest_api_id   = aws_api_gateway_rest_api.artburst_api.id
   resource_id   = aws_api_gateway_resource.auctions.id
   http_method   = "POST"
-  authorization = "NONE"
+  authorization = "COGNITO_USER_POOLS"  # Changed from NONE to require auth
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
 }
+
+# POST /auctions/bid - Place bid - NEW
+resource "aws_api_gateway_method" "bid_post" {
+  rest_api_id   = aws_api_gateway_rest_api.artburst_api.id
+  resource_id   = aws_api_gateway_resource.bid.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+# GET /auctions - List all auctions
+resource "aws_api_gateway_method" "auctions_get" {
+  rest_api_id   = aws_api_gateway_rest_api.artburst_api.id
+  resource_id   = aws_api_gateway_resource.auctions.id
+  http_method   = "GET"
+  authorization = "NONE"  # Public access for listing auctions
+}
+
+# GET /auctions/{id} - Get single auction - NEW
+resource "aws_api_gateway_method" "auction_get" {
+  rest_api_id   = aws_api_gateway_rest_api.artburst_api.id
+  resource_id   = aws_api_gateway_resource.auction.id
+  http_method   = "GET"
+  authorization = "NONE"  # Public access for viewing auctions
+}
+
+# -------------------------
+# INTEGRATIONS
+# -------------------------
 
 resource "aws_api_gateway_integration" "create_auction_integration" {
   rest_api_id             = aws_api_gateway_rest_api.artburst_api.id
@@ -416,6 +476,37 @@ resource "aws_api_gateway_integration" "create_auction_integration" {
   uri                     = aws_lambda_function.create_auction.invoke_arn
 }
 
+resource "aws_api_gateway_integration" "bid_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.artburst_api.id
+  resource_id             = aws_api_gateway_resource.bid.id
+  http_method             = aws_api_gateway_method.bid_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.create_auction.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "auctions_get_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.artburst_api.id
+  resource_id             = aws_api_gateway_resource.auctions.id
+  http_method             = aws_api_gateway_method.auctions_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.create_auction.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "auction_get_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.artburst_api.id
+  resource_id             = aws_api_gateway_resource.auction.id
+  http_method             = aws_api_gateway_method.auction_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.create_auction.invoke_arn
+}
+
+# -------------------------
+# LAMBDA PERMISSIONS
+# -------------------------
+
 resource "aws_lambda_permission" "api_gateway_invoke" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
@@ -425,11 +516,26 @@ resource "aws_lambda_permission" "api_gateway_invoke" {
 }
 
 # -------------------------
+# COGNITO AUTHORizER - NEW
+# -------------------------
+resource "aws_api_gateway_authorizer" "cognito" {
+  name          = "CognitoAuthorizer"
+  rest_api_id   = aws_api_gateway_rest_api.artburst_api.id
+  type          = "COGNITO_USER_POOLS"
+  provider_arns = [aws_cognito_user_pool.artburst_user_pool.arn]
+}
+
+# -------------------------
 # API Gateway Deployment
 # -------------------------
 resource "aws_api_gateway_deployment" "artburst_deployment" {
   rest_api_id = aws_api_gateway_rest_api.artburst_api.id
-  depends_on  = [aws_api_gateway_integration.create_auction_integration]
+  depends_on  = [
+    aws_api_gateway_integration.create_auction_integration,
+    aws_api_gateway_integration.bid_integration,
+    aws_api_gateway_integration.auctions_get_integration,
+    aws_api_gateway_integration.auction_get_integration
+  ]
 
   lifecycle {
     create_before_destroy = true
@@ -446,8 +552,10 @@ resource "aws_api_gateway_stage" "prod" {
 }
 
 # -------------------------
-# OPTIONS method for CORS
+# OPTIONS methods for CORS (for all endpoints)
 # -------------------------
+
+# OPTIONS /auctions
 resource "aws_api_gateway_method" "auctions_options" {
   rest_api_id   = aws_api_gateway_rest_api.artburst_api.id
   resource_id   = aws_api_gateway_resource.auctions.id
@@ -455,6 +563,23 @@ resource "aws_api_gateway_method" "auctions_options" {
   authorization = "NONE"
 }
 
+# OPTIONS /auctions/bid
+resource "aws_api_gateway_method" "bid_options" {
+  rest_api_id   = aws_api_gateway_rest_api.artburst_api.id
+  resource_id   = aws_api_gateway_resource.bid.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+# OPTIONS /auctions/{id}
+resource "aws_api_gateway_method" "auction_options" {
+  rest_api_id   = aws_api_gateway_rest_api.artburst_api.id
+  resource_id   = aws_api_gateway_resource.auction.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+# Integration responses for all OPTIONS methods
 resource "aws_api_gateway_integration" "auctions_options_integration" {
   rest_api_id             = aws_api_gateway_rest_api.artburst_api.id
   resource_id             = aws_api_gateway_resource.auctions.id
@@ -463,11 +588,33 @@ resource "aws_api_gateway_integration" "auctions_options_integration" {
   request_templates = {
     "application/json" = "{\"statusCode\": 200}"
   }
-
   passthrough_behavior = "WHEN_NO_MATCH"
 }
 
-resource "aws_api_gateway_method_response" "auctions_options_response" {
+resource "aws_api_gateway_integration" "bid_options_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.artburst_api.id
+  resource_id             = aws_api_gateway_resource.bid.id
+  http_method             = aws_api_gateway_method.bid_options.http_method
+  type                    = "MOCK"
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+  passthrough_behavior = "WHEN_NO_MATCH"
+}
+
+resource "aws_api_gateway_integration" "auction_options_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.artburst_api.id
+  resource_id             = aws_api_gateway_resource.auction.id
+  http_method             = aws_api_gateway_method.auction_options.http_method
+  type                    = "MOCK"
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+  passthrough_behavior = "WHEN_NO_MATCH"
+}
+
+# Method responses for all OPTIONS methods
+resource "aws_api_gateway_method_response" "options_response" {
   rest_api_id = aws_api_gateway_rest_api.artburst_api.id
   resource_id = aws_api_gateway_resource.auctions.id
   http_method = aws_api_gateway_method.auctions_options.http_method
@@ -480,15 +627,68 @@ resource "aws_api_gateway_method_response" "auctions_options_response" {
   }
 }
 
-resource "aws_api_gateway_integration_response" "auctions_options_integration_response" {
+resource "aws_api_gateway_method_response" "bid_options_response" {
+  rest_api_id = aws_api_gateway_rest_api.artburst_api.id
+  resource_id = aws_api_gateway_resource.bid.id
+  http_method = aws_api_gateway_method.bid_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_method_response" "auction_options_response" {
+  rest_api_id = aws_api_gateway_rest_api.artburst_api.id
+  resource_id = aws_api_gateway_resource.auction.id
+  http_method = aws_api_gateway_method.auction_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+# Integration responses for all OPTIONS methods
+resource "aws_api_gateway_integration_response" "options_integration_response" {
   rest_api_id = aws_api_gateway_rest_api.artburst_api.id
   resource_id = aws_api_gateway_resource.auctions.id
   http_method = aws_api_gateway_method.auctions_options.http_method
-  status_code = aws_api_gateway_method_response.auctions_options_response.status_code
+  status_code = aws_api_gateway_method_response.options_response.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'*'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,OPTIONS,PUT,DELETE'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "bid_options_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.artburst_api.id
+  resource_id = aws_api_gateway_resource.bid.id
+  http_method = aws_api_gateway_method.bid_options.http_method
+  status_code = aws_api_gateway_method_response.bid_options_response.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
     "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "auction_options_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.artburst_api.id
+  resource_id = aws_api_gateway_resource.auction.id
+  http_method = aws_api_gateway_method.auction_options.http_method
+  status_code = aws_api_gateway_method_response.auction_options_response.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
 }
