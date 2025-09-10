@@ -1,4 +1,4 @@
-// lambdas/index.js - COMPLETE UPDATED VERSION WITH FIXED ERROR HANDLING
+// lambdas/index.js - FULL UPDATED VERSION WITH CORRECT ARTIST RESOLUTION
 const { v4: uuidv4 } = require("uuid");
 const AWS = require("aws-sdk");
 
@@ -7,6 +7,7 @@ const dynamo = new AWS.DynamoDB.DocumentClient({ region: "us-east-1" });
 
 const TABLE_NAME = process.env.TABLE_NAME;
 const BUCKET_NAME = process.env.BUCKET_NAME;
+const ARTISTS_TABLE_NAME = "artburst-artists"; // ✅ Correct table name
 
 exports.handler = async (event) => {
   console.log("Incoming event:", JSON.stringify(event, null, 2));
@@ -38,20 +39,26 @@ exports.handler = async (event) => {
 
     // ---- CREATE AUCTION ----
     if (event.httpMethod === "POST" && event.path === "/auctions") {
-      // Generate unique ID
       const auctionId = uuidv4();
+
+      // ✅ Get the actual artist name, not the ID
+      const artistName = body.artistName || body.artist || "Unknown Artist";
 
       const auctionWithId = {
         ...body,
+        artistName,       // ✅ Store the name
+        artist: artistName, // ✅ Store the name here too, not the UUID
         id: auctionId,
         auctionId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
+      // Remove any UUID fields to avoid confusion
+      delete auctionWithId.artistId;
+
       console.log("Saving to DynamoDB:", JSON.stringify(auctionWithId, null, 2));
 
-      // Save to DynamoDB
       await dynamo.put({
         TableName: TABLE_NAME,
         Item: auctionWithId,
@@ -72,8 +79,7 @@ exports.handler = async (event) => {
     // ---- PLACE BID ----
     if (event.httpMethod === "POST" && event.path === "/auctions/bid") {
       console.log("Placing bid");
-      
-      // Validate request body
+
       if (!body.auctionId || !body.bidAmount || !body.bidderId) {
         return {
           statusCode: 400,
@@ -85,10 +91,9 @@ exports.handler = async (event) => {
       const { auctionId, bidAmount, bidderId } = body;
 
       try {
-        // Get current auction - FIXED: Use auctionId as key
         const auctionResult = await dynamo.get({
           TableName: TABLE_NAME,
-          Key: { auctionId: auctionId }  // ✅ CORRECT: Using auctionId as primary key
+          Key: { auctionId: auctionId }
         }).promise();
 
         if (!auctionResult.Item) {
@@ -101,8 +106,7 @@ exports.handler = async (event) => {
 
         const auction = auctionResult.Item;
 
-        // Validate bid amount
-        const currentHighestBid = auction.currentBid || auction.startingBid;
+        const currentHighestBid = auction.currentBid || auction.startingBid || 0;
         if (bidAmount <= currentHighestBid) {
           return {
             statusCode: 400,
@@ -113,7 +117,6 @@ exports.handler = async (event) => {
           };
         }
 
-        // Create bid record (store in the same table with a bid prefix)
         const bidId = uuidv4();
         const bidItem = {
           id: `bid#${bidId}`,
@@ -123,10 +126,9 @@ exports.handler = async (event) => {
           bidTime: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          itemType: "bid" // Add type to distinguish from auctions
+          itemType: "bid"
         };
 
-        // ✅ FIXED: Update auction with new bid using correct syntax
         await dynamo.update({
           TableName: TABLE_NAME,
           Key: { auctionId: auctionId },
@@ -134,13 +136,12 @@ exports.handler = async (event) => {
           ExpressionAttributeValues: {
             ':bid': bidAmount,
             ':bidder': bidderId,
-            ':inc': 1,  // ✅ FIXED: Using ADD operation with simple number
+            ':inc': 1,
             ':now': new Date().toISOString()
           },
           ConditionExpression: 'attribute_exists(auctionId)'
         }).promise();
 
-        // Store bid record
         await dynamo.put({
           TableName: TABLE_NAME,
           Item: bidItem
@@ -158,7 +159,6 @@ exports.handler = async (event) => {
 
       } catch (error) {
         console.error("Error placing bid:", error);
-        
         if (error.code === "ConditionalCheckFailedException") {
           return {
             statusCode: 409,
@@ -166,14 +166,10 @@ exports.handler = async (event) => {
             body: JSON.stringify({ message: "Auction was modified concurrently. Please try again." }),
           };
         }
-        
         return {
           statusCode: 500,
           headers: corsHeaders(),
-          body: JSON.stringify({ 
-            message: "Failed to place bid", 
-            error: error.message 
-          }),
+          body: JSON.stringify({ message: "Failed to place bid", error: error.message }),
         };
       }
     }
@@ -181,76 +177,40 @@ exports.handler = async (event) => {
     // ---- FETCH ALL AUCTIONS ----
     if (event.httpMethod === "GET" && event.path === "/auctions") {
       console.log("Fetching all auctions");
-      
+
       try {
-        // Scan DynamoDB table to get all auctions
-        const result = await dynamo.scan({
-          TableName: TABLE_NAME,
-        }).promise();
-        
-        console.log("Found auctions:", result.Items?.length || 0);
-        
-        if (!result.Items || result.Items.length === 0) {
-          return {
-            statusCode: 200,
-            headers: corsHeaders(),
-            body: JSON.stringify([]),
-          };
-        }
-        
-        // Filter out bid records and only return auctions
-        const auctions = result.Items.filter(item => !item.id.startsWith('bid#'));
-        
-        // Generate presigned URLs for images in each auction
-        const auctionsWithUrls = await Promise.all(
+        const result = await dynamo.scan({ TableName: TABLE_NAME }).promise();
+
+        const auctions = (result.Items || []).filter(item => !item.id.startsWith('bid#'));
+
+        // Process auctions to fix artist names
+        const processedAuctions = await Promise.all(
           auctions.map(async (auction) => {
+            return await fixAuctionArtistName(auction);
+          })
+        );
+
+        const auctionsWithUrls = await Promise.all(
+          processedAuctions.map(async (auction) => {
             if (auction.images && auction.images.length > 0) {
               try {
                 const imageUrls = await Promise.all(
                   auction.images.map(async (imageEntry) => {
-                    try {
-                      let imageKey = imageEntry;
-                      
-                      // Extract just the S3 key
-                      if (imageEntry.includes('amazonaws.com/')) {
-                        const parts = imageEntry.split('amazonaws.com/');
-                        imageKey = parts[1];
-                      }
-                      
-                      if (imageKey.includes('?')) {
-                        imageKey = imageKey.split('?')[0];
-                      }
-                      
-                      if (imageKey.includes('%')) {
-                        imageKey = decodeURIComponent(imageKey);
-                      }
-                      
-                      if (!imageKey.startsWith('public/') && !imageKey.startsWith('public%2F')) {
-                        imageKey = 'public/' + imageKey;
-                      }
-                      
-                      if (imageKey.startsWith('public%2F')) {
-                        imageKey = imageKey.replace('public%2F', 'public/');
-                      }
-                      
-                      const url = s3.getSignedUrl('getObject', {
-                        Bucket: BUCKET_NAME,
-                        Key: imageKey,
-                        Expires: 3600
-                      });
-                      
-                      return url;
-                    } catch (urlError) {
-                      console.error("Error generating URL for entry:", imageEntry, urlError);
-                      return null;
+                    let imageKey = imageEntry;
+                    if (imageEntry.includes('amazonaws.com/')) {
+                      imageKey = imageEntry.split('amazonaws.com/')[1];
                     }
+                    if (imageKey.includes('?')) imageKey = imageKey.split('?')[0];
+                    if (imageKey.includes('%')) imageKey = decodeURIComponent(imageKey);
+                    if (!imageKey.startsWith('public/')) imageKey = 'public/' + imageKey;
+
+                    return s3.getSignedUrl('getObject', { Bucket: BUCKET_NAME, Key: imageKey, Expires: 3600 });
                   })
                 );
-                
                 auction.images = imageUrls.filter(url => url !== null);
                 auction.image = auction.images[0] || null;
               } catch (error) {
-                console.error("Error generating presigned URLs for auction:", auction.id, error);
+                console.error("Error generating presigned URLs:", error);
                 auction.images = [];
                 auction.image = null;
               }
@@ -258,7 +218,7 @@ exports.handler = async (event) => {
             return auction;
           })
         );
-        
+
         return {
           statusCode: 200,
           headers: corsHeaders(),
@@ -269,10 +229,7 @@ exports.handler = async (event) => {
         return {
           statusCode: 500,
           headers: corsHeaders(),
-          body: JSON.stringify({ 
-            message: "Failed to fetch auctions", 
-            error: error.message 
-          }),
+          body: JSON.stringify({ message: "Failed to fetch auctions", error: error.message }),
         };
       }
     }
@@ -283,92 +240,37 @@ exports.handler = async (event) => {
         const auctionId = event.pathParameters.id;
         console.log("Fetching auction ID:", auctionId);
 
-        // FIXED: Use 'auctionId' as the key instead of 'id'
         const result = await dynamo.get({
           TableName: TABLE_NAME,
-          Key: { auctionId: auctionId },  // ✅ CORRECT: Using auctionId as primary key
+          Key: { auctionId: auctionId },
         }).promise();
 
-        console.log("DynamoDB result:", JSON.stringify(result, null, 2));
-
         if (!result.Item) {
-          console.log("Auction not found:", auctionId);
-          return {
-            statusCode: 404,
-            headers: corsHeaders(),
-            body: JSON.stringify({ message: "Auction not found" }),
-          };
+          return { statusCode: 404, headers: corsHeaders(), body: JSON.stringify({ message: "Auction not found" }) };
         }
 
         let auctionItem = result.Item;
-        
-        // Generate presigned URLs for images (if they exist)
+
+        // ✅ FIX: Resolve artist name if it's a UUID
+        auctionItem = await fixAuctionArtistName(auctionItem);
+
         if (auctionItem.images && auctionItem.images.length > 0) {
-          console.log("Original image entries:", auctionItem.images);
-          
           try {
-            // Generate presigned URLs for all images - ADD public/ prefix
             const imageUrls = await Promise.all(
               auctionItem.images.map(async (imageEntry) => {
-                try {
-                  // Extract just the S3 key from the entry
-                  let imageKey = imageEntry;
-                  
-                  // If it's a full URL, extract just the key part after amazonaws.com/
-                  if (imageEntry.includes('amazonaws.com/')) {
-                    const parts = imageEntry.split('amazonaws.com/');
-                    imageKey = parts[1];
-                    console.log("Extracted S3 key from URL:", imageKey);
-                  }
-                  
-                  // If it's a presigned URL (contains ?), extract just the key part before ?
-                  if (imageKey.includes('?')) {
-                    imageKey = imageKey.split('?')[0];
-                    console.log("Removed query params from key:", imageKey);
-                  }
-                  
-                  // URL decode the key if it's encoded
-                  if (imageKey.includes('%')) {
-                    imageKey = decodeURIComponent(imageKey);
-                    console.log("URL decoded key:", imageKey);
-                  }
-                  
-                  // ADD THE public/ PREFIX if it's missing and doesn't already have it
-                  if (!imageKey.startsWith('public/') && !imageKey.startsWith('public%2F')) {
-                    imageKey = 'public/' + imageKey;
-                    console.log("Added public/ prefix to key:", imageKey);
-                  }
-                  
-                  // Handle URL encoded public prefix
-                  if (imageKey.startsWith('public%2F')) {
-                    imageKey = imageKey.replace('public%2F', 'public/');
-                    console.log("Decoded public/ prefix:", imageKey);
-                  }
-                  
-                  // Generate presigned URL using the Lambda's IAM role
-                  const url = s3.getSignedUrl('getObject', {
-                    Bucket: BUCKET_NAME,
-                    Key: imageKey,
-                    Expires: 3600
-                  });
-                  
-                  console.log("Generated presigned URL for key:", imageKey);
-                  return url;
-                } catch (urlError) {
-                  console.error("Error generating URL for entry:", imageEntry, urlError);
-                  return null;
-                }
+                let imageKey = imageEntry;
+                if (imageEntry.includes('amazonaws.com/')) imageKey = imageEntry.split('amazonaws.com/')[1];
+                if (imageKey.includes('?')) imageKey = imageKey.split('?')[0];
+                if (imageKey.includes('%')) imageKey = decodeURIComponent(imageKey);
+                if (!imageKey.startsWith('public/')) imageKey = 'public/' + imageKey;
+
+                return s3.getSignedUrl('getObject', { Bucket: BUCKET_NAME, Key: imageKey, Expires: 3600 });
               })
             );
-            
-            // Filter out any failed URLs and update the item
             auctionItem.images = imageUrls.filter(url => url !== null);
             auctionItem.image = auctionItem.images[0] || null;
-            
-            console.log("Final image URLs:", auctionItem.images);
           } catch (error) {
             console.error("Error generating presigned URLs:", error);
-            // Don't fail the entire request if image URLs fail
             auctionItem.images = [];
             auctionItem.image = null;
           }
@@ -379,37 +281,74 @@ exports.handler = async (event) => {
           headers: corsHeaders(),
           body: JSON.stringify(auctionItem),
         };
-        
+
       } catch (error) {
         console.error("Error fetching auction by ID:", error);
-        return {
-          statusCode: 500,
-          headers: corsHeaders(),
-          body: JSON.stringify({ 
-            message: "Failed to fetch auction", 
-            error: error.message 
-          }),
-        };
+        return { statusCode: 500, headers: corsHeaders(), body: JSON.stringify({ message: "Failed to fetch auction", error: error.message }) };
       }
     }
 
-    return {
-      statusCode: 404,
-      headers: corsHeaders(),
-      body: JSON.stringify({ message: "Endpoint not found" }),
-    };
+    return { statusCode: 404, headers: corsHeaders(), body: JSON.stringify({ message: "Endpoint not found" }) };
+
   } catch (error) {
     console.error("Error:", error);
-    return {
-      statusCode: 500,
-      headers: corsHeaders(),
-      body: JSON.stringify({ 
-        message: "Internal Server Error", 
-        error: error.message
-      }),
-    };
+    return { statusCode: 500, headers: corsHeaders(), body: JSON.stringify({ message: "Internal Server Error", error: error.message }) };
   }
 };
+
+// Helper function to fix artist name in auction objects
+async function fixAuctionArtistName(auction) {
+  console.log(`Processing auction artist: ${auction.artist}`);
+  
+  // If artist is a UUID, try to resolve it to a name
+  if (auction.artist && isUUID(auction.artist)) {
+    try {
+      console.log(`Resolving artist UUID: ${auction.artist}`);
+      
+      // ✅ CORRECTED: Use the right table name and key field
+      const artistResult = await dynamo.get({
+        TableName: ARTISTS_TABLE_NAME,
+        Key: { artistId: auction.artist } // ✅ Use artistId as key
+      }).promise();
+      
+      console.log(`Artist query result: ${JSON.stringify(artistResult, null, 2)}`);
+      
+      if (artistResult.Item) {
+        console.log(`Artist item found: ${JSON.stringify(artistResult.Item)}`);
+        
+        // ✅ CORRECTED: Use username field instead of name
+        const artistName = artistResult.Item.username || "Unknown Artist";
+        
+        auction.artist = artistName;
+        auction.artistName = artistName;
+        console.log(`Resolved artist to: ${artistName}`);
+      } else {
+        console.log(`No artist found with ID: ${auction.artist}`);
+        auction.artist = "Unknown Artist";
+        auction.artistName = "Unknown Artist";
+      }
+    } catch (error) {
+      console.error("Error resolving artist name:", error);
+      auction.artist = "Unknown Artist";
+      auction.artistName = "Unknown Artist";
+    }
+  } else if (auction.artistName) {
+    auction.artist = auction.artistName;
+  } else if (auction.artist) {
+    auction.artistName = auction.artist;
+  } else {
+    auction.artist = "Unknown Artist";
+    auction.artistName = "Unknown Artist";
+  }
+  
+  return auction;
+}
+
+// Helper function to check if string is UUID
+function isUUID(str) {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
 
 function corsHeaders() {
   return {
