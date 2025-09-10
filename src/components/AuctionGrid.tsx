@@ -1,54 +1,75 @@
 import { AuctionCard } from "./AuctionCard";
 import { useAuctions } from "../hooks/useAuctions";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast"; // Adjust path if needed
 
 export const AuctionGrid = () => {
-  const { auctions, loading, error, refetch } = useAuctions();
+  const { toast } = useToast();
+  const { auctions: initialAuctions, loading, error, refetch } = useAuctions();
+  const [auctions, setAuctions] = useState(initialAuctions);
   const [isPlacingBid, setIsPlacingBid] = useState(false);
+
+  // Update local auctions when data refetches
+  useEffect(() => {
+    setAuctions(initialAuctions);
+  }, [initialAuctions]);
 
   // Function to handle bid placement
   const handlePlaceBid = async (auctionId: string) => {
-    const bidAmount = prompt("Enter your bid amount:");
+    const bidAmountStr = prompt("Enter your bid amount:");
+    if (!bidAmountStr) return;
 
-    if (!bidAmount) return;
-
-    const numericBidAmount = Number(bidAmount);
-    if (isNaN(numericBidAmount) || numericBidAmount <= 0) {
-      alert("Please enter a valid bid amount");
+    const bidAmount = Number(bidAmountStr);
+    if (isNaN(bidAmount) || bidAmount <= 0) {
+      toast({
+        title: "Invalid Bid Amount",
+        description: "Please enter a valid bid amount",
+        variant: "destructive",
+      });
       return;
     }
 
     setIsPlacingBid(true);
 
     try {
-      // Get the current user's token from localStorage
+      // Get token from localStorage (your working approach)
       const tokenKeys = Object.keys(localStorage).filter(
         (key) => key.includes("Cognito") && key.includes("idToken")
       );
 
       if (tokenKeys.length === 0) {
-        alert("Please log in to place a bid");
+        toast({
+          title: "Login Required",
+          description: "Please log in to place a bid",
+          variant: "destructive",
+        });
+        setIsPlacingBid(false);
         return;
       }
 
-      const token = localStorage.getItem(tokenKeys[0]);
+      const token = localStorage.getItem(tokenKeys[0])!;
+
+      // Get user ID from localStorage
+      const userKeys = Object.keys(localStorage).filter(
+        (key) => key.includes("Cognito") && key.includes("LastAuthUser")
+      );
+      const userId = userKeys.length > 0 ? localStorage.getItem(userKeys[0])! : "unknown-user";
 
       // Find the auction to get current bid info
       const auction = auctions.find((a) => a.id === auctionId);
       const currentBid = auction?.currentBid || auction?.startingBid || 0;
 
-      if (numericBidAmount <= currentBid) {
-        alert(`Bid must be higher than current bid of R${currentBid}`);
+      if (bidAmount <= currentBid) {
+        toast({
+          title: "Bid Too Low",
+          description: `Bid must be higher than current bid of R${currentBid}`,
+          variant: "destructive",
+        });
+        setIsPlacingBid(false);
         return;
       }
 
-      // Get user ID from token or localStorage
-      const userKeys = Object.keys(localStorage).filter((key) =>
-        key.includes("Cognito") && key.includes("LastAuthUser")
-      );
-      let userId = userKeys.length > 0 ? localStorage.getItem(userKeys[0]) : "unknown-user";
-
-      console.log("Placing bid with:", { auctionId, numericBidAmount, userId });
+      console.log("Placing bid with:", { auctionId, bidAmount, userId });
 
       const response = await fetch(
         "https://v3w12ytklh.execute-api.us-east-1.amazonaws.com/prod/auctions/bid",
@@ -60,7 +81,7 @@ export const AuctionGrid = () => {
           },
           body: JSON.stringify({
             auctionId,
-            bidAmount: numericBidAmount,
+            bidAmount,
             bidderId: userId,
           }),
         }
@@ -69,14 +90,46 @@ export const AuctionGrid = () => {
       const data = await response.json();
 
       if (response.ok) {
-        alert("Bid placed successfully!");
-        refetch(); // Refresh the auctions list
+        // ✅ IMMEDIATE UI UPDATE
+        const updatedAuctions = auctions.map(a => 
+          a.id === auctionId 
+            ? { 
+                ...a, 
+                currentBid: bidAmount,
+                bidCount: (a.bidCount ?? 0) + 1, // Fixed: using nullish coalescing
+              }
+            : a
+        );
+        setAuctions(updatedAuctions);
+
+        toast({
+          title: "Bid Placed Successfully!",
+          description: `Your bid of R${bidAmount} has been placed`,
+        });
+        
+        refetch(); // Refresh the auctions list in background
       } else {
-        alert(`Failed to place bid: ${data.message || "Unknown error"}`);
+        toast({
+          title: "Bid Failed",
+          description: data.message || "Unknown error occurred",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Bid error:", error);
-      alert("Error placing bid. Please try again.");
+      if (error instanceof Error) {
+        toast({
+          title: "Error",
+          description: `Bid failed: ${error.message}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Error placing bid. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsPlacingBid(false);
     }
@@ -148,11 +201,11 @@ export const AuctionGrid = () => {
                 key={auction.id}
                 id={auction.id}
                 title={auction.title}
-                artist={auction.artistName}
+                artist={auction.artistName || "Unknown Artist"} 
                 currentBid={auction.currentBid || auction.startingBid || 0}
-                timeRemaining={auction.timeRemaining}
+                timeRemaining={auction.timeRemaining || ""}
                 location={auction.location || ""}
-                bidders={auction.bidders || 0}
+                bidders={auction.bidCount ?? 0} // Fixed: using nullish coalescing
                 image={auction.image || ""}
                 status={auction.status}
                 onPlaceBid={handlePlaceBid}
@@ -163,7 +216,8 @@ export const AuctionGrid = () => {
 
         {isPlacingBid && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg">
+            <div className="bg-white p-6 rounded-lg flex items-center gap-3">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
               <p>Placing your bid...</p>
             </div>
           </div>

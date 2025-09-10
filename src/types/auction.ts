@@ -1,12 +1,12 @@
 export interface Auction {
   id: string;
   title: string;
-  artistName: string;
-  artist: string;
+  artistName: string; // keep this
   currentBid: number;
   timeRemaining: string;
   location: string;
   bidders: number;
+  bidCount?: number;
   image: string;
   status: 'live' | 'upcoming' | 'ended';
   description?: string;

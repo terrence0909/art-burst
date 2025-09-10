@@ -21,7 +21,8 @@ interface Bid {
 interface Auction {
   id: string;
   title: string;
-  artist: string;
+  artist?: string;
+  artistName?: string;
   description: string;
   currentBid?: number; // Made optional
   bidIncrement: number;
@@ -124,7 +125,9 @@ const AuctionDetails = () => {
             {/* Title & Artist */}
             <div>
               <h1 className="font-playfair text-3xl font-bold mb-2">{auction.title}</h1>
-              <p className="text-lg text-muted-foreground">by {auction.artist}</p>
+              <p className="text-lg text-muted-foreground">
+                by {auction.artistName || auction.artist || "Unknown Artist"}
+              </p>
               <div className="flex items-center mt-2 text-sm text-muted-foreground">
                 <MapPin className="w-4 h-4 mr-1" />
                 {auction.location} • {auction.distance} away
