@@ -198,8 +198,8 @@ export const AuctionGrid = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {auctions.map((auction) => (
               <AuctionCard
-                key={auction.id}
-                id={auction.id}
+                key={auction.auctionId}
+                id={auction.auctionId}
                 title={auction.title}
                 artist={auction.artistName || "Unknown Artist"} 
                 currentBid={auction.currentBid || auction.startingBid || 0}
