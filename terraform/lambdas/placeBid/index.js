@@ -9,7 +9,7 @@ const BIDS_TABLE_NAME = process.env.BIDS_TABLE_NAME; // Bids table
 exports.handler = async (event) => {
   console.log("Incoming event:", JSON.stringify(event, null, 2));
 
-  // Support both API Gateway event.body and direct Lambda payload
+  // Parse event body
   let body;
   try {
     body = event.body ? JSON.parse(event.body) : event;
@@ -22,7 +22,6 @@ exports.handler = async (event) => {
   }
 
   const { auctionId, bidAmount, bidderId } = body;
-
   if (!auctionId || !bidAmount || !bidderId) {
     return {
       statusCode: 400,
@@ -32,7 +31,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    // Get the auction
+    // Fetch the auction
     const auctionResult = await dynamo.get({
       TableName: TABLE_NAME,
       Key: { auctionId },
@@ -47,29 +46,33 @@ exports.handler = async (event) => {
     }
 
     const auction = auctionResult.Item;
-    const currentHighestBid = auction.currentBid || auction.startingBid || 0;
+    const currentHighestBid = Number(auction.currentBid || auction.startingBid || 0);
+    const numericBid = Number(bidAmount);
 
-    if (bidAmount <= currentHighestBid) {
+    if (numericBid <= currentHighestBid) {
       return {
         statusCode: 400,
         headers: corsHeaders(),
-        body: JSON.stringify({ message: `Bid must be higher than current bid of R${currentHighestBid}` }),
+        body: JSON.stringify({
+          message: `Bid must be higher than current bid of R${currentHighestBid}`,
+        }),
       };
     }
 
-    // Save the bid
+    // Create bid item
     const bidId = uuidv4();
     const bidItem = {
       bidId,
       auctionId,
-      bidAmount,
-      bidderId,
+      bidAmount: numericBid,
+      userId: bidderId,       // Save userId for dashboard queries
       bidTime: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       itemType: "bid",
     };
 
+    // Save bid to bids table
     await dynamo.put({
       TableName: BIDS_TABLE_NAME,
       Item: bidItem,
@@ -81,7 +84,7 @@ exports.handler = async (event) => {
       Key: { auctionId },
       UpdateExpression: "SET currentBid = :bid, highestBidder = :bidder, updatedAt = :now ADD bidCount :inc",
       ExpressionAttributeValues: {
-        ":bid": bidAmount,
+        ":bid": numericBid,
         ":bidder": bidderId,
         ":now": new Date().toISOString(),
         ":inc": 1,
@@ -108,7 +111,7 @@ exports.handler = async (event) => {
   }
 };
 
-// Standard CORS headers (same as createAuction)
+// Standard CORS headers
 function corsHeaders() {
   return {
     "Content-Type": "application/json",

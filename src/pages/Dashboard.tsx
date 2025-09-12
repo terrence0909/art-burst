@@ -18,10 +18,19 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { AuctionCard } from "@/components/AuctionCard";
 
-// Image imports with TypeScript support
-const artwork1 = "/assets/artwork-1.jpeg";
-const artwork2 = "/assets/artwork-2.jpeg";
-const artwork3 = "/assets/artwork-3.jpeg";
+// Image fallback
+const artworkFallback = "/assets/artwork-1.jpeg";
+
+interface Bid {
+  bidId: string;
+  auctionId: string;
+  bidAmount: number;
+  bidTime: string;
+  userId: string;
+  itemType: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 interface Auction {
   id: string;
@@ -58,129 +67,124 @@ interface UserData {
   };
 }
 
+// Update this to your API Gateway endpoint
+const API_BASE = "https://v3w12ytklh.execute-api.us-east-1.amazonaws.com/prod";
+
 const Dashboard = () => {
   const [user, setUser] = useState<UserData | null>(null);
+  const [activeBids, setActiveBids] = useState<Bid[]>([]);
+  const [watchedItems, setWatchedItems] = useState<Auction[]>([]);
+  const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  // Mock data
-  const [activeBids, setActiveBids] = useState<Auction[]>([
-    {
-      id: "1",
-      title: "Sunset Over Silicon Valley",
-      artist: "Maria Rodriguez",
-      currentBid: 2450,
-      myBid: 2400,
-      timeRemaining: "2h 45m",
-      image: artwork1,
-      status: "live",
-      location: "San Francisco, CA",
-      distance: "2.3 miles",
-      isWinning: false,
-    },
-    {
-      id: "3",
-      title: "Ocean Reflections",
-      artist: "David Kim",
-      currentBid: 3200,
-      myBid: 3200,
-      timeRemaining: "5h 20m",
-      image: artwork3,
-      status: "live",
-      location: "Santa Cruz, CA",
-      distance: "45.2 miles",
-      isWinning: true,
-    },
-  ]);
-
-  const [watchedItems, setWatchedItems] = useState<Auction[]>([
-    {
-      id: "2",
-      title: "Urban Dreams",
-      artist: "James Chen",
-      currentBid: 1200,
-      timeRemaining: "1d 12h",
-      image: artwork2,
-      status: "upcoming",
-      location: "Oakland, CA",
-      distance: "8.1 miles",
-    },
-    {
-      id: "4",
-      title: "Mountain Majesty",
-      artist: "Sarah Johnson",
-      currentBid: 1800,
-      timeRemaining: "3d 4h",
-      image: artwork1,
-      status: "upcoming",
-      location: "Lake Tahoe, CA",
-      distance: "125.7 miles",
-    },
-  ]);
-
-  const [recentActivity, setRecentActivity] = useState<Activity[]>([
-    {
-      type: "bid",
-      item: "Abstract Cityscape",
-      amount: 1800,
-      time: "2 hours ago",
-      status: "outbid",
-    },
-    {
-      type: "watch",
-      item: "Coastal Dreams",
-      time: "5 hours ago",
-    },
-    {
-      type: "win",
-      item: "Vintage Portrait",
-      amount: 2200,
-      time: "1 day ago",
-      status: "won",
-    },
-    {
-      type: "bid",
-      item: "Modern Abstract",
-      amount: 1500,
-      time: "2 days ago",
-      status: "active",
-    },
-  ]);
-
-  // Fetch user data with Amplify v6
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchDashboard = async () => {
       try {
-        const { username } = await getCurrentUser();
+        // Get user info
+        const { username: userId } = await getCurrentUser();
         const attributes = await fetchUserAttributes();
 
         setUser({
-          name: `${attributes.given_name || "User"} ${
-            attributes.family_name || ""
-          }`.trim(),
-          email: attributes.email || username,
+          name: `${attributes.given_name || "User"} ${attributes.family_name || ""}`.trim(),
+          email: attributes.email || userId,
           profileImage:
             attributes.picture ||
             "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face",
           memberSince: new Date().getFullYear().toString(),
           stats: {
-            activeBids: activeBids.length,
-            watchedItems: watchedItems.length,
-            totalSpent: 24500,
-            itemsWon: 8,
+            activeBids: 0,
+            watchedItems: 0,
+            totalSpent: 0,
+            itemsWon: 0,
           },
         });
-      } catch (err) {
-        setError("You need to sign in to access this page");
-        navigate("/auth");
+
+        // Fetch active bids from Lambda
+        const bidsRes = await fetch(`${API_BASE}/auctions/my-bids?userId=${userId}`);
+        if (!bidsRes.ok) {
+          const errorText = await bidsRes.text();
+          console.error('Bids API error:', bidsRes.status, errorText);
+          throw new Error(`Failed to fetch active bids: ${bidsRes.status}`);
+        }
+        
+        const bidsData = await bidsRes.json();
+        console.log('Bids API response:', bidsData);
+
+        // Parse bid data
+        const parsedBids = bidsData.body ? JSON.parse(bidsData.body) : bidsData;
+        const bidsArray = Array.isArray(parsedBids) ? parsedBids : [];
+        setActiveBids(bidsArray);
+
+        // Mock watched items data
+        setWatchedItems([
+          {
+            id: "1",
+            title: "Coastal Dreams",
+            artist: "Marina Waters",
+            currentBid: 1200,
+            timeRemaining: "2 days",
+            image: artworkFallback,
+            status: "live",
+            location: "Cape Town",
+            distance: "15 km"
+          },
+          {
+            id: "2", 
+            title: "Abstract Cityscape",
+            artist: "Alex Turner",
+            currentBid: 1800,
+            timeRemaining: "1 day",
+            image: artworkFallback,
+            status: "live",
+            location: "Johannesburg",
+            distance: "50 km"
+          }
+        ]);
+
+        // Mock recent activity
+        setRecentActivity([
+          { type: "bid", item: "Abstract Cityscape", amount: 1800, time: "2 hours ago", status: "outbid" },
+          { type: "watch", item: "Coastal Dreams", time: "5 hours ago" },
+          { type: "win", item: "Vintage Portrait", amount: 2200, time: "1 day ago", status: "won" },
+          { type: "bid", item: "Modern Abstract", amount: 1500, time: "2 days ago", status: "active" },
+        ]);
+
+        // Update user stats
+        setUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                stats: {
+                  ...prev.stats,
+                  activeBids: bidsArray.length,
+                  watchedItems: 2, // Mock watched items count
+                  totalSpent: bidsArray.reduce((sum: number, bid: Bid) => sum + (bid.bidAmount || 0), 0),
+                  itemsWon: 3, // Mock items won count
+                },
+              }
+            : prev
+        );
+      } catch (err: any) {
+        console.error('Dashboard error:', err);
+        setError(err.message || "Failed to load dashboard data");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchUser();
-  }, []);
+    fetchDashboard();
+  }, [navigate]);
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-ZA', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
 
   if (loading) {
     return (
@@ -195,9 +199,7 @@ const Dashboard = () => {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <p className="text-red-500 mb-4">{error || "User data not available"}</p>
-          <Button onClick={() => navigate("/auth")}>
-            Go to Sign In
-          </Button>
+          <Button onClick={() => navigate("/auth")}>Go to Sign In</Button>
         </div>
       </div>
     );
@@ -206,9 +208,8 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-
       <div className="container mx-auto px-4 py-8">
-        {/* Welcome Header */}
+        {/* Welcome & Stats */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
           <div className="flex items-center space-x-4">
             <img
@@ -220,15 +221,12 @@ const Dashboard = () => {
               <h1 className="font-playfair text-2xl font-bold">
                 Welcome back, {user.name.split(" ")[0]}!
               </h1>
-              <p className="text-muted-foreground">
-                Member since {user.memberSince}
-              </p>
+              <p className="text-muted-foreground">Member since {user.memberSince}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline">
-              <Settings className="w-4 h-4 mr-2" />
-              Account Settings
+              <Settings className="w-4 h-4 mr-2" /> Account Settings
             </Button>
           </div>
         </div>
@@ -267,7 +265,7 @@ const Dashboard = () => {
           </Card>
         </div>
 
-        {/* Main Content */}
+        {/* Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -277,143 +275,58 @@ const Dashboard = () => {
             <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab */}
+          {/* Overview */}
           <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Gavel className="w-5 h-5 mr-2" />
-                    Active Bids
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {activeBids.length > 0 ? (
-                    <div className="space-y-4">
-                      {activeBids.map((auction) => (
-                        <AuctionCard key={auction.id} {...auction} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground mb-4">No active bids</p>
-                      <Button>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Browse Auctions
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Clock className="w-5 h-5 mr-2" />
-                    Recent Activity
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {recentActivity.map((activity, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg transition-colors"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              activity.type === "win"
-                                ? "bg-green-500"
-                                : activity.status === "outbid"
-                                ? "bg-red-500"
-                                : "bg-blue-500"
-                            }`}
-                          />
-                          <div>
-                            <p className="text-sm font-medium">
-                              {activity.type === "bid"
-                                ? "Bid placed"
-                                : activity.type === "win"
-                                ? "Auction won"
-                                : "Item watched"}{" "}
-                              on {activity.item}
-                            </p>
-                            {activity.amount && (
-                              <p className="text-xs text-muted-foreground">
-                                R {activity.amount.toLocaleString()}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {activity.time}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center">
-                    <Heart className="w-5 h-5 mr-2" />
-                    Recently Watched
-                  </span>
-                  <Button variant="ghost" size="sm">
-                    View All
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {watchedItems.slice(0, 2).map((auction) => (
-                    <AuctionCard key={auction.id} {...auction} />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Bids Tab */}
-          <TabsContent value="bids" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Gavel className="w-5 h-5 mr-2" />
-                  All Active Bids
+                  <Gavel className="w-5 h-5 mr-2" /> Active Bids
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {activeBids.length > 0 ? (
                   <div className="space-y-4">
-                    {activeBids.map((auction) => (
-                      <AuctionCard key={auction.id} {...auction} />
+                    {activeBids.map((bid) => (
+                      <Card key={bid.bidId}>
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-lg">Auction: {bid.auctionId.substring(0, 8)}...</h4>
+                              <p className="text-sm text-muted-foreground mb-2">Bid ID: {bid.bidId.substring(0, 8)}...</p>
+                              <div className="flex items-center space-x-4 text-sm">
+                                <div className="flex items-center">
+                                  <DollarSign className="w-4 h-4 mr-1 text-accent" />
+                                  <span className="font-medium">R {bid.bidAmount}</span>
+                                </div>
+                                <div className="flex items-center">
+                                  <Clock className="w-4 h-4 mr-1 text-muted-foreground" />
+                                  <span>{formatDate(bid.bidTime)}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                              Active
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
                 ) : (
                   <div className="text-center py-8">
                     <p className="text-muted-foreground mb-4">No active bids</p>
-                    <Button>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Browse Auctions
+                    <Button onClick={() => navigate("/auctions")}>
+                      <Plus className="w-4 h-4 mr-2" /> Browse Auctions
                     </Button>
                   </div>
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Watching Tab */}
-          <TabsContent value="watching" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Heart className="w-5 h-5 mr-2" />
-                  Watched Items
+                  <Heart className="w-5 h-5 mr-2" /> Recently Watched
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -426,9 +339,8 @@ const Dashboard = () => {
                 ) : (
                   <div className="text-center py-8">
                     <p className="text-muted-foreground mb-4">No watched items</p>
-                    <Button>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Browse Auctions
+                    <Button onClick={() => navigate("/auctions")}>
+                      <Plus className="w-4 h-4 mr-2" /> Browse Auctions
                     </Button>
                   </div>
                 )}
@@ -436,79 +348,119 @@ const Dashboard = () => {
             </Card>
           </TabsContent>
 
-          {/* Collection Tab */}
+          {/* My Bids */}
+          <TabsContent value="bids" className="space-y-6">
+            {activeBids.length > 0 ? (
+              activeBids.map((bid) => (
+                <Card key={bid.bidId}>
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-lg">Auction: {bid.auctionId}</h4>
+                        <p className="text-sm text-muted-foreground mb-2">Bid ID: {bid.bidId}</p>
+                        <div className="flex items-center space-x-4 text-sm">
+                          <div className="flex items-center">
+                            <DollarSign className="w-4 h-4 mr-1 text-accent" />
+                            <span className="font-medium">R {bid.bidAmount}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <Clock className="w-4 h-4 mr-1 text-muted-foreground" />
+                            <span>{formatDate(bid.bidTime)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                        Active
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">No active bids</p>
+                <Button onClick={() => navigate("/auctions")}>
+                  <Plus className="w-4 h-4 mr-2" /> Browse Auctions
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Watching */}
+          <TabsContent value="watching" className="space-y-6">
+            {watchedItems.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {watchedItems.map((auction) => (
+                  <AuctionCard key={auction.id} {...auction} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">No watched items</p>
+                <Button onClick={() => navigate("/auctions")}>
+                  <Plus className="w-4 h-4 mr-2" /> Browse Auctions
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Collection */}
           <TabsContent value="collection" className="space-y-6">
             <Card>
               <CardContent className="text-center py-12">
                 <User className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-xl font-semibold mb-2">
-                  Your collection is empty
-                </h3>
+                <h3 className="text-xl font-semibold mb-2">Your collection is empty</h3>
                 <p className="text-muted-foreground mb-6">
                   Items you win will appear here
                 </p>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Browse Auctions
+                <Button onClick={() => navigate("/auctions")}>
+                  <Plus className="w-4 h-4 mr-2" /> Browse Auctions
                 </Button>
-                </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Activity Tab */}
-          <TabsContent value="activity" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Clock className="w-5 h-5 mr-2" />
-                  All Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {recentActivity.map((activity, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg transition-colors"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div
-                          className={`w-2 h-2 rounded-full ${
-                            activity.type === "win"
-                              ? "bg-green-500"
-                              : activity.status === "outbid"
-                              ? "bg-red-500"
-                              : "bg-blue-500"
-                          }`}
-                        />
-                        <div>
-                          <p className="text-sm font-medium">
-                            {activity.type === "bid"
-                              ? "Bid placed"
-                              : activity.type === "win"
-                              ? "Auction won"
-                              : "Item watched"}{" "}
-                            on {activity.item}
-                          </p>
-                          {activity.amount && (
-                            <p className="text-xs text-muted-foreground">
-                              R {activity.amount.toLocaleString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {activity.time}
-                      </span>
-                    </div>
-                  ))}
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Activity */}
+          <TabsContent value="activity" className="space-y-6">
+            <div className="space-y-3">
+              {recentActivity.map((activity, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        activity.type === "win"
+                          ? "bg-green-500"
+                          : activity.status === "outbid"
+                          ? "bg-red-500"
+                          : "bg-blue-500"
+                      }`}
+                    />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {activity.type === "bid"
+                          ? "Bid placed"
+                          : activity.type === "win"
+                          ? "Auction won"
+                          : "Item watched"}{" "}
+                        on {activity.item}
+                      </p>
+                      {activity.amount && (
+                        <p className="text-xs text-muted-foreground">
+                          R {activity.amount.toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{activity.time}</span>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
         </Tabs>
       </div>
-
       <Footer />
     </div>
   );

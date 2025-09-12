@@ -230,6 +230,44 @@ exports.handler = async (event) => {
       }
     }
 
+    // ---- FETCH BIDS BY USER ----
+    if (event.httpMethod === "GET" && event.path === "/my-bids") {
+      const userId = event.queryStringParameters?.userId;
+      if (!userId) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders(),
+          body: JSON.stringify({ message: "Missing required query parameter: userId" }),
+        };
+      }
+
+      try {
+        const params = {
+          TableName: BIDS_TABLE_NAME,
+          IndexName: "userId-index",
+          KeyConditionExpression: "userId = :uid",
+          ExpressionAttributeValues: {
+            ":uid": userId,
+          },
+        };
+
+        const result = await dynamo.query(params).promise();
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders(),
+          body: JSON.stringify(result.Items),
+        };
+      } catch (error) {
+        console.error("Error fetching user bids:", error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders(),
+          body: JSON.stringify({ message: "Failed to fetch user bids", error: error.message }),
+        };
+      }
+    }
+
     return { statusCode: 404, headers: corsHeaders(), body: JSON.stringify({ message: "Endpoint not found" }) };
   } catch (error) {
     return { statusCode: 500, headers: corsHeaders(), body: JSON.stringify({ message: "Internal Server Error", error: error.message }) };
