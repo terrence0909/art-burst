@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Filter, MapPin, Grid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,16 +8,250 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { AuctionCard } from "@/components/AuctionCard";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/components/ui/use-toast";
+import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import artwork1 from "@/assets/artwork-1.jpeg";
 import artwork2 from "@/assets/artwork-2.jpeg";
 import artwork3 from "@/assets/artwork-3.jpeg";
 
+// Update this to your API Gateway endpoint
+const API_BASE = "https://v3w12ytklh.execute-api.us-east-1.amazonaws.com/prod";
+
+interface Auction {
+  id: string;
+  title: string;
+  artist: string;
+  currentBid: number;
+  timeRemaining: string;
+  image: string;
+  status: "live" | "upcoming" | "ended";
+  location: string;
+  distance: string;
+  medium?: string;
+  year?: string;
+  bidders?: number;
+}
+
 const Browse = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
+  const [auctions, setAuctions] = useState<Auction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Mock data - would come from API
-  const auctions = [
+  useEffect(() => {
+    fetchAuctions();
+  }, []);
+
+  const fetchAuctions = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching auctions from:', `${API_BASE}/auctions`);
+      
+      const response = await fetch(`${API_BASE}/auctions`);
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch auctions: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Raw API response:', data);
+      
+      // Handle both Lambda proxy format and direct array response
+      const auctionData = data.body ? JSON.parse(data.body) : data;
+      console.log('Processed auction data:', auctionData);
+      
+      if (auctionData.length > 0) {
+        console.log('First auction object:', auctionData[0]);
+        console.log('All field names in first auction:', Object.keys(auctionData[0] || {}));
+        console.log('First auction image URL:', auctionData[0]?.image || auctionData[0]?.images?.[0]);
+      }
+      
+      // Transform API data to match frontend structure
+      const transformedAuctions: Auction[] = auctionData.map((auction: any) => {
+        const transformed = {
+          id: auction.auctionId || auction.id,
+          title: auction.title || `Auction ${auction.auctionId}`,
+          artist: auction.artistName || auction.artist || "Unknown Artist",
+          currentBid: auction.currentBid || auction.startingBid || 0,
+          timeRemaining: calculateTimeRemaining(auction.endDate || auction.endTime),
+          image: auction.image || (auction.images && auction.images[0]) || getRandomArtwork(),
+          status: getAuctionStatus(auction.startDate || auction.startTime, auction.endDate || auction.endTime),
+          location: auction.location || "Bloemfontein, SA",
+          distance: calculateDistance(auction.location),
+          medium: auction.medium,
+          year: auction.year,
+          // Add the bidders prop that AuctionCard expects
+          bidders: auction.bidCount || 0,
+        };
+
+        console.log('Transformed auction:', transformed);
+        return transformed;
+      });
+      
+      console.log('All transformed auctions:', transformedAuctions);
+      setAuctions(transformedAuctions);
+      
+    } catch (err) {
+      console.error('Error fetching auctions:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load auctions');
+      
+      // Fallback to mock data if API fails
+      setAuctions(getMockAuctions());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePlaceBid = async (auctionId: string) => {
+    try {
+      // Get current user and authentication tokens
+      const { username: userId } = await getCurrentUser();
+      const { tokens } = await fetchAuthSession();
+      
+      if (!tokens?.idToken) {
+        toast({
+          title: "Authentication required",
+          description: "Please sign in to place a bid",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Get the current auction to show minimum bid
+      const auction = auctions.find(a => a.id === auctionId);
+      if (!auction) {
+        toast({
+          title: "Error",
+          description: "Auction not found",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const minBid = auction.currentBid + 100; // Minimum increment of R100
+      
+      const bidAmount = Number(
+        prompt(`Enter your bid amount (Minimum: R${minBid.toLocaleString()}):`)
+      );
+      
+      if (!bidAmount || isNaN(bidAmount)) {
+        toast({
+          title: "Invalid bid",
+          description: "Please enter a valid number",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (bidAmount < minBid) {
+        toast({
+          title: "Bid too low",
+          description: `Bid must be at least R${minBid.toLocaleString()}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Call your existing placeBid API with Cognito authentication
+      const response = await fetch(`${API_BASE}/auctions/bid`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tokens.idToken.toString()}` // Cognito authentication
+        },
+        body: JSON.stringify({
+          auctionId,
+          bidAmount,
+          bidderId: userId
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to place bid');
+      }
+      
+      const result = await response.json();
+      
+      toast({
+        title: "Success!",
+        description: "Your bid has been placed successfully",
+      });
+      
+      // Update local state immediately for better UX
+      setAuctions(prev => prev.map(auction => 
+        auction.id === auctionId 
+          ? { 
+              ...auction, 
+              currentBid: bidAmount,
+              bidders: (auction.bidders || 0) + 1
+            }
+          : auction
+      ));
+      
+    } catch (error) {
+      console.error('Error placing bid:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to place bid',
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Helper functions for data transformation
+  const calculateTimeRemaining = (endTime: string): string => {
+    if (!endTime) return "Unknown";
+    
+    try {
+      const end = new Date(endTime);
+      const now = new Date();
+      const diff = end.getTime() - now.getTime();
+      
+      if (diff <= 0) return "Ended";
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (days > 0) return `${days}d ${hours}h`;
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${minutes}m`;
+    } catch {
+      return "Unknown";
+    }
+  };
+
+  const getAuctionStatus = (startTime: string, endTime: string): "live" | "upcoming" | "ended" => {
+    try {
+      const now = new Date();
+      const start = startTime ? new Date(startTime) : new Date();
+      const end = endTime ? new Date(endTime) : new Date(now.getTime() + 2 * 60 * 60 * 1000);
+      
+      if (now > end) return "ended";
+      if (now >= start) return "live";
+      return "upcoming";
+    } catch {
+      return "upcoming";
+    }
+  };
+
+  const calculateDistance = (location: string): string => {
+    // Simple mock distance calculation
+    const distances = ["2.3 km", "5.1 km", "8.7 km", "12.4 km", "15.9 km"];
+    return distances[Math.floor(Math.random() * distances.length)];
+  };
+
+  const getRandomArtwork = (): string => {
+    const artworks = [artwork1, artwork2, artwork3];
+    return artworks[Math.floor(Math.random() * artworks.length)];
+  };
+
+  // Fallback mock data
+  const getMockAuctions = (): Auction[] => [
     {
       id: "1",
       title: "Sunset Over Silicon Valley",
@@ -25,11 +259,12 @@ const Browse = () => {
       currentBid: 2450,
       timeRemaining: "2h 45m",
       image: artwork1,
-      status: "live" as const,
+      status: "live",
       location: "Heidedal, BFN",
       distance: "2.3 km",
       medium: "Oil on Canvas",
-      year: "2024"
+      year: "2024",
+      bidders: 3
     },
     {
       id: "2",
@@ -38,11 +273,12 @@ const Browse = () => {
       currentBid: 1200,
       timeRemaining: "1d 12h",
       image: artwork2,
-      status: "upcoming" as const,
+      status: "upcoming",
       location: "Willows, BFN",
       distance: "8.1 km",
       medium: "Acrylic on Canvas",
-      year: "2024"
+      year: "2024",
+      bidders: 0
     },
     {
       id: "3",
@@ -51,19 +287,63 @@ const Browse = () => {
       currentBid: 890,
       timeRemaining: "4h 20m",
       image: artwork3,
-      status: "live" as const,
+      status: "live",
       location: "Rocklands, BFN",
       distance: "12.5 km",
       medium: "Watercolor",
-      year: "2023"
+      year: "2023",
+      bidders: 1
     },
-    // Add more mock data...
   ];
 
   const filteredAuctions = auctions.filter(auction =>
     auction.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     auction.artist.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[...Array(8)].map((_, i) => (
+              <Card key={i} className="animate-pulse">
+                <CardContent className="p-0">
+                  <Skeleton className="h-48 w-full rounded-t-lg" />
+                  <div className="p-4 space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                    <Skeleton className="h-3 w-1/3" />
+                    <Skeleton className="h-6 w-1/4" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error && auctions.length === 0) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-8 text-center">
+          <div className="bg-destructive/15 text-destructive p-4 rounded-md max-w-md mx-auto">
+            <h3 className="font-semibold">Error Loading Auctions</h3>
+            <p className="text-sm mt-1">{error}</p>
+            <Button onClick={fetchAuctions} className="mt-4">
+              Try Again
+            </Button>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -186,7 +466,11 @@ const Browse = () => {
         {viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredAuctions.map((auction) => (
-              <AuctionCard key={auction.id} {...auction} />
+              <AuctionCard 
+                key={auction.id} 
+                {...auction} 
+                onPlaceBid={handlePlaceBid}  // Connected!
+              />
             ))}
           </div>
         ) : (
@@ -213,11 +497,18 @@ const Browse = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-muted-foreground">Current Bid</p>
-                      <p className="text-xl font-bold text-accent">${auction.currentBid.toLocaleString()}</p>
+                      <p className="text-xl font-bold text-accent">R {auction.currentBid.toLocaleString()}</p>
                       <p className="text-sm text-muted-foreground">{auction.timeRemaining} left</p>
                       <Badge className="mt-2">
-                        {auction.status === "live" ? "Live" : "Upcoming"}
+                        {auction.status === "live" ? "Live" : auction.status === "ended" ? "Ended" : "Upcoming"}
                       </Badge>
+                      <Button 
+                        className="mt-4 w-full"
+                        onClick={() => handlePlaceBid(auction.id)}
+                        disabled={auction.status !== "live"}
+                      >
+                        {auction.status === "live" ? "Place Bid" : "Auction Ended"}
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -227,11 +518,13 @@ const Browse = () => {
         )}
 
         {/* Load More */}
-        <div className="text-center mt-8">
-          <Button variant="outline" size="lg">
-            Load More Auctions
-          </Button>
-        </div>
+        {filteredAuctions.length > 0 && (
+          <div className="text-center mt-8">
+            <Button variant="outline" size="lg" onClick={fetchAuctions}>
+              Refresh Auctions
+            </Button>
+          </div>
+        )}
       </div>
 
       <Footer />

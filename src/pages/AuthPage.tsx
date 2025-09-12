@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from '@/components/ui/use-toast';
 
 const AuthPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('signin');
@@ -24,20 +25,19 @@ const AuthPage: React.FC = () => {
 
   // Check if user is already authenticated
   useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        setCurrentUser(user);
+        // If user is already authenticated, redirect to home
+        navigate('/');
+      } catch (err) {
+        // User is not authenticated, stay on auth page
+        console.log('No authenticated user');
+      }
+    };
     checkUser();
-  }, []);
-
-  const checkUser = async () => {
-    try {
-      const user = await getCurrentUser();
-      setCurrentUser(user);
-      // If user is already authenticated, redirect to dashboard
-      navigate('/dashboard');
-    } catch (err) {
-      // User is not authenticated, stay on auth page
-      console.log('No authenticated user');
-    }
-  };
+  }, [navigate]);
 
   const handleSignIn = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -52,7 +52,15 @@ const AuthPage: React.FC = () => {
       const user = await getCurrentUser();
       setCurrentUser(user);
       
-      navigate('/dashboard');
+      // Show success message and redirect to home
+      toast({
+        title: "Welcome back!",
+        description: "You've successfully signed in.",
+        duration: 3000,
+      });
+      
+      // Redirect to home page
+      navigate('/');
     } catch (err) {
       console.error('Error signing in:', err);
       setError(err instanceof Error ? err.message : 'An error occurred during sign in');
@@ -112,7 +120,16 @@ const AuthPage: React.FC = () => {
         // Get the current user after confirmation
         const user = await getCurrentUser();
         setCurrentUser(user);
-        navigate('/dashboard');
+        
+        // Show success message and redirect to home
+        toast({
+          title: "Account confirmed!",
+          description: "Your account has been successfully created.",
+          duration: 3000,
+        });
+        
+        // Redirect to home page
+        navigate('/');
       }
     } catch (err) {
       console.error('Error confirming sign up:', err);

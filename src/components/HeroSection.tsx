@@ -56,7 +56,7 @@ export const HeroSection = () => {
             <Button
               size="lg"
               className="btn-auction"
-              onClick={() => navigate("/browse")} // fixed path
+              onClick={() => navigate("/browse")} 
             >
               Explore Auctions
             </Button>
@@ -64,7 +64,7 @@ export const HeroSection = () => {
               size="lg"
               variant="outline"
               className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20"
-              onClick={() => navigate("/auth")}
+              onClick={() => navigate("/create")}
             >
               Become an Artist
             </Button>
