@@ -24,7 +24,7 @@ interface Auction {
   artist?: string;
   artistName?: string;
   description: string;
-  currentBid?: number; // Made optional
+  currentBid?: number;
   bidIncrement: number;
   timeRemaining: string;
   image: string;
@@ -38,7 +38,7 @@ interface Auction {
   year: string;
   condition?: string;
   bidHistory?: Bid[];
-  startingBid?: number; // Added startingBid for fallback
+  startingBid?: number;
 }
 
 // ----------------------
@@ -57,9 +57,11 @@ const AuctionDetails = () => {
       setLoading(true);
       try {
         const data = await fetchAuctionById(id!);
-        console.log("Raw API response:", data); // Debug logging
+        console.log("Raw API response:", data);
         if (!data) throw new Error("Auction not found");
-        setAuction(data);
+        
+        // Type assertion to match your local interface
+        setAuction(data as Auction);
       } catch (err: any) {
         setError(err.message || "Failed to load auction");
       } finally {
@@ -73,7 +75,6 @@ const AuctionDetails = () => {
   const handlePlaceBid = () => {
     const currentBid = auction?.currentBid || auction?.startingBid || 0;
     alert(`Bid submitted for R${currentBid + auction?.bidIncrement!}`);
-    // TODO: Connect to API to place bid
   };
 
   if (loading) return <p className="text-center mt-10">Loading auction...</p>;

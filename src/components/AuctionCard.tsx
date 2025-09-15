@@ -14,7 +14,8 @@ interface AuctionCardProps {
   image: string;
   status: "live" | "upcoming" | "ended";
   distance?: string;
-  onPlaceBid?: (auctionId: string) => void; // Added onClick handler prop
+  onPlaceBid?: (auctionId: string) => void;
+  isBidding?: boolean; // Added isBidding prop
 }
 
 export const AuctionCard = ({
@@ -28,7 +29,8 @@ export const AuctionCard = ({
   image,
   status,
   distance,
-  onPlaceBid // Added this prop
+  onPlaceBid,
+  isBidding = false // Added isBidding with default value
 }: AuctionCardProps) => {
   const getStatusBadge = () => {
     switch (status) {
@@ -91,10 +93,19 @@ export const AuctionCard = ({
       <CardFooter className="p-4 pt-0">
         <Button 
           className="w-full btn-primary"
-          disabled={status === "ended"}
-          onClick={() => onPlaceBid?.(id)} // Added onClick handler
+          disabled={status === "ended" || isBidding} // Disable when bidding
+          onClick={() => onPlaceBid?.(id)}
         >
-          {status === "ended" ? "Auction Ended" : "Place Bid"}
+          {isBidding ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              Placing Bid...
+            </>
+          ) : status === "ended" ? (
+            "Auction Ended"
+          ) : (
+            "Place Bid"
+          )}
         </Button>
       </CardFooter>
     </Card>

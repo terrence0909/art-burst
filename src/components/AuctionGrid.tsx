@@ -1,38 +1,182 @@
 import { AuctionCard } from "./AuctionCard";
 import { useAuctions } from "../hooks/useAuctions";
-import { useState, useEffect } from "react";
-import { useToast } from "@/hooks/use-toast"; // Adjust path if needed
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { realtimeService, BidUpdate } from "../services/realtime";
+import { wsService, WebSocketMessage } from "../services/websocket";
 
 export const AuctionGrid = () => {
   const { toast } = useToast();
-  const { auctions: initialAuctions, loading, error, refetch } = useAuctions();
-  const [auctions, setAuctions] = useState(initialAuctions);
+  const { auctions, loading, error, refetch, setAuctions } = useAuctions();
   const [isPlacingBid, setIsPlacingBid] = useState(false);
+  const [biddingAuctionId, setBiddingAuctionId] = useState<string | null>(null);
+  
+  // Keep track of current user to avoid showing notifications for own bids
+  const currentUserIdRef = useRef<string | null>(null);
+  const unsubscribeFunctionsRef = useRef<Set<() => void>>(new Set());
 
-  // Update local auctions when data refetches
+  // Get current user ID
   useEffect(() => {
-    setAuctions(initialAuctions);
-  }, [initialAuctions]);
+    const userKeys = Object.keys(localStorage).filter(
+      (key) => key.includes("Cognito") && key.includes("LastAuthUser")
+    );
+    currentUserIdRef.current = userKeys.length > 0 ? localStorage.getItem(userKeys[0]) : null;
+  }, []);
+
+  // Handle real-time bid updates
+  const handleBidUpdate = useCallback((update: BidUpdate | WebSocketMessage, source: 'polling' | 'websocket') => {
+    console.log(`Received ${source} update:`, update);
+    
+    let auctionId: string;
+    let bidAmount: number | undefined;
+    let bidderId: string | undefined;
+    let newBidCount: number | undefined;
+    
+    // Handle different update formats
+    if ('type' in update && update.type === 'AUCTION_UPDATE') {
+      // Polling update
+      auctionId = update.auctionId;
+      bidAmount = update.bid?.bidAmount;
+      bidderId = update.bid?.userId;
+      newBidCount = update.auction?.bidCount;
+    } else if ('type' in update && (update.type === 'NEW_BID' || update.type === 'AUCTION_UPDATE')) {
+      // WebSocket update
+      auctionId = update.auctionId!;
+      bidAmount = update.bid?.bidAmount;
+      bidderId = update.bid?.userId;
+      newBidCount = update.auction?.bidCount;
+    } else {
+      return;
+    }
+
+    // Update local auction state
+    setAuctions(prevAuctions => 
+      prevAuctions.map(auction => {
+        if (auction.auctionId === auctionId) {
+          const updatedAuction = { ...auction };
+          
+          if (bidAmount !== undefined) {
+            updatedAuction.currentBid = bidAmount;
+          }
+          if (newBidCount !== undefined) {
+            updatedAuction.bidders = newBidCount;
+          }
+          
+          return updatedAuction;
+        }
+        return auction;
+      })
+    );
+
+    // Show toast notification if it's not the current user's bid
+    if (bidAmount && bidderId && bidderId !== currentUserIdRef.current) {
+      const auction = auctions.find(a => a.auctionId === auctionId);
+      const auctionTitle = auction?.title || 'Unknown Auction';
+      
+      toast({
+        title: "New Bid Placed! 🎯",
+        description: `Someone bid R${bidAmount.toLocaleString()} on "${auctionTitle}"`,
+        duration: 4000,
+      });
+    }
+  }, [auctions, setAuctions, toast]);
+
+  // Set up real-time subscriptions for all auctions
+  useEffect(() => {
+    if (auctions.length === 0) return;
+
+    // Clear existing subscriptions
+    unsubscribeFunctionsRef.current.forEach(unsubscribe => unsubscribe());
+    unsubscribeFunctionsRef.current.clear();
+
+    // Use polling for real-time updates (WebSocket optional)
+    const setupSubscriptions = async () => {
+      // Check if WebSocket URL is configured
+      const hasWebSocketUrl = import.meta.env.VITE_WEBSOCKET_URL && 
+                              import.meta.env.VITE_WEBSOCKET_URL !== 'wss://your-websocket-api.execute-api.region.amazonaws.com/dev';
+
+      if (hasWebSocketUrl) {
+        try {
+          // Attempt WebSocket connection
+          if (!wsService.isConnected()) {
+            await wsService.connect();
+          }
+
+          // Subscribe to each auction via WebSocket
+          auctions.forEach(auction => {
+            const unsubscribeWs = wsService.subscribe(auction.auctionId, (message) => {
+              handleBidUpdate(message, 'websocket');
+            });
+            unsubscribeFunctionsRef.current.add(unsubscribeWs);
+          });
+
+          console.log('WebSocket subscriptions established');
+          return; // Exit if WebSocket works
+        } catch (error) {
+          console.warn('WebSocket failed, falling back to polling:', error);
+        }
+      }
+      
+      // Use polling (always works with your existing API)
+      auctions.forEach(auction => {
+        const unsubscribePolling = realtimeService.subscribe(auction.auctionId, (update) => {
+          handleBidUpdate(update, 'polling');
+        });
+        unsubscribeFunctionsRef.current.add(unsubscribePolling);
+      });
+
+      console.log('Polling subscriptions established');
+    };
+
+    setupSubscriptions();
+
+    // Cleanup function
+    return () => {
+      unsubscribeFunctionsRef.current.forEach(unsubscribe => unsubscribe());
+      unsubscribeFunctionsRef.current.clear();
+    };
+  }, [auctions, handleBidUpdate]);
+
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      unsubscribeFunctionsRef.current.forEach(unsubscribe => unsubscribe());
+      realtimeService.destroy();
+    };
+  }, []);
 
   // Function to handle bid placement
   const handlePlaceBid = async (auctionId: string) => {
-    const bidAmountStr = prompt("Enter your bid amount:");
-    if (!bidAmountStr) return;
+    const auction = auctions.find((a) => a.auctionId === auctionId);
+    if (!auction) return;
 
-    const bidAmount = Number(bidAmountStr);
-    if (isNaN(bidAmount) || bidAmount <= 0) {
+    setBiddingAuctionId(auctionId);
+    
+    const currentBid = auction.currentBid || auction.startingBid || 0;
+    const minBid = currentBid + 1;
+    
+    const bidAmountStr = prompt(`Enter your bid amount (minimum: R${minBid.toLocaleString()})`);
+    if (!bidAmountStr) {
+      setBiddingAuctionId(null);
+      return;
+    }
+
+    const bidAmount = Number(bidAmountStr.replace(/[^0-9.]/g, ''));
+
+    if (isNaN(bidAmount) || bidAmount < minBid) {
       toast({
         title: "Invalid Bid Amount",
-        description: "Please enter a valid bid amount",
+        description: `Bid must be at least R${minBid.toLocaleString()}`,
         variant: "destructive",
       });
+      setBiddingAuctionId(null);
       return;
     }
 
     setIsPlacingBid(true);
 
     try {
-      // Get token from localStorage (your working approach)
+      // Get token from localStorage
       const tokenKeys = Object.keys(localStorage).filter(
         (key) => key.includes("Cognito") && key.includes("idToken")
       );
@@ -44,6 +188,7 @@ export const AuctionGrid = () => {
           variant: "destructive",
         });
         setIsPlacingBid(false);
+        setBiddingAuctionId(null);
         return;
       }
 
@@ -54,22 +199,6 @@ export const AuctionGrid = () => {
         (key) => key.includes("Cognito") && key.includes("LastAuthUser")
       );
       const userId = userKeys.length > 0 ? localStorage.getItem(userKeys[0])! : "unknown-user";
-
-      // Find the auction to get current bid info
-      const auction = auctions.find((a) => a.id === auctionId);
-      const currentBid = auction?.currentBid || auction?.startingBid || 0;
-
-      if (bidAmount <= currentBid) {
-        toast({
-          title: "Bid Too Low",
-          description: `Bid must be higher than current bid of R${currentBid}`,
-          variant: "destructive",
-        });
-        setIsPlacingBid(false);
-        return;
-      }
-
-      console.log("Placing bid with:", { auctionId, bidAmount, userId });
 
       const response = await fetch(
         "https://v3w12ytklh.execute-api.us-east-1.amazonaws.com/prod/auctions/bid",
@@ -90,24 +219,26 @@ export const AuctionGrid = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // ✅ IMMEDIATE UI UPDATE
-        const updatedAuctions = auctions.map(a => 
-          a.id === auctionId 
-            ? { 
-                ...a, 
-                currentBid: bidAmount,
-                bidCount: (a.bidCount ?? 0) + 1, // Fixed: using nullish coalescing
-              }
-            : a
-        );
-        setAuctions(updatedAuctions);
-
         toast({
-          title: "Bid Placed Successfully!",
-          description: `Your bid of R${bidAmount} has been placed`,
+          title: "Bid Placed Successfully! 🎉",
+          description: `Your bid of R${bidAmount.toLocaleString()} has been placed`,
         });
         
-        refetch(); // Refresh the auctions list in background
+        // IMMEDIATE UI UPDATE - Update local state
+        setAuctions(prevAuctions => 
+          prevAuctions.map(auction => 
+            auction.auctionId === auctionId 
+              ? { 
+                  ...auction, 
+                  currentBid: bidAmount,
+                  bidders: (auction.bidders || 0) + 1
+                }
+              : auction
+          )
+        );
+        
+        // Then refetch to ensure data is in sync
+        await refetch();
       } else {
         toast({
           title: "Bid Failed",
@@ -117,21 +248,14 @@ export const AuctionGrid = () => {
       }
     } catch (error) {
       console.error("Bid error:", error);
-      if (error instanceof Error) {
-        toast({
-          title: "Error",
-          description: `Bid failed: ${error.message}`,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Error placing bid. Please try again.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Error",
+        description: "Error placing bid. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsPlacingBid(false);
+      setBiddingAuctionId(null);
     }
   };
 
@@ -205,10 +329,11 @@ export const AuctionGrid = () => {
                 currentBid={auction.currentBid || auction.startingBid || 0}
                 timeRemaining={auction.timeRemaining || ""}
                 location={auction.location || ""}
-                bidders={auction.bidCount ?? 0} // Fixed: using nullish coalescing
+                bidders={auction.bidders ?? 0}
                 image={auction.image || ""}
                 status={auction.status}
                 onPlaceBid={handlePlaceBid}
+                isBidding={biddingAuctionId === auction.auctionId && isPlacingBid}
               />
             ))}
           </div>
