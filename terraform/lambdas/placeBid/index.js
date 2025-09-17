@@ -1,64 +1,78 @@
-const AWS = require("aws-sdk");
-const { v4: uuidv4 } = require("uuid");
-const { CacheClient, Configurations, CredentialProvider } = require("@gomomento/sdk");
+const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, QueryCommand, DeleteCommand } = require("@aws-sdk/lib-dynamodb");
+const { ApiGatewayManagementApiClient, PostToConnectionCommand } = require("@aws-sdk/client-apigatewaymanagementapi");
 
-const dynamo = new AWS.DynamoDB.DocumentClient({ region: "us-east-1" });
+const client = new DynamoDBClient({ region: "us-east-1" });
+const dynamo = DynamoDBDocumentClient.from(client);
 
-const TABLE_NAME = process.env.TABLE_NAME;       // Auctions table
+let apiGatewayClient;
+
+const TABLE_NAME = process.env.TABLE_NAME;           // Auctions table
 const BIDS_TABLE_NAME = process.env.BIDS_TABLE_NAME; // Bids table
+const CONNECTIONS_TABLE = process.env.CONNECTIONS_TABLE; // WebSocket connections table
 
-// Momento configuration
-const MOMENTO_AUTH_TOKEN = process.env.MOMENTO_AUTH_TOKEN;
-const MOMENTO_CACHE_NAME = process.env.MOMENTO_CACHE_NAME || "live-bids-cache";
-const MOMENTO_TTL_SECONDS = 3600; // 1 hour TTL
-
-// Initialize Momento client
-let momentoClient;
-try {
-  momentoClient = new CacheClient({
-    configuration: Configurations.Lambda.latest(),
-    credentialProvider: CredentialProvider.fromString({ authToken: MOMENTO_AUTH_TOKEN }),
-    defaultTtlSeconds: MOMENTO_TTL_SECONDS
-  });
-} catch (error) {
-  console.error("Error initializing Momento client:", error);
+// Simple random ID generator
+function generateId() {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
 
 exports.handler = async (event) => {
-  console.log("Incoming event:", JSON.stringify(event, null, 2));
+  console.log("Raw event received:", JSON.stringify(event, null, 2));
 
-  // Parse event body
+  // Initialize API Gateway client with WebSocket endpoint
+  if (!apiGatewayClient && process.env.WEBSOCKET_ENDPOINT) {
+    apiGatewayClient = new ApiGatewayManagementApiClient({
+      region: "us-east-1",
+      endpoint: process.env.WEBSOCKET_ENDPOINT
+    });
+    console.log("Initialized API Gateway WebSocket client with endpoint:", process.env.WEBSOCKET_ENDPOINT);
+  }
+
   let body;
   try {
-    body = event.body ? JSON.parse(event.body) : event;
+    if (event.requestContext && event.requestContext.routeKey) {
+      // WebSocket event - parse the body string
+      const rawBody = event.body || '{}';
+      body = JSON.parse(rawBody);
+      console.log("WebSocket event body:", JSON.stringify(body, null, 2));
+    } else if (event.body) {
+      // REST API event - body is already a string that needs parsing
+      body = JSON.parse(event.body);
+      console.log("REST API event body:", JSON.stringify(body, null, 2));
+    } else {
+      // Direct invocation or other format
+      body = event;
+      console.log("Direct invocation body:", JSON.stringify(body, null, 2));
+    }
   } catch (parseError) {
+    console.error("JSON parse error:", parseError);
     return {
       statusCode: 400,
-      headers: corsHeaders(),
       body: JSON.stringify({ message: "Invalid JSON in request body" }),
     };
   }
 
-  const { auctionId, bidAmount, bidderId } = body;
+  const { action, auctionId, bidAmount, bidderId } = body;
+
   if (!auctionId || !bidAmount || !bidderId) {
+    console.error("Missing required fields:", { auctionId, bidAmount, bidderId });
     return {
       statusCode: 400,
-      headers: corsHeaders(),
       body: JSON.stringify({ message: "Missing required fields: auctionId, bidAmount, bidderId" }),
     };
   }
 
   try {
-    // Fetch the auction
-    const auctionResult = await dynamo.get({
+    // Fetch auction
+    const auctionResult = await dynamo.send(new GetCommand({
       TableName: TABLE_NAME,
       Key: { auctionId },
-    }).promise();
+    }));
 
     if (!auctionResult.Item) {
+      console.warn("Auction not found:", auctionId);
       return {
         statusCode: 404,
-        headers: corsHeaders(),
         body: JSON.stringify({ message: "Auction not found" }),
       };
     }
@@ -68,17 +82,15 @@ exports.handler = async (event) => {
     const numericBid = Number(bidAmount);
 
     if (numericBid <= currentHighestBid) {
+      console.log(`Bid too low: ${numericBid} <= ${currentHighestBid}`);
       return {
         statusCode: 400,
-        headers: corsHeaders(),
-        body: JSON.stringify({
-          message: `Bid must be higher than current bid of R${currentHighestBid}`,
-        }),
+        body: JSON.stringify({ message: `Bid must be higher than current bid of R${currentHighestBid}` }),
       };
     }
 
     // Create bid item
-    const bidId = uuidv4();
+    const bidId = generateId();
     const bidItem = {
       bidId,
       auctionId,
@@ -91,13 +103,14 @@ exports.handler = async (event) => {
     };
 
     // Save bid to bids table
-    await dynamo.put({
-      TableName: BIDS_TABLE_NAME,
-      Item: bidItem,
-    }).promise();
+    await dynamo.send(new PutCommand({ TableName: BIDS_TABLE_NAME, Item: bidItem }));
+    console.log("Bid saved:", bidItem);
+
+    // Ensure bidCount exists
+    const bidCount = auction.bidCount ? Number(auction.bidCount) : 0;
 
     // Update auction with new highest bid
-    const updateResult = await dynamo.update({
+    const updateResult = await dynamo.send(new UpdateCommand({
       TableName: TABLE_NAME,
       Key: { auctionId },
       UpdateExpression: "SET currentBid = :bid, highestBidder = :bidder, updatedAt = :now ADD bidCount :inc",
@@ -108,64 +121,89 @@ exports.handler = async (event) => {
         ":inc": 1,
       },
       ReturnValues: "ALL_NEW",
-    }).promise();
+    }));
 
     const updatedAuction = updateResult.Attributes;
+    console.log("Auction updated:", updatedAuction);
 
-    // Publish bid update to Momento for real-time notifications
-    if (momentoClient) {
-      try {
-        const channelName = `auction-${auctionId}`;
-        const messageData = {
-          type: "NEW_BID",
-          auctionId,
-          bid: bidItem,
-          auction: updatedAuction,
-          timestamp: new Date().toISOString()
-        };
-
-        await momentoClient.publish(MOMENTO_CACHE_NAME, channelName, JSON.stringify(messageData));
-        console.log("Published bid update to Momento channel:", channelName);
-        
-        // Also cache the latest auction state for quick retrieval
-        await momentoClient.set(
-          MOMENTO_CACHE_NAME, 
-          `auction-${auctionId}-latest`, 
-          JSON.stringify(updatedAuction)
-        );
-        
-      } catch (momentoError) {
-        console.error("Error publishing to Momento:", momentoError);
-        // Don't fail the request if Momento fails
-      }
-    }
+    // Broadcast to WebSocket clients
+    await broadcastBidUpdate(auctionId, bidItem, updatedAuction);
 
     return {
       statusCode: 200,
-      headers: corsHeaders(),
-      body: JSON.stringify({
-        message: "Bid placed successfully",
-        bid: bidItem,
-        auction: updatedAuction,
-      }),
+      body: JSON.stringify({ message: "Bid placed successfully", bid: bidItem, auction: updatedAuction }),
     };
+
   } catch (error) {
     console.error("Error placing bid:", error);
     return {
       statusCode: 500,
-      headers: corsHeaders(),
       body: JSON.stringify({ message: "Failed to place bid", error: error.message }),
     };
   }
 };
 
-// Standard CORS headers
-function corsHeaders() {
-  return {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
-    "Access-Control-Allow-Credentials": true,
-  };
+async function broadcastBidUpdate(auctionId, bid, auction) {
+  try {
+    console.log(`Broadcasting bid update for auction: ${auctionId}`);
+
+    if (!apiGatewayClient) {
+      console.error("API Gateway client not initialized");
+      return;
+    }
+
+    // Query connections from GSI
+    const queryResult = await dynamo.send(new QueryCommand({
+      TableName: CONNECTIONS_TABLE,
+      IndexName: "auctionId-index",
+      KeyConditionExpression: "auctionId = :auctionId",
+      ExpressionAttributeValues: { ":auctionId": auctionId }
+    }));
+
+    const connections = queryResult.Items || [];
+    console.log(`Found ${connections.length} connections for auction ${auctionId}`);
+
+    if (connections.length === 0) return;
+
+    const broadcastPromises = connections.map(async (connection) => {
+      try {
+        await apiGatewayClient.send(new PostToConnectionCommand({
+          ConnectionId: connection.connectionId,
+          Data: JSON.stringify({
+            type: "NEW_BID",
+            auctionId,
+            bid: {
+              bidAmount: bid.bidAmount,
+              userId: bid.userId,
+              bidTime: bid.bidTime,
+              bidId: bid.bidId
+            },
+            auction: {
+              currentBid: auction.currentBid,
+              highestBidder: auction.highestBidder,
+              bidCount: auction.bidCount,
+              title: auction.title,
+              artistName: auction.artistName
+            },
+            timestamp: new Date().toISOString()
+          })
+        }));
+        console.log(`Sent update to connection: ${connection.connectionId}`);
+        return { success: true, connectionId: connection.connectionId };
+      } catch (error) {
+        console.error(`Failed to send to connection ${connection.connectionId}:`, error);
+        if (error.statusCode === 410 || error.name === 'GoneException') {
+          await dynamo.send(new DeleteCommand({ TableName: CONNECTIONS_TABLE, Key: { connectionId: connection.connectionId } }));
+          console.log(`Removed stale connection: ${connection.connectionId}`);
+        }
+        return { success: false, connectionId: connection.connectionId, error: error.message };
+      }
+    });
+
+    const results = await Promise.all(broadcastPromises);
+    console.log(`Broadcast complete: ${results.filter(r => r.success).length} successful, ${results.filter(r => !r.success).length} failed`);
+
+  } catch (error) {
+    console.error("Error in broadcastBidUpdate:", error);
+  }
 }

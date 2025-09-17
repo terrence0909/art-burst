@@ -2,7 +2,6 @@ import { AuctionCard } from "./AuctionCard";
 import { useAuctions } from "../hooks/useAuctions";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { realtimeService, BidUpdate } from "../services/realtime";
 import { wsService, WebSocketMessage } from "../services/websocket";
 
 export const AuctionGrid = () => {
@@ -23,112 +22,114 @@ export const AuctionGrid = () => {
     currentUserIdRef.current = userKeys.length > 0 ? localStorage.getItem(userKeys[0]) : null;
   }, []);
 
-  // Handle real-time bid updates
-  const handleBidUpdate = useCallback((update: BidUpdate | WebSocketMessage, source: 'polling' | 'websocket') => {
-    console.log(`Received ${source} update:`, update);
+  // Handle real-time bid updates from WebSocket
+  const handleBidUpdate = useCallback((message: WebSocketMessage) => {
+    console.log('WebSocket message received:', message);
     
-    let auctionId: string;
-    let bidAmount: number | undefined;
-    let bidderId: string | undefined;
-    let newBidCount: number | undefined;
-    
-    // Handle different update formats
-    if ('type' in update && update.type === 'AUCTION_UPDATE') {
-      // Polling update
-      auctionId = update.auctionId;
-      bidAmount = update.bid?.bidAmount;
-      bidderId = update.bid?.userId;
-      newBidCount = update.auction?.bidCount;
-    } else if ('type' in update && (update.type === 'NEW_BID' || update.type === 'AUCTION_UPDATE')) {
-      // WebSocket update
-      auctionId = update.auctionId!;
-      bidAmount = update.bid?.bidAmount;
-      bidderId = update.bid?.userId;
-      newBidCount = update.auction?.bidCount;
-    } else {
-      return;
-    }
-
-    // Update local auction state
-    setAuctions(prevAuctions => 
-      prevAuctions.map(auction => {
-        if (auction.auctionId === auctionId) {
-          const updatedAuction = { ...auction };
-          
-          if (bidAmount !== undefined) {
-            updatedAuction.currentBid = bidAmount;
-          }
-          if (newBidCount !== undefined) {
-            updatedAuction.bidders = newBidCount;
-          }
-          
-          return updatedAuction;
-        }
-        return auction;
-      })
-    );
-
-    // Show toast notification if it's not the current user's bid
-    if (bidAmount && bidderId && bidderId !== currentUserIdRef.current) {
-      const auction = auctions.find(a => a.auctionId === auctionId);
-      const auctionTitle = auction?.title || 'Unknown Auction';
+    // Handle Lambda response format (message with bid/auction fields)
+    if (message.message === "Bid placed successfully" && message.bid && message.auction) {
+      const { bid, auction } = message;
+      const bidAmount = bid.bidAmount;
+      const bidderId = bid.userId;
+      const auctionId = bid.auctionId || auction.auctionId;
       
+      console.log('Processing successful bid response:', { auctionId, bidAmount, bidderId });
+
+      // Update local auction state
+      setAuctions(prevAuctions => 
+        prevAuctions.map(prevAuction => 
+          prevAuction.auctionId === auctionId 
+            ? { 
+                ...prevAuction, 
+                currentBid: bidAmount,
+                bidders: (prevAuction.bidders || 0) + 1
+              }
+            : prevAuction
+        )
+      );
+
+      // Show success toast
       toast({
-        title: "New Bid Placed! 🎯",
-        description: `Someone bid R${bidAmount.toLocaleString()} on "${auctionTitle}"`,
-        duration: 4000,
+        title: "Bid Placed Successfully! 🎉",
+        description: `Your bid of R${bidAmount.toLocaleString()} has been placed`,
       });
+
+    } 
+    // Handle NEW_BID format (for real-time updates from other users)
+    else if (message.type === "NEW_BID" && message.auctionId && message.bid) {
+      const { auctionId, bid, auction } = message;
+      const bidAmount = bid.bidAmount;
+      const bidderId = bid.userId;
+      
+      console.log('Processing real-time bid update:', { auctionId, bidAmount, bidderId });
+
+      // Update local auction state
+      setAuctions(prevAuctions => 
+        prevAuctions.map(prevAuction => 
+          prevAuction.auctionId === auctionId 
+            ? { 
+                ...prevAuction, 
+                currentBid: bidAmount,
+                bidders: auction?.bidCount || (prevAuction.bidders || 0) + 1
+              }
+            : prevAuction
+        )
+      );
+
+      // Show toast notification if it's not the current user's bid
+      if (bidAmount && bidderId && bidderId !== currentUserIdRef.current) {
+        const updatedAuction = auctions.find(a => a.auctionId === auctionId);
+        const auctionTitle = updatedAuction?.title || 'Unknown Auction';
+        
+        toast({
+          title: "New Bid Placed! 🎯",
+          description: `Someone bid R${bidAmount.toLocaleString()} on "${auctionTitle}"`,
+          duration: 4000,
+        });
+      }
+    } else if (message.type === "AUCTION_UPDATE") {
+      // Handle other update types if needed
+      console.log('Auction update received:', message);
     }
   }, [auctions, setAuctions, toast]);
 
-  // Set up real-time subscriptions for all auctions
+  // Set up WebSocket subscriptions for all auctions
   useEffect(() => {
     if (auctions.length === 0) return;
+
+    console.log('Setting up WebSocket subscriptions for', auctions.length, 'auctions');
 
     // Clear existing subscriptions
     unsubscribeFunctionsRef.current.forEach(unsubscribe => unsubscribe());
     unsubscribeFunctionsRef.current.clear();
 
-    // Use polling for real-time updates (WebSocket optional)
-    const setupSubscriptions = async () => {
-      // Check if WebSocket URL is configured
-      const hasWebSocketUrl = import.meta.env.VITE_WEBSOCKET_URL && 
-                              import.meta.env.VITE_WEBSOCKET_URL !== 'wss://your-websocket-api.execute-api.region.amazonaws.com/dev';
-
-      if (hasWebSocketUrl) {
-        try {
-          // Attempt WebSocket connection
-          if (!wsService.isConnected()) {
-            await wsService.connect();
-          }
-
-          // Subscribe to each auction via WebSocket
-          auctions.forEach(auction => {
-            const unsubscribeWs = wsService.subscribe(auction.auctionId, (message) => {
-              handleBidUpdate(message, 'websocket');
-            });
-            unsubscribeFunctionsRef.current.add(unsubscribeWs);
-          });
-
-          console.log('WebSocket subscriptions established');
-          return; // Exit if WebSocket works
-        } catch (error) {
-          console.warn('WebSocket failed, falling back to polling:', error);
+    const setupWebSocketSubscriptions = async () => {
+      try {
+        // Attempt WebSocket connection if not connected
+        if (!wsService.isConnected()) {
+          console.log('Connecting to WebSocket...');
+          await wsService.connect();
+          console.log('WebSocket connected successfully');
         }
-      }
-      
-      // Use polling (always works with your existing API)
-      auctions.forEach(auction => {
-        const unsubscribePolling = realtimeService.subscribe(auction.auctionId, (update) => {
-          handleBidUpdate(update, 'polling');
-        });
-        unsubscribeFunctionsRef.current.add(unsubscribePolling);
-      });
 
-      console.log('Polling subscriptions established');
+        // Subscribe to each auction via WebSocket
+        auctions.forEach(auction => {
+          const unsubscribeWs = wsService.subscribe(auction.auctionId, (message) => {
+            console.log('WebSocket message for auction', auction.auctionId, ':', message);
+            handleBidUpdate(message);
+          });
+          unsubscribeFunctionsRef.current.add(unsubscribeWs);
+        });
+
+        console.log('WebSocket subscriptions established');
+
+      } catch (error) {
+        console.error('WebSocket connection failed:', error);
+        // Don't fall back to polling - WebSockets are the primary method
+      }
     };
 
-    setupSubscriptions();
+    setupWebSocketSubscriptions();
 
     // Cleanup function
     return () => {
@@ -137,15 +138,13 @@ export const AuctionGrid = () => {
     };
   }, [auctions, handleBidUpdate]);
 
-  // Cleanup on component unmount
+  // Debug WebSocket connection on component mount
   useEffect(() => {
-    return () => {
-      unsubscribeFunctionsRef.current.forEach(unsubscribe => unsubscribe());
-      realtimeService.destroy();
-    };
+    console.log('WebSocket connection status:', wsService.isConnected());
+    console.log('WebSocket URL:', import.meta.env.VITE_WEBSOCKET_URL);
   }, []);
 
-  // Function to handle bid placement
+  // Function to handle bid placement via WebSocket
   const handlePlaceBid = async (auctionId: string) => {
     const auction = auctions.find((a) => a.auctionId === auctionId);
     if (!auction) return;
@@ -176,55 +175,23 @@ export const AuctionGrid = () => {
     setIsPlacingBid(true);
 
     try {
-      // Get token from localStorage
-      const tokenKeys = Object.keys(localStorage).filter(
-        (key) => key.includes("Cognito") && key.includes("idToken")
-      );
-
-      if (tokenKeys.length === 0) {
-        toast({
-          title: "Login Required",
-          description: "Please log in to place a bid",
-          variant: "destructive",
-        });
-        setIsPlacingBid(false);
-        setBiddingAuctionId(null);
-        return;
-      }
-
-      const token = localStorage.getItem(tokenKeys[0])!;
-
       // Get user ID from localStorage
       const userKeys = Object.keys(localStorage).filter(
         (key) => key.includes("Cognito") && key.includes("LastAuthUser")
       );
       const userId = userKeys.length > 0 ? localStorage.getItem(userKeys[0])! : "unknown-user";
 
-      const response = await fetch(
-        "https://v3w12ytklh.execute-api.us-east-1.amazonaws.com/prod/auctions/bid",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            auctionId,
-            bidAmount,
-            bidderId: userId,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast({
-          title: "Bid Placed Successfully! 🎉",
-          description: `Your bid of R${bidAmount.toLocaleString()} has been placed`,
+      // Use WebSocket to place bid instead of REST API
+      if (wsService.isConnected()) {
+        // Send bid via WebSocket
+        wsService.sendMessage({
+          action: 'placeBid',
+          auctionId,
+          bidAmount,
+          bidderId: userId
         });
-        
-        // IMMEDIATE UI UPDATE - Update local state
+
+        // Show immediate optimistic UI update
         setAuctions(prevAuctions => 
           prevAuctions.map(auction => 
             auction.auctionId === auctionId 
@@ -236,15 +203,45 @@ export const AuctionGrid = () => {
               : auction
           )
         );
-        
-        // Then refetch to ensure data is in sync
-        await refetch();
-      } else {
+
         toast({
-          title: "Bid Failed",
-          description: data.message || "Unknown error occurred",
-          variant: "destructive",
+          title: "Placing Bid...",
+          description: `Your bid of R${bidAmount.toLocaleString()} is being processed`,
         });
+
+      } else {
+        // Fallback: try to connect WebSocket
+        console.log('WebSocket not connected, attempting to connect...');
+        await wsService.connect();
+        
+        if (wsService.isConnected()) {
+          // Retry sending the bid
+          wsService.sendMessage({
+            action: 'placeBid',
+            auctionId,
+            bidAmount,
+            bidderId: userId
+          });
+
+          setAuctions(prevAuctions => 
+            prevAuctions.map(auction => 
+              auction.auctionId === auctionId 
+                ? { 
+                    ...auction, 
+                    currentBid: bidAmount,
+                    bidders: (auction.bidders || 0) + 1
+                  }
+                : auction
+            )
+          );
+
+          toast({
+            title: "Placing Bid...",
+            description: `Your bid of R${bidAmount.toLocaleString()} is being processed`,
+          });
+        } else {
+          throw new Error('WebSocket connection failed');
+        }
       }
     } catch (error) {
       console.error("Bid error:", error);
@@ -253,6 +250,9 @@ export const AuctionGrid = () => {
         description: "Error placing bid. Please try again.",
         variant: "destructive",
       });
+      
+      // Revert optimistic update if it failed
+      await refetch();
     } finally {
       setIsPlacingBid(false);
       setBiddingAuctionId(null);
@@ -347,6 +347,41 @@ export const AuctionGrid = () => {
             </div>
           </div>
         )}
+
+        {/* Test button for WebSocket messages */}
+        <div className="fixed bottom-4 right-4 z-50">
+          <button
+            onClick={() => {
+              // Simulate receiving a WebSocket message with correct type
+              const testMessage: WebSocketMessage = {
+                type: "NEW_BID",
+                auctionId: auctions[0]?.auctionId || "test-auction-id",
+                bid: {
+                  bidAmount: 1000,
+                  userId: "test-user-123",
+                  bidTime: new Date().toISOString(),
+                  bidId: "test-bid-123"
+                },
+                auction: {
+                  currentBid: 1000,
+                  highestBidder: "test-user-123",
+                  bidCount: 10,
+                  title: auctions[0]?.title || "Test Auction",
+                  artistName: auctions[0]?.artistName || "Test Artist"
+                },
+                timestamp: new Date().toISOString()
+              };
+              handleBidUpdate(testMessage);
+              toast({
+                title: "Test Message Sent",
+                description: "Check console for WebSocket test",
+              });
+            }}
+            className="bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600 transition-colors"
+          >
+            Test WebSocket
+          </button>
+        </div>
       </div>
     </section>
   );

@@ -1,6 +1,7 @@
 // src/services/websocket.ts
 export interface WebSocketMessage {
   type: 'NEW_BID' | 'AUCTION_UPDATE' | 'SUBSCRIPTION_CONFIRMED' | 'ERROR';
+  message?: string; // Added for Lambda responses
   auctionId?: string;
   bid?: any;
   auction?: any;
@@ -69,6 +70,16 @@ export class WebSocketAuctionService {
         reject(error);
       }
     });
+  }
+
+  // Send any message through WebSocket
+  sendMessage(message: any): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message));
+    } else {
+      console.error('WebSocket is not connected');
+      throw new Error('WebSocket is not connected');
+    }
   }
 
   subscribe(auctionId: string, callback: (message: WebSocketMessage) => void): () => void {
