@@ -16,7 +16,7 @@ import artwork2 from "@/assets/artwork-2.jpeg";
 import artwork3 from "@/assets/artwork-3.jpeg";
 
 // Update this to your API Gateway endpoint
-const API_BASE = "https://v3w12ytklh.execute-api.us-east-1.amazonaws.com/prod";
+const API_BASE = "/api";
 
 interface Auction {
   id: string;

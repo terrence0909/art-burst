@@ -1,0 +1,11 @@
+{
+  "name": "websocket-subscribe",
+  "version": "1.0.0",
+  "description": "WebSocket subscription handler",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.888.0",
+    "@aws-sdk/lib-dynamodb": "^3.888.0",
+    "aws-sdk": "^2.1692.0"
+  }
+}

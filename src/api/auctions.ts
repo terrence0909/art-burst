@@ -2,7 +2,7 @@
 import { fetchAuthSession } from "aws-amplify/auth";
 import { Auction } from '@/types/auction'; // Import the interface
 
-const API_BASE_URL = "https://v3w12ytklh.execute-api.us-east-1.amazonaws.com/prod";
+const API_BASE_URL = "/api";
 
 // Enhanced fetch handler with authentication
 const handleFetch = async (url: string, options: RequestInit = {}) => {

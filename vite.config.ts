@@ -10,20 +10,28 @@ export default defineConfig({
   root: ".",
   base: "/",
   server: {
-    host: "::",
+    host: "0.0.0.0",
     port: 8080,
+    proxy: {
+      // Add this proxy configuration
+      '/api': {
+        target: 'https://v3w12ytklh.execute-api.us-east-1.amazonaws.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '/prod'),
+        secure: false,
+      }
+    }
   },
   plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "@assets": path.resolve(__dirname, "./src/assets") // Add this alias
+      "@assets": path.resolve(__dirname, "./src/assets")
     }
   },
-  // Add this optimization for assets
   assetsInclude: ['**/*.jpeg', '**/*.jpg', '**/*.png'],
   build: {
-    assetsInlineLimit: 4096, // Files smaller than 4kb will be inlined
+    assetsInlineLimit: 4096,
     rollupOptions: {
       output: {
         assetFileNames: 'assets/[name]-[hash][extname]'

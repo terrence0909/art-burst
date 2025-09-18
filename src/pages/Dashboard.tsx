@@ -68,7 +68,7 @@ interface UserData {
 }
 
 // Update this to your API Gateway endpoint
-const API_BASE = "https://v3w12ytklh.execute-api.us-east-1.amazonaws.com/prod";
+const API_BASE = "/api";
 
 const Dashboard = () => {
   const [user, setUser] = useState<UserData | null>(null);
