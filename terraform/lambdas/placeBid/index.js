@@ -1,11 +1,13 @@
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, QueryCommand, DeleteCommand } = require("@aws-sdk/lib-dynamodb");
-const { ApiGatewayManagementApiClient, PostToConnectionCommand } = require("@aws-sdk/client-apigatewaymanagementapi");
+const { LambdaClient, InvokeCommand } = require("@aws-sdk/client-lambda"); // ADD THIS
 
 const client = new DynamoDBClient({ region: "us-east-1" });
 const dynamo = DynamoDBDocumentClient.from(client);
 
-let apiGatewayClient;
+// REMOVE the ApiGatewayManagementApiClient import and apiGatewayClient variable
+// const { ApiGatewayManagementApiClient, PostToConnectionCommand } = require("@aws-sdk/client-apigatewaymanagementapi"); // REMOVE
+// let apiGatewayClient; // REMOVE
 
 const TABLE_NAME = process.env.TABLE_NAME;           // Auctions table
 const BIDS_TABLE_NAME = process.env.BIDS_TABLE_NAME; // Bids table
@@ -19,14 +21,14 @@ function generateId() {
 exports.handler = async (event) => {
   console.log("Raw event received:", JSON.stringify(event, null, 2));
 
-  // Initialize API Gateway client with WebSocket endpoint
-  if (!apiGatewayClient && process.env.WEBSOCKET_ENDPOINT) {
-    apiGatewayClient = new ApiGatewayManagementApiClient({
-      region: "us-east-1",
-      endpoint: process.env.WEBSOCKET_ENDPOINT
-    });
-    console.log("Initialized API Gateway WebSocket client with endpoint:", process.env.WEBSOCKET_ENDPOINT);
-  }
+  // REMOVE the API Gateway client initialization
+  // if (!apiGatewayClient && process.env.WEBSOCKET_ENDPOINT) {
+  //   apiGatewayClient = new ApiGatewayManagementApiClient({
+  //     region: "us-east-1",
+  //     endpoint: process.env.WEBSOCKET_ENDPOINT
+  //   });
+  //   console.log("Initialized API Gateway WebSocket client with endpoint:", process.env.WEBSOCKET_ENDPOINT);
+  // }
 
   let body;
   try {
@@ -126,8 +128,30 @@ exports.handler = async (event) => {
     const updatedAuction = updateResult.Attributes;
     console.log("Auction updated:", updatedAuction);
 
-    // Broadcast to WebSocket clients
-    await broadcastBidUpdate(auctionId, bidItem, updatedAuction);
+    // ✅ NEW: Call broadcastToSubscribers Lambda instead of direct WebSocket sending
+    try {
+      const lambdaClient = new LambdaClient({ region: "us-east-1" });
+      
+      await lambdaClient.send(new InvokeCommand({
+        FunctionName: "broadcastToSubscribers",
+        InvocationType: "Event", // Async execution
+        Payload: JSON.stringify({
+          auctionId: auctionId,
+          bidData: {
+            bidId: bidItem.bidId,
+            bidAmount: numericBid,
+            bidderId: bidderId,
+            bidTime: bidItem.bidTime
+          },
+          action: "bidUpdate"
+        })
+      }));
+      
+      console.log("📢 Broadcast triggered via broadcastToSubscribers Lambda");
+    } catch (broadcastError) {
+      console.error("Failed to trigger broadcast:", broadcastError);
+      // Don't fail the bid if broadcast fails
+    }
 
     return {
       statusCode: 200,
@@ -143,67 +167,3 @@ exports.handler = async (event) => {
   }
 };
 
-async function broadcastBidUpdate(auctionId, bid, auction) {
-  try {
-    console.log(`Broadcasting bid update for auction: ${auctionId}`);
-
-    if (!apiGatewayClient) {
-      console.error("API Gateway client not initialized");
-      return;
-    }
-
-    // Query connections from GSI
-    const queryResult = await dynamo.send(new QueryCommand({
-      TableName: CONNECTIONS_TABLE,
-      IndexName: "auctionId-index",
-      KeyConditionExpression: "auctionId = :auctionId",
-      ExpressionAttributeValues: { ":auctionId": auctionId }
-    }));
-
-    const connections = queryResult.Items || [];
-    console.log(`Found ${connections.length} connections for auction ${auctionId}`);
-
-    if (connections.length === 0) return;
-
-    const broadcastPromises = connections.map(async (connection) => {
-      try {
-        await apiGatewayClient.send(new PostToConnectionCommand({
-          ConnectionId: connection.connectionId,
-          Data: JSON.stringify({
-            type: "NEW_BID",
-            auctionId,
-            bid: {
-              bidAmount: bid.bidAmount,
-              userId: bid.userId,
-              bidTime: bid.bidTime,
-              bidId: bid.bidId
-            },
-            auction: {
-              currentBid: auction.currentBid,
-              highestBidder: auction.highestBidder,
-              bidCount: auction.bidCount,
-              title: auction.title,
-              artistName: auction.artistName
-            },
-            timestamp: new Date().toISOString()
-          })
-        }));
-        console.log(`Sent update to connection: ${connection.connectionId}`);
-        return { success: true, connectionId: connection.connectionId };
-      } catch (error) {
-        console.error(`Failed to send to connection ${connection.connectionId}:`, error);
-        if (error.statusCode === 410 || error.name === 'GoneException') {
-          await dynamo.send(new DeleteCommand({ TableName: CONNECTIONS_TABLE, Key: { connectionId: connection.connectionId } }));
-          console.log(`Removed stale connection: ${connection.connectionId}`);
-        }
-        return { success: false, connectionId: connection.connectionId, error: error.message };
-      }
-    });
-
-    const results = await Promise.all(broadcastPromises);
-    console.log(`Broadcast complete: ${results.filter(r => r.success).length} successful, ${results.filter(r => !r.success).length} failed`);
-
-  } catch (error) {
-    console.error("Error in broadcastBidUpdate:", error);
-  }
-}
