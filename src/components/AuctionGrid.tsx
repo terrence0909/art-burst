@@ -26,72 +26,91 @@ export const AuctionGrid = () => {
   const handleBidUpdate = useCallback((message: WebSocketMessage) => {
     console.log('WebSocket message received:', message);
     
-    // Handle Lambda response format (message with bid/auction fields)
-    if (message.message === "Bid placed successfully" && message.bid && message.auction) {
-      const { bid, auction } = message;
-      const bidAmount = bid.bidAmount;
-      const bidderId = bid.userId;
-      const auctionId = bid.auctionId || auction.auctionId;
-      
-      console.log('Processing successful bid response:', { auctionId, bidAmount, bidderId });
-
-      // Update local auction state
-      setAuctions(prevAuctions => 
-        prevAuctions.map(prevAuction => 
-          prevAuction.auctionId === auctionId 
-            ? { 
-                ...prevAuction, 
-                currentBid: bidAmount,
-                bidders: (prevAuction.bidders || 0) + 1
-              }
-            : prevAuction
-        )
-      );
-
-      // Show success toast
-      toast({
-        title: "Bid Placed Successfully! 🎉",
-        description: `Your bid of R${bidAmount.toLocaleString()} has been placed`,
-      });
-
-    } 
-    // Handle NEW_BID format (for real-time updates from other users)
-    else if (message.type === "NEW_BID" && message.auctionId && message.bid) {
-      const { auctionId, bid, auction } = message;
-      const bidAmount = bid.bidAmount;
-      const bidderId = bid.userId;
+    // Handle bidUpdate messages (from broadcast)
+    if (message.action === 'bidUpdate' && message.bid && message.auctionId) {
+      const { bidAmount, bidderId } = message.bid;
+      const auctionId = message.auctionId;
       
       console.log('Processing real-time bid update:', { auctionId, bidAmount, bidderId });
 
-      // Update local auction state
-      setAuctions(prevAuctions => 
-        prevAuctions.map(prevAuction => 
+      // Update local auction state AND show toast in the same update
+      setAuctions(prevAuctions => {
+        const updatedAuctions = prevAuctions.map(prevAuction => 
           prevAuction.auctionId === auctionId 
             ? { 
                 ...prevAuction, 
                 currentBid: bidAmount,
-                bidders: auction?.bidCount || (prevAuction.bidders || 0) + 1
+                bidders: (prevAuction.bidders || 0) + 1,
+                highestBidder: bidderId
               }
             : prevAuction
-        )
-      );
+        );
 
-      // Show toast notification if it's not the current user's bid
-      if (bidAmount && bidderId && bidderId !== currentUserIdRef.current) {
-        const updatedAuction = auctions.find(a => a.auctionId === auctionId);
-        const auctionTitle = updatedAuction?.title || 'Unknown Auction';
+        // Find the updated auction from the LATEST state
+        const updatedAuction = updatedAuctions.find(a => a.auctionId === auctionId);
         
-        toast({
-          title: "New Bid Placed! 🎯",
-          description: `Someone bid R${bidAmount.toLocaleString()} on "${auctionTitle}"`,
-          duration: 4000,
-        });
-      }
-    } else if (message.type === "AUCTION_UPDATE") {
-      // Handle other update types if needed
-      console.log('Auction update received:', message);
+        // Show toast notification if it's not the current user's bid
+        if (bidderId && bidderId !== currentUserIdRef.current) {
+          const auctionTitle = updatedAuction?.title || 'Unknown Auction';
+          
+          console.log('Showing toast for external bid on:', auctionTitle);
+          toast({
+            title: "💸 New Bid Placed!",
+            description: `Someone bid R${bidAmount.toLocaleString()} on "${auctionTitle}"`,
+            duration: 4000,
+          });
+        }
+
+        return updatedAuctions;
+      });
+    } 
+    // Handle Lambda response format (direct responses to our bids)
+    else if (message.message === "Bid placed successfully" && message.bid && message.auction) {
+      const { bid, auction } = message;
+      const bidAmount = bid.bidAmount;
+      const bidderId = bid.bidderId;
+      const auctionId = auction.auctionId;
+      
+      console.log('Processing successful bid response:', { auctionId, bidAmount, bidderId });
+
+      // Update local auction state AND handle toast in the same update
+      setAuctions(prevAuctions => {
+        const updatedAuctions = prevAuctions.map(prevAuction => 
+          prevAuction.auctionId === auctionId 
+            ? { 
+                ...prevAuction, 
+                currentBid: bidAmount,
+                bidders: (prevAuction.bidders || 0) + 1,
+                highestBidder: bidderId
+              }
+            : prevAuction
+        );
+
+        // Find the updated auction from the LATEST state
+        const updatedAuction = updatedAuctions.find(a => a.auctionId === auctionId);
+        
+        // Show success toast ONLY if it's our own bid
+        if (bidderId === currentUserIdRef.current) {
+          toast({
+            title: "🏆 Bid Placed Successfully!",
+            description: `Your bid of R${bidAmount.toLocaleString()} has been placed`,
+            duration: 3000,
+          });
+        } else {
+          // Show external bid toast for direct responses too
+          const auctionTitle = updatedAuction?.title || 'Unknown Auction';
+          
+          toast({
+            title: "💸 New Bid Placed!",
+            description: `Someone bid R${bidAmount.toLocaleString()} on "${auctionTitle}"`,
+            duration: 4000,
+          });
+        }
+
+        return updatedAuctions;
+      });
     }
-  }, [auctions, setAuctions, toast]);
+  }, [setAuctions, toast]); // REMOVED 'auctions' from dependencies
 
   // Set up WebSocket subscriptions for all auctions
   useEffect(() => {
@@ -125,7 +144,11 @@ export const AuctionGrid = () => {
 
       } catch (error) {
         console.error('WebSocket connection failed:', error);
-        // Don't fall back to polling - WebSockets are the primary method
+        toast({
+          title: "Connection Issue",
+          description: "Real-time updates unavailable. Page refresh recommended.",
+          variant: "destructive",
+        });
       }
     };
 
@@ -136,13 +159,7 @@ export const AuctionGrid = () => {
       unsubscribeFunctionsRef.current.forEach(unsubscribe => unsubscribe());
       unsubscribeFunctionsRef.current.clear();
     };
-  }, [auctions, handleBidUpdate]);
-
-  // Debug WebSocket connection on component mount
-  useEffect(() => {
-    console.log('WebSocket connection status:', wsService.isConnected());
-    console.log('WebSocket URL:', import.meta.env.VITE_WEBSOCKET_URL);
-  }, []);
+  }, [auctions, handleBidUpdate, toast]);
 
   // Function to handle bid placement via WebSocket
   const handlePlaceBid = async (auctionId: string) => {
@@ -152,7 +169,7 @@ export const AuctionGrid = () => {
     setBiddingAuctionId(auctionId);
     
     const currentBid = auction.currentBid || auction.startingBid || 0;
-    const minBid = currentBid + 1;
+    const minBid = currentBid + (auction.bidIncrement || 100);
     
     const bidAmountStr = prompt(`Enter your bid amount (minimum: R${minBid.toLocaleString()})`);
     if (!bidAmountStr) {
@@ -181,7 +198,7 @@ export const AuctionGrid = () => {
       );
       const userId = userKeys.length > 0 ? localStorage.getItem(userKeys[0])! : "unknown-user";
 
-      // Use WebSocket to place bid instead of REST API
+      // Use WebSocket to place bid
       if (wsService.isConnected()) {
         // Send bid via WebSocket
         wsService.sendMessage({
@@ -198,7 +215,8 @@ export const AuctionGrid = () => {
               ? { 
                   ...auction, 
                   currentBid: bidAmount,
-                  bidders: (auction.bidders || 0) + 1
+                  bidders: (auction.bidders || 0) + 1,
+                  highestBidder: userId
                 }
               : auction
           )
@@ -229,7 +247,8 @@ export const AuctionGrid = () => {
                 ? { 
                     ...auction, 
                     currentBid: bidAmount,
-                    bidders: (auction.bidders || 0) + 1
+                    bidders: (auction.bidders || 0) + 1,
+                    highestBidder: userId
                   }
                 : auction
             )
@@ -348,39 +367,12 @@ export const AuctionGrid = () => {
           </div>
         )}
 
-        {/* Test button for WebSocket messages */}
-        <div className="fixed bottom-4 right-4 z-50">
-          <button
-            onClick={() => {
-              // Simulate receiving a WebSocket message with correct type
-              const testMessage: WebSocketMessage = {
-                type: "NEW_BID",
-                auctionId: auctions[0]?.auctionId || "test-auction-id",
-                bid: {
-                  bidAmount: 1000,
-                  userId: "test-user-123",
-                  bidTime: new Date().toISOString(),
-                  bidId: "test-bid-123"
-                },
-                auction: {
-                  currentBid: 1000,
-                  highestBidder: "test-user-123",
-                  bidCount: 10,
-                  title: auctions[0]?.title || "Test Auction",
-                  artistName: auctions[0]?.artistName || "Test Artist"
-                },
-                timestamp: new Date().toISOString()
-              };
-              handleBidUpdate(testMessage);
-              toast({
-                title: "Test Message Sent",
-                description: "Check console for WebSocket test",
-              });
-            }}
-            className="bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600 transition-colors"
-          >
-            Test WebSocket
-          </button>
+        {/* Connection status indicator */}
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2">
+          <div className={`w-3 h-3 rounded-full ${wsService.isConnected() ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <span className="text-sm text-muted-foreground">
+            {wsService.isConnected() ? 'Connected' : 'Disconnected'}
+          </span>
         </div>
       </div>
     </section>
