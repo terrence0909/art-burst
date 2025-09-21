@@ -2,7 +2,7 @@
 import { toast } from 'react-toastify';
 
 export interface WebSocketMessage {
-  action?: 'bidUpdate' | 'subscribe' | 'placeBid' | 'ping';
+  action?: 'bidUpdate' | 'subscribe' | 'placeBid' | 'ping' | 'pong' | 'unsubscribe';
   type?: 'NEW_BID' | 'AUCTION_UPDATE' | 'SUBSCRIPTION_CONFIRMED' | 'ERROR';
   message?: string;
   auctionId?: string;
@@ -14,86 +14,162 @@ export interface WebSocketMessage {
   };
   auction?: any;
   error?: string;
-  status?: 'success' | 'error' | 'duplicate';
-  timestamp: string;
+  status?: 'success' | 'error' | 'duplicate' | 'forbidden';
+  timestamp?: string;
+  connectionId?: string;
+  requestId?: string;
 }
 
 export class WebSocketAuctionService {
   private ws: WebSocket | null = null;
   private wsUrl: string;
-  private subscribers: Map<string, Set<(message: WebSocketMessage) => void>> = new Map();
+  private subscribers: Map<string, Set<(msg: WebSocketMessage) => void>> = new Map();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+  private baseReconnectDelay = 1000;
   private subscriptions: Set<string> = new Set();
-  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private heartbeatInterval: number | null = null;
+  private connectionPromise: Promise<void> | null = null;
+  private lastMessageTime: number = 0;
+  private isExplicitlyDisconnected: boolean = false;
+  private pendingMessages: any[] = [];
+  private _isConnected: boolean = false;
+  
+  // Add connection change callback support
+  public onConnectionChange?: (connected: boolean) => void;
 
-  constructor(wsUrl: string) {
-    this.wsUrl = wsUrl;
+  constructor(wsUrl: string, auctionId: string, userId: string, authToken?: string) {
+    // Add query parameters to the WebSocket URL
+    const params = new URLSearchParams({
+      auctionId,
+      userId,
+    });
+    
+    if (authToken) {
+      params.set('auth', authToken);
+    }
+    
+    this.wsUrl = `${wsUrl}?${params.toString()}`;
+    this.setupNetworkMonitoring();
   }
 
-  connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
+  async connect(): Promise<void> {
+    if (this.connectionPromise) return this.connectionPromise;
+    if (this.isExplicitlyDisconnected) return;
+
+    this.connectionPromise = new Promise((resolve, reject) => {
       try {
         this.ws = new WebSocket(this.wsUrl);
 
+        const timeout = setTimeout(() => {
+          this.ws?.close();
+          reject(new Error('Connection timeout'));
+        }, 10000);
+
         this.ws.onopen = () => {
-          console.log('WebSocket connected');
+          clearTimeout(timeout);
           this.reconnectAttempts = 0;
-          
-          // Start heartbeat
+          this.lastMessageTime = Date.now();
+          this._isConnected = true;
           this.startHeartbeat();
+          this.resubscribeToAll();
+          this.flushPendingMessages();
+          console.log('✅ WebSocket connected successfully');
           
-          // Re-subscribe to any existing subscriptions
-          this.subscriptions.forEach(auctionId => {
-            this.sendSubscription(auctionId);
-          });
+          // Notify connection change
+          if (this.onConnectionChange) {
+            this.onConnectionChange(true);
+          }
           
           resolve();
         };
 
         this.ws.onmessage = (event) => {
           try {
+            this.lastMessageTime = Date.now();
             const message: WebSocketMessage = JSON.parse(event.data);
             this.handleMessage(message);
-          } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
-            toast.error('Failed to process update');
+          } catch (err) {
+            console.error('❌ Error parsing WebSocket message:', err);
           }
         };
 
         this.ws.onclose = (event) => {
-          console.log('WebSocket disconnected:', event.code, event.reason);
+          clearTimeout(timeout);
           this.ws = null;
+          this.connectionPromise = null;
+          this._isConnected = false;
           this.stopHeartbeat();
+
+          console.log(`🔌 WebSocket closed with code: ${event.code}, reason: ${event.reason}`);
           
-          if (!event.wasClean && this.reconnectAttempts < this.maxReconnectAttempts) {
-            setTimeout(() => {
-              this.reconnectAttempts++;
-              console.log(`Reconnecting... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-              this.connect();
-            }, this.reconnectDelay * this.reconnectAttempts);
+          // Notify connection change
+          if (this.onConnectionChange) {
+            this.onConnectionChange(false);
+          }
+          
+          // Only reconnect for abnormal closures, not normal ones
+          if (event.code !== 1000 && event.code !== 1001 && !this.isExplicitlyDisconnected) {
+            console.log('🔄 Attempting to reconnect...');
+            this.scheduleReconnection();
+          } else {
+            console.log('🔌 WebSocket closed normally, not reconnecting');
           }
         };
 
         this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          toast.error('Connection error');
-          reject(error);
+          console.error('❌ WebSocket error:', error);
+          this.connectionPromise = null;
+          this._isConnected = false;
+          
+          // Notify connection change
+          if (this.onConnectionChange) {
+            this.onConnectionChange(false);
+          }
+          
+          if (!this.isExplicitlyDisconnected) this.scheduleReconnection();
         };
-
       } catch (error) {
+        console.error('❌ Failed to connect:', error);
+        this.connectionPromise = null;
+        this._isConnected = false;
+        
+        // Notify connection change
+        if (this.onConnectionChange) {
+          this.onConnectionChange(false);
+        }
+        
+        this.scheduleReconnection();
         reject(error);
       }
     });
+
+    return this.connectionPromise;
+  }
+
+  private scheduleReconnection() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      toast.error('Connection lost. Please refresh the page.', { autoClose: 5000 });
+      return;
+    }
+
+    const delay = this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts);
+    console.log(`⏰ Scheduling reconnection in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
+    
+    setTimeout(() => {
+      this.reconnectAttempts++;
+      this.connect().catch(console.error);
+    }, delay);
   }
 
   private startHeartbeat() {
-    this.heartbeatInterval = setInterval(() => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ action: 'ping' }));
+    this.stopHeartbeat();
+    this.heartbeatInterval = window.setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ action: 'ping', timestamp: Date.now() }));
+        this.checkConnectionHealth();
       }
-    }, 30000); // Every 30 seconds
+    }, 30000);
   }
 
   private stopHeartbeat() {
@@ -103,150 +179,161 @@ export class WebSocketAuctionService {
     }
   }
 
-  sendMessage(message: any): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(message));
-    } else {
-      console.error('WebSocket is not connected');
-      throw new Error('WebSocket is not connected');
-    }
-  }
-
-  subscribe(auctionId: string, callback: (message: WebSocketMessage) => void): () => void {
-    if (!this.subscribers.has(auctionId)) {
-      this.subscribers.set(auctionId, new Set());
-    }
-
-    this.subscribers.get(auctionId)!.add(callback);
-    this.subscriptions.add(auctionId);
-
-    // Send subscription message if connected
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.sendSubscription(auctionId);
-    }
-
-    // Return unsubscribe function
-    return () => {
-      const auctionSubscribers = this.subscribers.get(auctionId);
-      if (auctionSubscribers) {
-        auctionSubscribers.delete(callback);
-        if (auctionSubscribers.size === 0) {
-          this.subscribers.delete(auctionId);
-          this.subscriptions.delete(auctionId);
-        }
+  private checkConnectionHealth() {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      // If no messages received in 2 minutes, connection might be dead
+      if (Date.now() - this.lastMessageTime > 120000) {
+        console.log('🩺 Connection appears stale, reconnecting...');
+        this.ws.close();
+        this.scheduleReconnection();
       }
-    };
+    }
   }
 
-  private sendSubscription(auctionId: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        action: 'subscribe',
-        auctionId
-      }));
+  private setupNetworkMonitoring() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        console.log('🌐 Network came online, reconnecting WebSocket...');
+        if (!this.isConnected() && !this.isExplicitlyDisconnected) {
+          this.connect().catch(console.error);
+        }
+      });
+      
+      window.addEventListener('offline', () => {
+        console.log('🌐 Network went offline, WebSocket may disconnect');
+      });
+    }
+  }
+
+  private async resubscribeToAll() {
+    const oldSubs = Array.from(this.subscriptions);
+    this.subscriptions.clear();
+    for (const auctionId of oldSubs) {
+      await this.sendMessage({ action: 'subscribe', auctionId });
+    }
+  }
+
+  private flushPendingMessages() {
+    const messages = [...this.pendingMessages];
+    this.pendingMessages = [];
+    for (const msg of messages) this.sendMessageInternal(msg).catch(console.error);
+  }
+
+  async sendMessage(message: any) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.pendingMessages.push(message);
+      if (!this.connectionPromise) await this.connect();
+      return;
+    }
+    await this.sendMessageInternal(message);
+  }
+
+  private async sendMessageInternal(message: any) {
+    try {
+      this.ws!.send(JSON.stringify(message));
+      this.lastMessageTime = Date.now();
+    } catch (err) {
+      console.error('❌ Error sending message:', err);
+      throw err;
+    }
+  }
+
+  subscribe(auctionId: string, callback: (msg: WebSocketMessage) => void): () => void {
+    if (!this.subscribers.has(auctionId)) this.subscribers.set(auctionId, new Set());
+    this.subscribers.get(auctionId)!.add(callback);
+
+    if (!this.subscriptions.has(auctionId)) {
+      this.subscriptions.add(auctionId);
+      if (this.isConnected()) this.sendMessage({ action: 'subscribe', auctionId }).catch(console.error);
+    }
+
+    return () => this.unsubscribe(auctionId, callback);
+  }
+
+  private unsubscribe(auctionId: string, callback: (msg: WebSocketMessage) => void) {
+    const subs = this.subscribers.get(auctionId);
+    if (!subs) return;
+    subs.delete(callback);
+
+    if (subs.size === 0) {
+      this.subscribers.delete(auctionId);
+      this.subscriptions.delete(auctionId);
+      if (this.isConnected()) this.sendMessage({ action: 'unsubscribe', auctionId }).catch(console.error);
     }
   }
 
   private handleMessage(message: WebSocketMessage) {
-    console.log('Received WebSocket message:', message);
-
-    // Handle different message types
-    if (message.action === 'bidUpdate') {
-      this.handleBidUpdate(message);
-    } else if (message.message && message.status) {
-      this.handleLambdaResponse(message);
-    } else if (message.action === 'ping') {
-      // Respond to ping
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ action: 'pong' }));
-      }
-    }
-
-    // Notify subscribers
+    // Forward to subscribers
     if (message.auctionId) {
-      const subscribers = this.subscribers.get(message.auctionId);
-      if (subscribers) {
-        subscribers.forEach(callback => callback(message));
-      }
+      const auctionSubs = this.subscribers.get(message.auctionId);
+      auctionSubs?.forEach(cb => cb(message));
     }
-
-    // Also notify general subscribers
-    const generalSubscribers = this.subscribers.get('*');
-    if (generalSubscribers) {
-      generalSubscribers.forEach(callback => callback(message));
-    }
+    // Wildcard subscribers
+    const wildcardSubs = this.subscribers.get('*');
+    wildcardSubs?.forEach(cb => cb(message));
   }
 
-  private handleBidUpdate(message: WebSocketMessage) {
-    if (message.bid && message.auctionId) {
-      // Show toast notification for new bids
-      toast.info(`💸 New bid: R${message.bid.bidAmount} by ${message.bid.bidderId}`, {
-        position: "top-right",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-        progress: undefined,
-      });
-    }
-  }
-
-  private handleLambdaResponse(message: WebSocketMessage) {
-    if (message.status === 'success') {
-      if (message.message?.includes('Subscribed')) {
-        toast.success(`✅ ${message.message}`, { 
-          autoClose: 2000,
-          position: "top-right"
-        });
-      } else if (message.message?.includes('Bid placed')) {
-        toast.success(`🏆 ${message.message}`, { 
-          autoClose: 3000,
-          position: "top-right"
-        });
-      }
-    } else if (message.status === 'error' && message.error) {
-      toast.error(`❌ ${message.error}`, { 
-        autoClose: 5000,
-        position: "top-right"
-      });
-    } else if (message.status === 'duplicate') {
-      toast.info(`ℹ️ ${message.message}`, { 
-        autoClose: 2000,
-        position: "top-right"
-      });
-    }
-  }
-
-  placeBid(auctionId: string, bidAmount: number, bidderId: string) {
-    this.sendMessage({
-      action: 'placeBid',
-      auctionId,
-      bidAmount,
-      bidderId
-    });
+  async placeBid(auctionId: string, bidAmount: number, bidderId: string) {
+    await this.sendMessage({ action: 'placeBid', auctionId, bidAmount, bidderId });
   }
 
   disconnect() {
+    this.isExplicitlyDisconnected = true;
+    this._isConnected = false;
     this.stopHeartbeat();
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
+    this.ws?.close();
+    this.ws = null;
+    this.connectionPromise = null;
     this.subscribers.clear();
     this.subscriptions.clear();
+    this.pendingMessages = [];
+    
+    // Notify connection change
+    if (this.onConnectionChange) {
+      this.onConnectionChange(false);
+    }
   }
 
-  isConnected(): boolean {
-    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+  isConnected() {
+    return this.ws?.readyState === WebSocket.OPEN && this._isConnected;
   }
 
-  getSubscriptions(): string[] {
+  getSubscriptions() {
     return Array.from(this.subscriptions);
   }
 }
 
-// Export singleton instance
-export const wsService = new WebSocketAuctionService(
-  import.meta.env.VITE_WEBSOCKET_URL || 'wss://qm968tbs12.execute-api.us-east-1.amazonaws.com/prod'
-);
+// Factory function to create WebSocket service instances
+export const createWebSocketService = (auctionId: string, userId: string, authToken?: string) => {
+  return new WebSocketAuctionService(
+    import.meta.env.VITE_WEBSOCKET_URL || 'wss://qm968tbs12.execute-api.us-east-1.amazonaws.com/prod',
+    auctionId,
+    userId,
+    authToken
+  );
+};
+
+// Deprecated singleton (will throw errors to force migration)
+export const wsService = {
+  connect: () => { 
+    throw new Error('wsService singleton is deprecated. Use createWebSocketService(auctionId, userId) instead.');
+  },
+  disconnect: () => {
+    throw new Error('wsService singleton is deprecated. Use createWebSocketService(auctionId, userId) instead.');
+  },
+  isConnected: () => {
+    throw new Error('wsService singleton is deprecated. Use createWebSocketService(auctionId, userId) instead.');
+  },
+  subscribe: () => {
+    throw new Error('wsService singleton is deprecated. Use createWebSocketService(auctionId, userId) instead.');
+  },
+  placeBid: () => {
+    throw new Error('wsService singleton is deprecated. Use createWebSocketService(auctionId, userId) instead.');
+  },
+  getSubscriptions: () => {
+    throw new Error('wsService singleton is deprecated. Use createWebSocketService(auctionId, userId) instead.');
+  },
+  sendMessage: () => {
+    throw new Error('wsService singleton is deprecated. Use createWebSocketService(auctionId, userId) instead.');
+  }
+};

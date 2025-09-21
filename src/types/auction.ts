@@ -32,6 +32,7 @@ export interface Auction {
   startingBid?: number;
   createdAt?: string;
   updatedAt?: string;
+  highestBidder?: string;
   // You might also want to add bids array to the Auction interface
   bids?: Bid[];
 }

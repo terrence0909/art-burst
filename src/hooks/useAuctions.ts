@@ -1,5 +1,5 @@
-// useAuctions.ts
-import { useState, useEffect } from 'react';
+// src/hooks/useAuctions.ts - UPDATED VERSION
+import { useState, useEffect, useCallback } from 'react';
 import { Auction } from '../types/auction';
 import { fetchAuctions } from '../api/auctions';
 
@@ -8,9 +8,8 @@ export const useAuctions = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // helper to normalize backend fields
-  const normalizeAuction = (auction: any): Auction => ({
-    id: auction.id || auction.auctionId || auction._id || "",
+  const normalizeAuction = useCallback((auction: any): Auction => ({
+    id: auction.auctionId || auction.id || auction._id || "",
     auctionId: auction.auctionId || auction.id || auction._id || "",
     title: auction.title || "Untitled",
     artistName: auction.artistName || auction.artist || "Unknown Artist",
@@ -27,9 +26,10 @@ export const useAuctions = () => {
     bidders: auction.bidders ?? auction.bidCount ?? 0,
     medium: auction.medium ?? "",
     year: auction.year ?? "",
-  });
+    bidIncrement: auction.bidIncrement ?? 100,
+  }), []);
 
-  const loadAuctions = async () => {
+  const loadAuctions = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -41,13 +41,13 @@ export const useAuctions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [normalizeAuction]);
 
   useEffect(() => {
     loadAuctions();
-  }, []);
+  }, [loadAuctions]);
 
-  const refetch = async () => {
+  const refetch = useCallback(async () => {
     try {
       setError(null);
       const data = await fetchAuctions();
@@ -55,13 +55,21 @@ export const useAuctions = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refetch auctions');
     }
-  };
+  }, [normalizeAuction]);
+
+  // Add this function to update a single auction
+  const updateAuction = useCallback((auctionId: string, updates: Partial<Auction>) => {
+    setAuctions(prev => prev.map(auction => 
+      auction.auctionId === auctionId ? { ...auction, ...updates } : auction
+    ));
+  }, []);
 
   return {
     auctions,
     loading,
     error,
     refetch,
-    setAuctions, // Expose setAuctions for immediate updates
+    setAuctions,
+    updateAuction, // Add this function
   };
 };

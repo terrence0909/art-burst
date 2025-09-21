@@ -23,17 +23,16 @@ exports.handler = async (event) => {
   }
 
   try {
+    // SIMPLIFIED: Always update the auctionId without conditions
     await dynamo.send(new UpdateCommand({
       TableName: process.env.CONNECTIONS_TABLE,
       Key: { connectionId },
       UpdateExpression: "SET auctionId = :auctionId, lastUpdated = :now",
       ExpressionAttributeValues: {
         ":auctionId": auctionId,
-        ":now": Date.now(),
-        ":currentAuctionId": auctionId
-      },
-      // FIXED CONDITION: Allow updates for new connections OR connections without auctionId OR same auctionId
-      ConditionExpression: "attribute_not_exists(connectionId) OR attribute_not_exists(auctionId) OR auctionId = :currentAuctionId"
+        ":now": Date.now()
+      }
+      // REMOVED ConditionExpression - always update the auctionId
     }));
 
     console.log("Subscription updated:", { connectionId, auctionId });
@@ -46,18 +45,6 @@ exports.handler = async (event) => {
       })
     };
   } catch (error) {
-    if (error.name === 'ConditionalCheckFailedException') {
-      console.log('Concurrent update detected, ignoring duplicate request for connection:', connectionId);
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          message: "Subscription already exists",
-          auctionId: auctionId,
-          status: "duplicate"
-        })
-      };
-    }
-    
     console.error("Error updating subscription:", error);
     return {
       statusCode: 500,

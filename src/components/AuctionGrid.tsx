@@ -1,378 +1,239 @@
+// src/components/AuctionGrid.tsx
 import { AuctionCard } from "./AuctionCard";
 import { useAuctions } from "../hooks/useAuctions";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { wsService, WebSocketMessage } from "../services/websocket";
+import { createWebSocketService, WebSocketMessage } from "../services/websocket";
+import { useParams } from 'react-router-dom';
 
 export const AuctionGrid = () => {
   const { toast } = useToast();
-  const { auctions, loading, error, refetch, setAuctions } = useAuctions();
+  const { auctions, loading, error, refetch, updateAuction } = useAuctions();
   const [isPlacingBid, setIsPlacingBid] = useState(false);
   const [biddingAuctionId, setBiddingAuctionId] = useState<string | null>(null);
-  
-  // Keep track of current user to avoid showing notifications for own bids
-  const currentUserIdRef = useRef<string | null>(null);
-  const unsubscribeFunctionsRef = useRef<Set<() => void>>(new Set());
+  const [currentUserId] = useState(() => `user-${Math.random().toString(36).substring(2, 10)}`);
+  const [wsService, setWsService] = useState<any>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const hasSubscribedRef = useRef(false);
+  const processedBidsRef = useRef<Set<string>>(new Set());
+  const lastToastTimeRef = useRef(0);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const wsServiceRef = useRef<any>(null);
 
-  // Get current user ID
+  const { auctionId: routeAuctionId } = useParams();
+
+  // Generate/get auth token
   useEffect(() => {
-    const userKeys = Object.keys(localStorage).filter(
-      (key) => key.includes("Cognito") && key.includes("LastAuthUser")
-    );
-    currentUserIdRef.current = userKeys.length > 0 ? localStorage.getItem(userKeys[0]) : null;
-  }, []);
-
-  // Handle real-time bid updates from WebSocket
-  const handleBidUpdate = useCallback((message: WebSocketMessage) => {
-    console.log('WebSocket message received:', message);
-    
-    // Handle bidUpdate messages (from broadcast)
-    if (message.action === 'bidUpdate' && message.bid && message.auctionId) {
-      const { bidAmount, bidderId } = message.bid;
-      const auctionId = message.auctionId;
-      
-      console.log('Processing real-time bid update:', { auctionId, bidAmount, bidderId });
-
-      // Update local auction state AND show toast in the same update
-      setAuctions(prevAuctions => {
-        const updatedAuctions = prevAuctions.map(prevAuction => 
-          prevAuction.auctionId === auctionId 
-            ? { 
-                ...prevAuction, 
-                currentBid: bidAmount,
-                bidders: (prevAuction.bidders || 0) + 1,
-                highestBidder: bidderId
-              }
-            : prevAuction
-        );
-
-        // Find the updated auction from the LATEST state
-        const updatedAuction = updatedAuctions.find(a => a.auctionId === auctionId);
-        
-        // Show toast notification if it's not the current user's bid
-        if (bidderId && bidderId !== currentUserIdRef.current) {
-          const auctionTitle = updatedAuction?.title || 'Unknown Auction';
-          
-          console.log('Showing toast for external bid on:', auctionTitle);
-          toast({
-            title: "💸 New Bid Placed!",
-            description: `Someone bid R${bidAmount.toLocaleString()} on "${auctionTitle}"`,
-            duration: 4000,
-          });
-        }
-
-        return updatedAuctions;
-      });
-    } 
-    // Handle Lambda response format (direct responses to our bids)
-    else if (message.message === "Bid placed successfully" && message.bid && message.auction) {
-      const { bid, auction } = message;
-      const bidAmount = bid.bidAmount;
-      const bidderId = bid.bidderId;
-      const auctionId = auction.auctionId;
-      
-      console.log('Processing successful bid response:', { auctionId, bidAmount, bidderId });
-
-      // Update local auction state AND handle toast in the same update
-      setAuctions(prevAuctions => {
-        const updatedAuctions = prevAuctions.map(prevAuction => 
-          prevAuction.auctionId === auctionId 
-            ? { 
-                ...prevAuction, 
-                currentBid: bidAmount,
-                bidders: (prevAuction.bidders || 0) + 1,
-                highestBidder: bidderId
-              }
-            : prevAuction
-        );
-
-        // Find the updated auction from the LATEST state
-        const updatedAuction = updatedAuctions.find(a => a.auctionId === auctionId);
-        
-        // Show success toast ONLY if it's our own bid
-        if (bidderId === currentUserIdRef.current) {
-          toast({
-            title: "🏆 Bid Placed Successfully!",
-            description: `Your bid of R${bidAmount.toLocaleString()} has been placed`,
-            duration: 3000,
-          });
-        } else {
-          // Show external bid toast for direct responses too
-          const auctionTitle = updatedAuction?.title || 'Unknown Auction';
-          
-          toast({
-            title: "💸 New Bid Placed!",
-            description: `Someone bid R${bidAmount.toLocaleString()} on "${auctionTitle}"`,
-            duration: 4000,
-          });
-        }
-
-        return updatedAuctions;
-      });
+    let token = localStorage.getItem('auction-auth-token');
+    if (!token) {
+      token = `auth-${currentUserId}-${Date.now()}`;
+      localStorage.setItem('auction-auth-token', token);
     }
-  }, [setAuctions, toast]); // REMOVED 'auctions' from dependencies
+    setAuthToken(token);
+    console.log('🔐 Using auth token:', token.substring(0, 20) + '...');
+  }, [currentUserId]);
 
-  // Set up WebSocket subscriptions for all auctions
-  useEffect(() => {
-    if (auctions.length === 0) return;
-
-    console.log('Setting up WebSocket subscriptions for', auctions.length, 'auctions');
-
-    // Clear existing subscriptions
-    unsubscribeFunctionsRef.current.forEach(unsubscribe => unsubscribe());
-    unsubscribeFunctionsRef.current.clear();
-
-    const setupWebSocketSubscriptions = async () => {
-      try {
-        // Attempt WebSocket connection if not connected
-        if (!wsService.isConnected()) {
-          console.log('Connecting to WebSocket...');
-          await wsService.connect();
-          console.log('WebSocket connected successfully');
-        }
-
-        // Subscribe to each auction via WebSocket
-        auctions.forEach(auction => {
-          const unsubscribeWs = wsService.subscribe(auction.auctionId, (message) => {
-            console.log('WebSocket message for auction', auction.auctionId, ':', message);
-            handleBidUpdate(message);
-          });
-          unsubscribeFunctionsRef.current.add(unsubscribeWs);
-        });
-
-        console.log('WebSocket subscriptions established');
-
-      } catch (error) {
-        console.error('WebSocket connection failed:', error);
-        toast({
-          title: "Connection Issue",
-          description: "Real-time updates unavailable. Page refresh recommended.",
-          variant: "destructive",
-        });
-      }
-    };
-
-    setupWebSocketSubscriptions();
-
-    // Cleanup function
-    return () => {
-      unsubscribeFunctionsRef.current.forEach(unsubscribe => unsubscribe());
-      unsubscribeFunctionsRef.current.clear();
-    };
-  }, [auctions, handleBidUpdate, toast]);
-
-  // Function to handle bid placement via WebSocket
-  const handlePlaceBid = async (auctionId: string) => {
-    const auction = auctions.find((a) => a.auctionId === auctionId);
-    if (!auction) return;
-
-    setBiddingAuctionId(auctionId);
-    
-    const currentBid = auction.currentBid || auction.startingBid || 0;
-    const minBid = currentBid + (auction.bidIncrement || 100);
-    
-    const bidAmountStr = prompt(`Enter your bid amount (minimum: R${minBid.toLocaleString()})`);
-    if (!bidAmountStr) {
-      setBiddingAuctionId(null);
-      return;
-    }
-
-    const bidAmount = Number(bidAmountStr.replace(/[^0-9.]/g, ''));
-
-    if (isNaN(bidAmount) || bidAmount < minBid) {
-      toast({
-        title: "Invalid Bid Amount",
-        description: `Bid must be at least R${minBid.toLocaleString()}`,
-        variant: "destructive",
-      });
-      setBiddingAuctionId(null);
-      return;
-    }
-
-    setIsPlacingBid(true);
+  // WebSocket connection with retry
+  const connectWebSocket = useCallback(async () => {
+    if (!authToken) return;
+    if (wsServiceRef.current?.isConnected()) return;
 
     try {
-      // Get user ID from localStorage
-      const userKeys = Object.keys(localStorage).filter(
-        (key) => key.includes("Cognito") && key.includes("LastAuthUser")
-      );
-      const userId = userKeys.length > 0 ? localStorage.getItem(userKeys[0])! : "unknown-user";
+      if (!wsServiceRef.current) {
+        const service = createWebSocketService('*', currentUserId, authToken);
+        wsServiceRef.current = service;
+        setWsService(service);
 
-      // Use WebSocket to place bid
-      if (wsService.isConnected()) {
-        // Send bid via WebSocket
-        wsService.sendMessage({
-          action: 'placeBid',
-          auctionId,
-          bidAmount,
-          bidderId: userId
-        });
-
-        // Show immediate optimistic UI update
-        setAuctions(prevAuctions => 
-          prevAuctions.map(auction => 
-            auction.auctionId === auctionId 
-              ? { 
-                  ...auction, 
-                  currentBid: bidAmount,
-                  bidders: (auction.bidders || 0) + 1,
-                  highestBidder: userId
-                }
-              : auction
-          )
-        );
-
-        toast({
-          title: "Placing Bid...",
-          description: `Your bid of R${bidAmount.toLocaleString()} is being processed`,
-        });
-
-      } else {
-        // Fallback: try to connect WebSocket
-        console.log('WebSocket not connected, attempting to connect...');
-        await wsService.connect();
-        
-        if (wsService.isConnected()) {
-          // Retry sending the bid
-          wsService.sendMessage({
-            action: 'placeBid',
-            auctionId,
-            bidAmount,
-            bidderId: userId
-          });
-
-          setAuctions(prevAuctions => 
-            prevAuctions.map(auction => 
-              auction.auctionId === auctionId 
-                ? { 
-                    ...auction, 
-                    currentBid: bidAmount,
-                    bidders: (auction.bidders || 0) + 1,
-                    highestBidder: userId
-                  }
-                : auction
-            )
-          );
-
-          toast({
-            title: "Placing Bid...",
-            description: `Your bid of R${bidAmount.toLocaleString()} is being processed`,
-          });
-        } else {
-          throw new Error('WebSocket connection failed');
-        }
+        const statusCheck = setInterval(() => {
+          setIsConnected(service.isConnected());
+        }, 2000);
+        (window as any).__auctionStatusCheck = statusCheck;
       }
-    } catch (error) {
-      console.error("Bid error:", error);
-      toast({
-        title: "Error",
-        description: "Error placing bid. Please try again.",
-        variant: "destructive",
+
+      await wsServiceRef.current.connect();
+      setConnectionAttempts(0);
+      setIsConnected(true);
+
+      toast({ title: "🔌 Connected", description: "Real-time updates enabled", duration: 2000 });
+
+    } catch (error: any) {
+      setConnectionAttempts(prev => prev + 1);
+      setIsConnected(false);
+
+      if (error?.message?.includes('403')) {
+        const newToken = `auth-${currentUserId}-${Date.now()}`;
+        localStorage.setItem('auction-auth-token', newToken);
+        setAuthToken(newToken);
+        toast({ title: "🔐 Refreshing Authentication", description: "Updating credentials...", duration: 3000 });
+        return;
+      }
+
+      const delay = Math.min(1000 * Math.pow(2, connectionAttempts), 30000);
+      if (connectionAttempts < 10) {
+        toast({ title: "📡 Connection Failed", description: `Retrying in ${delay / 1000}s...`, variant: "destructive", duration: 3000 });
+        reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
+      } else {
+        toast({ title: "❌ Connection Failed", description: "Please refresh the page", variant: "destructive", duration: 0 });
+      }
+    }
+  }, [authToken, currentUserId, connectionAttempts, toast]);
+
+  useEffect(() => {
+    if (authToken) connectWebSocket();
+    return () => {
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if ((window as any).__auctionStatusCheck) clearInterval((window as any).__auctionStatusCheck);
+    };
+  }, [authToken, connectWebSocket]);
+
+  // Heartbeat
+  useEffect(() => {
+    if (!wsServiceRef.current) return;
+    const interval = setInterval(async () => {
+      if (!wsServiceRef.current.isConnected()) return connectWebSocket();
+      try { await wsServiceRef.current.sendMessage({ action: 'ping', timestamp: Date.now() }); } 
+      catch { connectWebSocket(); }
+    }, 25000);
+    return () => clearInterval(interval);
+  }, [connectWebSocket]);
+
+  // Handle bid updates
+  const handleBidUpdate = useCallback((message: WebSocketMessage) => {
+    if (message.message?.includes('Subscription') || message.message?.includes('Subscribed')) return;
+
+    if (message.action === 'bidUpdate' && message.bid && message.auctionId) {
+      const { bidAmount, bidderId, bidTime } = message.bid;
+      const auctionId = message.auctionId;
+
+      const messageId = `${auctionId}-${bidAmount}-${bidTime}`;
+      if (processedBidsRef.current.has(messageId)) return;
+      processedBidsRef.current.add(messageId);
+      if (processedBidsRef.current.size > 100) processedBidsRef.current = new Set(Array.from(processedBidsRef.current).slice(-50));
+
+      const currentAuction = auctions.find(a => a.auctionId === auctionId);
+      if (!currentAuction) return;
+
+      const wasMyBid = bidderId === currentUserId;
+      const isNewBidder = bidderId !== currentAuction.highestBidder;
+
+      updateAuction(auctionId, {
+        currentBid: bidAmount,
+        bidders: isNewBidder ? (currentAuction.bidders || 0) + 1 : currentAuction.bidders,
+        highestBidder: bidderId
       });
-      
-      // Revert optimistic update if it failed
-      await refetch();
+
+      const now = Date.now();
+      if (now - lastToastTimeRef.current > 1000) {
+        let toastTitle = "";
+        let toastDescription = "";
+
+        if (wasMyBid) {
+          toastTitle = "🎉 Your Bid Placed!";
+          toastDescription = `Successfully bid R${bidAmount.toLocaleString()} on "${currentAuction.title}"`;
+        } else if (currentAuction.highestBidder === currentUserId) {
+          toastTitle = "😔 You've Been Outbid!";
+          toastDescription = `Someone bid R${bidAmount.toLocaleString()} on "${currentAuction.title}"`;
+        } else {
+          toastTitle = "🔥 New Bid Alert!";
+          toastDescription = `New bid of R${bidAmount.toLocaleString()} placed on "${currentAuction.title}"`;
+        }
+
+        toast({ title: toastTitle, description: toastDescription, duration: wasMyBid ? 5000 : 4000 });
+        lastToastTimeRef.current = now;
+      }
+    }
+  }, [updateAuction, toast, currentUserId, auctions]);
+
+  // Subscribe
+  useEffect(() => {
+    if (!wsServiceRef.current) return;
+    const subscribe = () => {
+      if (wsServiceRef.current.isConnected() && !hasSubscribedRef.current) {
+        const unsubscribe = wsServiceRef.current.subscribe('*', handleBidUpdate);
+        hasSubscribedRef.current = true;
+        (window as any).__auctionUnsubscribe = unsubscribe;
+        toast({ title: "🔔 Connected", description: "Real-time updates active", duration: 2000 });
+      }
+    };
+    subscribe();
+    const interval = setInterval(subscribe, 3000);
+    return () => { clearInterval(interval); if ((window as any).__auctionUnsubscribe) { (window as any).__auctionUnsubscribe(); hasSubscribedRef.current = false; } };
+  }, [wsServiceRef.current, handleBidUpdate]);
+
+  // Place bid
+  const handlePlaceBid = async (auctionId: string) => {
+    if (isPlacingBid) return toast({ title: "⏳ Please Wait", description: "Previous bid still processing...", duration: 2000 });
+    if (!authToken) return toast({ title: "❌ Authentication Required", description: "Please wait for authentication to complete", variant: "destructive" });
+
+    const auction = auctions.find(a => a.auctionId === auctionId);
+    if (!auction) return toast({ title: "❌ Error", description: "Auction not found", variant: "destructive" });
+
+    setBiddingAuctionId(auctionId);
+    setIsPlacingBid(true);
+    const originalState = { currentBid: auction.currentBid, bidders: auction.bidders, highestBidder: auction.highestBidder };
+
+    try {
+      const currentBid = auction.currentBid || auction.startingBid || 0;
+      const minBid = currentBid + (auction.bidIncrement || 100);
+      const bidAmountStr = prompt(`💰 Place your bid on "${auction.title}"\nCurrent bid: R${currentBid.toLocaleString()}\nMinimum bid: R${minBid.toLocaleString()}`);
+      if (!bidAmountStr) throw new Error("Bid cancelled by user");
+
+      const bidAmount = Number(bidAmountStr.replace(/[^0-9.]/g, ''));
+      if (isNaN(bidAmount) || bidAmount < minBid) throw new Error(`Bid must be at least R${minBid.toLocaleString()}`);
+
+      updateAuction(auctionId, {
+        currentBid: bidAmount,
+        bidders: auction.highestBidder === currentUserId ? auction.bidders : (auction.bidders || 0) + 1,
+        highestBidder: currentUserId
+      });
+
+      if (wsServiceRef.current?.isConnected()) {
+        await wsServiceRef.current.placeBid(auctionId, bidAmount, currentUserId);
+        toast({ title: "🎉 Bid Placed Successfully!", description: `Your bid of R${bidAmount.toLocaleString()} is now active`, duration: 5000 });
+      } else {
+        const response = await fetch('https://x3ikd4thrj6qe3dwys2vbeo3ba0yondc.lambda-url.us-east-1.on.aws/', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auctionId, bidAmount, bidderId: currentUserId, authToken })
+        });
+        if (!response.ok) throw new Error(`Bid failed: ${response.status}`);
+        toast({ title: "🎉 Bid Placed Successfully!", description: `Your bid of R${bidAmount.toLocaleString()} is now active`, duration: 5000 });
+      }
+
+    } catch (error: any) {
+      console.error(error);
+      updateAuction(auctionId, originalState);
+      toast({ title: "❌ Bid Failed", description: error.message, variant: "destructive", duration: 5000 });
     } finally {
       setIsPlacingBid(false);
       setBiddingAuctionId(null);
     }
   };
 
-  if (loading) {
-    return (
-      <section className="py-16 bg-muted/30">
-        <div className="container px-4 text-center">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>
-            <div className="h-4 bg-gray-300 rounded w-1/2 mx-auto mb-12"></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-80 bg-gray-300 rounded-lg"></div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (error) {
-    return (
-      <section className="py-16 bg-muted/30">
-        <div className="container px-4 text-center">
-          <p className="text-red-500 mb-4">Error loading auctions: {error}</p>
-          <button
-            onClick={refetch}
-            className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors"
-          >
-            Try Again
-          </button>
-        </div>
-      </section>
-    );
-  }
+  if (loading) return <div className="flex justify-center py-16"><div className="animate-spin h-12 w-12 border-b-2 border-primary"></div><span className="ml-3">Loading auctions...</span></div>;
+  if (error) return <div className="text-center py-16"><p>{error}</p><button onClick={() => refetch()}>Try Again</button></div>;
 
   return (
     <section className="py-16 bg-muted/30">
       <div className="container px-4">
-        <div className="text-center mb-12">
-          <h2 className="font-playfair text-4xl font-bold mb-4">
-            Current Auctions Near You
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Discover unique artwork from talented local artists. Place your bids
-            and become part of your city's vibrant art community.
-          </p>
-        </div>
-
-        {auctions.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground text-lg mb-4">
-              No auctions available at the moment.
-            </p>
-            <button
-              onClick={refetch}
-              className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors"
-            >
-              Check Again
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {auctions.map((auction) => (
-              <AuctionCard
-                key={auction.auctionId}
-                id={auction.auctionId}
-                title={auction.title}
-                artist={auction.artistName || "Unknown Artist"} 
-                currentBid={auction.currentBid || auction.startingBid || 0}
-                timeRemaining={auction.timeRemaining || ""}
-                location={auction.location || ""}
-                bidders={auction.bidders ?? 0}
-                image={auction.image || ""}
-                status={auction.status}
-                onPlaceBid={handlePlaceBid}
-                isBidding={biddingAuctionId === auction.auctionId && isPlacingBid}
-              />
-            ))}
-          </div>
-        )}
-
-        {isPlacingBid && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg flex items-center gap-3">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-              <p>Placing your bid...</p>
-            </div>
-          </div>
-        )}
-
-        {/* Connection status indicator */}
-        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2">
-          <div className={`w-3 h-3 rounded-full ${wsService.isConnected() ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className="text-sm text-muted-foreground">
-            {wsService.isConnected() ? 'Connected' : 'Disconnected'}
-          </span>
+        <h2 className="text-4xl font-bold text-center mb-8">Live Auctions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {auctions.map(a => (
+            <AuctionCard
+              key={a.auctionId}
+              id={a.auctionId}
+              title={a.title}
+              artist={a.artistName || "Unknown Artist"}
+              currentBid={a.currentBid || a.startingBid || 0}
+              timeRemaining={a.timeRemaining || ""}
+              location={a.location || ""}
+              bidders={a.bidders ?? 0}
+              image={a.image || ""}
+              status={a.status}
+              onPlaceBid={handlePlaceBid}
+              isBidding={biddingAuctionId === a.auctionId && isPlacingBid}
+            />
+          ))}
         </div>
       </div>
     </section>

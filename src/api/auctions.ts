@@ -1,6 +1,6 @@
-// src/api/auctions.ts
+// src/api/auctions.ts - UPDATED TO MATCH Auction TYPE
 import { fetchAuthSession } from "aws-amplify/auth";
-import { Auction } from '@/types/auction'; // Import the interface
+import { Auction } from '@/types/auction';
 
 const API_BASE_URL = "/api";
 
@@ -32,7 +32,7 @@ const handleFetch = async (url: string, options: RequestInit = {}) => {
   }
 };
 
-// Fetch auctions with status transformation
+// Fetch auctions with proper transformation to match Auction type
 export const fetchAuctions = async (): Promise<Auction[]> => {
   try {
     const data = await handleFetch(`${API_BASE_URL}/auctions`);
@@ -50,30 +50,33 @@ export const fetchAuctions = async (): Promise<Auction[]> => {
         status = "upcoming";
       }
       
+      // Map all properties according to the Auction interface
       return {
         id: item.auctionId || item.id,
         auctionId: item.auctionId || item.id,
         title: item.title || "Untitled Artwork",
         artistName: item.artistName || item.artist || "Unknown Artist",
         currentBid: item.currentBid || item.startingBid || 0,
+        startingBid: item.startingBid || item.currentBid || 0,
         timeRemaining: item.timeRemaining || calculateTimeRemaining(item.endDate),
         location: item.location || "Location not specified",
-        bidders: item.bidCount || item.totalBids || 0,
+        bidders: item.bidders || item.bidCount || item.totalBids || 0,
         bidCount: item.bidCount || item.totalBids || 0,
         image: item.image || (item.images && item.images[0]) || "/placeholder-image.jpg",
-        status: status, // ← This is the key transformation!
+        status: status,
         description: item.description,
         bidIncrement: item.bidIncrement || 100,
         distance: item.distance || calculateDistance(item.location),
-        totalBids: item.bidCount || item.totalBids || 0,
+        totalBids: item.totalBids || item.bidCount || 0,
         watchers: item.watchers || 0,
         medium: item.medium || "Not specified",
         dimensions: item.dimensions || "Dimensions not specified",
         year: item.year || new Date().getFullYear().toString(),
         condition: item.condition || "Excellent",
-        startingBid: item.startingBid || 0,
         createdAt: item.createdAt,
-        updatedAt: item.updatedAt
+        updatedAt: item.updatedAt,
+        highestBidder: item.highestBidder || item.winningBidderId,
+        bids: item.bids || [] // Ensure bids array is included
       };
     });
     
@@ -83,7 +86,7 @@ export const fetchAuctions = async (): Promise<Auction[]> => {
   }
 };
 
-// Helper functions (keep these)
+// Helper functions
 const calculateTimeRemaining = (endDate?: string): string => {
   if (!endDate) return "Time not specified";
   
@@ -106,16 +109,48 @@ const calculateDistance = (location?: string): string => {
   return distances[Math.floor(Math.random() * distances.length)] + " away";
 };
 
-// Keep your other functions like fetchAuctionById, placeBid, etc.
+// Fetch single auction
 export const fetchAuctionById = async (id: string): Promise<Auction> => {
   try {
     const data = await handleFetch(`${API_BASE_URL}/auctions/${id}`);
     
     // Apply the same transformation
+    let status: 'live' | 'upcoming' | 'ended';
+    
+    if (data.status === "active") {
+      status = "live";
+    } else if (data.status === "completed" || data.status === "cancelled") {
+      status = "ended";
+    } else {
+      status = "upcoming";
+    }
+    
     return {
-      ...data,
-      status: data.status === "active" ? "live" : 
-              data.status === "completed" ? "ended" : "upcoming"
+      id: data.auctionId || data.id,
+      auctionId: data.auctionId || data.id,
+      title: data.title || "Untitled Artwork",
+      artistName: data.artistName || data.artist || "Unknown Artist",
+      currentBid: data.currentBid || data.startingBid || 0,
+      startingBid: data.startingBid || data.currentBid || 0,
+      timeRemaining: data.timeRemaining || calculateTimeRemaining(data.endDate),
+      location: data.location || "Location not specified",
+      bidders: data.bidders || data.bidCount || data.totalBids || 0,
+      bidCount: data.bidCount || data.totalBids || 0,
+      image: data.image || (data.images && data.images[0]) || "/placeholder-image.jpg",
+      status: status,
+      description: data.description,
+      bidIncrement: data.bidIncrement || 100,
+      distance: data.distance || calculateDistance(data.location),
+      totalBids: data.totalBids || data.bidCount || 0,
+      watchers: data.watchers || 0,
+      medium: data.medium || "Not specified",
+      dimensions: data.dimensions || "Dimensions not specified",
+      year: data.year || new Date().getFullYear().toString(),
+      condition: data.condition || "Excellent",
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+      highestBidder: data.highestBidder || data.winningBidderId,
+      bids: data.bids || []
     };
   } catch (error) {
     console.error("Error fetching auction:", error);
@@ -124,6 +159,15 @@ export const fetchAuctionById = async (id: string): Promise<Auction> => {
 };
 
 export const placeBid = async (auctionId: string, amount: number): Promise<any> => {
-  // Your existing bid placement logic
-  // ...
+  try {
+    const response = await handleFetch(`${API_BASE_URL}/auctions/${auctionId}/bid`, {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    });
+    
+    return response;
+  } catch (error) {
+    console.error("Error placing bid:", error);
+    throw error;
+  }
 };
