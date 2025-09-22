@@ -99,3 +99,5 @@ temp/
 terraform.tfstate
 terraform.tfstate.backup
 node_modules/
+terraform/lambdas/websocket-subscribe/websocket-connect-code/
+terraform/lambdas/websocket-subscribe/websocket-connect/
