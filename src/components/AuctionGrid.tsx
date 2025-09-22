@@ -99,7 +99,7 @@ export const AuctionGrid = () => {
     return () => clearInterval(interval);
   }, [connectWebSocket]);
 
-  // Handle bid updates
+  // Handle bid updates - FIXED LOGIC
   const handleBidUpdate = useCallback((message: WebSocketMessage) => {
     if (message.message?.includes('Subscription') || message.message?.includes('Subscribed')) return;
 
@@ -115,9 +115,13 @@ export const AuctionGrid = () => {
       const currentAuction = auctions.find(a => a.auctionId === auctionId);
       if (!currentAuction) return;
 
+      // FIXED: Store the old highest bidder before updating
+      const previousHighestBidder = currentAuction.highestBidder;
       const wasMyBid = bidderId === currentUserId;
+      const wasIPreviouslyHighest = previousHighestBidder === currentUserId;
       const isNewBidder = bidderId !== currentAuction.highestBidder;
 
+      // Update auction state
       updateAuction(auctionId, {
         currentBid: bidAmount,
         bidders: isNewBidder ? (currentAuction.bidders || 0) + 1 : currentAuction.bidders,
@@ -129,24 +133,29 @@ export const AuctionGrid = () => {
         let toastTitle = "";
         let toastDescription = "";
 
+        // FIXED: Better logic for determining toast messages
         if (wasMyBid) {
+          // I placed this bid
           toastTitle = "🎉 Your Bid Placed!";
           toastDescription = `Successfully bid R${bidAmount.toLocaleString()} on "${currentAuction.title}"`;
-        } else if (currentAuction.highestBidder === currentUserId) {
-          toastTitle = "😔 You've Been Outbid!";
-          toastDescription = `Someone bid R${bidAmount.toLocaleString()} on "${currentAuction.title}"`;
         } else {
+          // Someone else placed a bid - show general activity
+          // Note: "You've Been Outbid" notifications should only show when auction ends
           toastTitle = "🔥 New Bid Alert!";
           toastDescription = `New bid of R${bidAmount.toLocaleString()} placed on "${currentAuction.title}"`;
         }
 
-        toast({ title: toastTitle, description: toastDescription, duration: wasMyBid ? 5000 : 4000 });
+        toast({ 
+          title: toastTitle, 
+          description: toastDescription, 
+          duration: wasMyBid ? 5000 : 4000 
+        });
         lastToastTimeRef.current = now;
       }
     }
   }, [updateAuction, toast, currentUserId, auctions]);
 
-  // Subscribe
+  // Subscribe - REDUCED TOAST FREQUENCY
   useEffect(() => {
     if (!wsServiceRef.current) return;
     const subscribe = () => {
@@ -154,12 +163,20 @@ export const AuctionGrid = () => {
         const unsubscribe = wsServiceRef.current.subscribe('*', handleBidUpdate);
         hasSubscribedRef.current = true;
         (window as any).__auctionUnsubscribe = unsubscribe;
-        toast({ title: "🔔 Connected", description: "Real-time updates active", duration: 2000 });
+        
+        // Only show this toast once per connection, not every 3 seconds
+        console.log('🔔 Subscribed to auction updates');
       }
     };
     subscribe();
     const interval = setInterval(subscribe, 3000);
-    return () => { clearInterval(interval); if ((window as any).__auctionUnsubscribe) { (window as any).__auctionUnsubscribe(); hasSubscribedRef.current = false; } };
+    return () => { 
+      clearInterval(interval); 
+      if ((window as any).__auctionUnsubscribe) { 
+        (window as any).__auctionUnsubscribe(); 
+        hasSubscribedRef.current = false; 
+      } 
+    };
   }, [wsServiceRef.current, handleBidUpdate]);
 
   // Place bid
