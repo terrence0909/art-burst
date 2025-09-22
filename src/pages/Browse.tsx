@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Search, Filter, MapPin, Grid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,11 +35,22 @@ interface Auction {
 }
 
 const Browse = () => {
+  const [searchParams] = useSearchParams();
+  const urlQuery = searchParams.get('query') || '';
+  const urlLocation = searchParams.get('location') || '';
+  
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(urlQuery);
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Sync with URL parameters when component loads
+  useEffect(() => {
+    if (urlQuery) {
+      setSearchQuery(urlQuery);
+    }
+  }, [urlQuery]);
 
   useEffect(() => {
     fetchAuctions();
@@ -202,6 +214,47 @@ const Browse = () => {
     }
   };
 
+  // Fixed filtering with proper logic for location-only searches
+  const filteredAuctions = auctions.filter(auction => {
+    const searchTerm = searchQuery.toLowerCase();
+    const locationTerm = urlLocation.toLowerCase();
+    
+    // Query matching - only apply if there's a search query
+    const matchesQuery = searchQuery ? 
+      auction.title.toLowerCase().includes(searchTerm) ||
+      auction.artist.toLowerCase().includes(searchTerm) ||
+      auction.medium?.toLowerCase().includes(searchTerm)
+      : true; // If no search query, match all
+    
+    // Location matching - only apply if there's a location filter
+    const matchesLocation = urlLocation ?
+      auction.location.toLowerCase().includes(locationTerm)
+      : true; // If no location filter, match all
+
+    // DEBUG LOGGING
+    if (urlLocation || searchQuery) {
+      console.log('🔍 Search Debug:', {
+        auctionTitle: auction.title,
+        auctionLocation: auction.location,
+        searchQuery,
+        searchLocation: urlLocation,
+        locationMatch: urlLocation ? auction.location.toLowerCase().includes(locationTerm) : 'N/A',
+        queryMatch: searchQuery ? (auction.title.toLowerCase().includes(searchTerm) || auction.artist.toLowerCase().includes(searchTerm) || auction.medium?.toLowerCase().includes(searchTerm)) : 'N/A',
+        matchesQuery,
+        matchesLocation,
+        passes: matchesQuery && matchesLocation
+      });
+    }
+    
+    return matchesQuery && matchesLocation;
+  });
+
+  // Log all auction locations for debugging
+  console.log('📍 All Auction Locations:');
+  auctions.forEach((auction, index) => {
+    console.log(`${index + 1}. "${auction.title}": Location = "${auction.location}"`);
+  });
+
   // Helper functions for data transformation
   const calculateTimeRemaining = (endTime: string): string => {
     if (!endTime) return "Unknown";
@@ -295,11 +348,6 @@ const Browse = () => {
       bidders: 1
     },
   ];
-
-  const filteredAuctions = auctions.filter(auction =>
-    auction.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    auction.artist.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   if (loading) {
     return (
@@ -412,19 +460,46 @@ const Browse = () => {
           {/* Active Filters */}
           <div className="flex items-center space-x-2">
             <span className="text-sm text-muted-foreground">Active filters:</span>
-            <Badge variant="secondary">
-              <MapPin className="w-3 h-3 mr-1" />
-              Bloemfontein, SA
-            </Badge>
+            {urlLocation && (
+              <Badge variant="secondary">
+                <MapPin className="w-3 h-3 mr-1" />
+                {urlLocation}
+              </Badge>
+            )}
+            {searchQuery && (
+              <Badge variant="secondary">
+                <Search className="w-3 h-3 mr-1" />
+                "{searchQuery}"
+              </Badge>
+            )}
             <Badge variant="secondary">Live Auctions</Badge>
+            {(urlLocation || searchQuery) && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  setSearchQuery('');
+                  window.history.replaceState({}, '', '/browse');
+                }}
+                className="text-xs"
+              >
+                Clear all
+              </Button>
+            )}
           </div>
         </div>
 
         {/* Results Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="font-playfair text-2xl font-bold">Browse Auctions</h1>
-            <p className="text-muted-foreground">{filteredAuctions.length} auctions found</p>
+            <h1 className="font-playfair text-2xl font-bold">
+              {urlLocation || searchQuery ? "Search Results" : "Browse Auctions"}
+            </h1>
+            <p className="text-muted-foreground">
+              {filteredAuctions.length} {filteredAuctions.length === 1 ? 'auction' : 'auctions'} found
+              {urlLocation && ` in ${urlLocation}`}
+              {searchQuery && ` for "${searchQuery}"`}
+            </p>
           </div>
           
           <div className="flex items-center space-x-2">
@@ -463,13 +538,32 @@ const Browse = () => {
         </div>
 
         {/* Auction Grid/List */}
-        {viewMode === "grid" ? (
+        {filteredAuctions.length === 0 ? (
+          <div className="text-center py-16">
+            <Search className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-xl font-semibold mb-2">No auctions found</h3>
+            <p className="text-muted-foreground mb-6">
+              {searchQuery || urlLocation ? 
+                "Try adjusting your search terms or location" : 
+                "No auctions available at the moment"
+              }
+            </p>
+            <Button 
+              onClick={() => {
+                setSearchQuery('');
+                window.history.replaceState({}, '', '/browse');
+              }}
+            >
+              Browse All Auctions
+            </Button>
+          </div>
+        ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredAuctions.map((auction) => (
               <AuctionCard 
                 key={auction.id} 
                 {...auction} 
-                onPlaceBid={handlePlaceBid}  // Connected!
+                onPlaceBid={handlePlaceBid}
               />
             ))}
           </div>
