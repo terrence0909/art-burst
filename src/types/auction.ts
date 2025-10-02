@@ -35,6 +35,7 @@ export interface Auction {
   highestBidder?: string;
   // You might also want to add bids array to the Auction interface
   bids?: Bid[];
+  endTime?: string;
 }
 
 export type CreateAuctionData = Omit<Auction, 'id' | 'createdAt' | 'updatedAt'>;

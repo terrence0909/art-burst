@@ -2,8 +2,8 @@
 import { toast } from 'react-toastify';
 
 export interface WebSocketMessage {
-  action?: 'bidUpdate' | 'subscribe' | 'placeBid' | 'ping' | 'pong' | 'unsubscribe';
-  type?: 'NEW_BID' | 'AUCTION_UPDATE' | 'SUBSCRIPTION_CONFIRMED' | 'ERROR';
+  action?: 'bidUpdate' | 'subscribe' | 'placeBid' | 'ping' | 'pong' | 'unsubscribe' | 'auctionEnded';
+  type?: 'NEW_BID' | 'AUCTION_UPDATE' | 'SUBSCRIPTION_CONFIRMED' | 'ERROR' | 'AUCTION_ENDED';
   message?: string;
   auctionId?: string;
   bid?: {

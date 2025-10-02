@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Upload, X, MapPin, Calendar, DollarSign, Image as ImageIcon } from "lucide-react";
+import { Upload, X, MapPin, Calendar, Image as ImageIcon, Ruler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
 // AWS Amplify v6 imports
-import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
+import { getCurrentUser, fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
 import { generateClient } from "aws-amplify/api";
 import { uploadData } from "aws-amplify/storage";
 import { Amplify } from "aws-amplify";
@@ -34,6 +34,7 @@ interface AuctionFormData {
     height: string;
     depth: string;
   };
+  dimensionUnit: string;
   startingBid: string;
   reservePrice: string;
   startDate: string;
@@ -47,17 +48,19 @@ interface AuctionFormData {
   shippingCost: string;
 }
 
+interface Dimensions {
+  width: number;
+  height: number;
+  depth: number;
+}
+
 interface AuctionItem {
   id: string;
   title: string;
   description: string;
   medium: string;
   year: string;
-  dimensions: {
-    width: string;
-    height: string;
-    depth: string;
-  };
+  dimensions: Dimensions;
   startingBid: number;
   reservePrice?: number;
   currentBid?: number;
@@ -84,6 +87,9 @@ const CreateAuction = () => {
   const [uploadedImageKeys, setUploadedImageKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [userLocation, setUserLocation] = useState<string>("");
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userAttributes, setUserAttributes] = useState<any>(null);
 
   const [formData, setFormData] = useState<AuctionFormData>({
     title: "",
@@ -95,6 +101,7 @@ const CreateAuction = () => {
       height: "",
       depth: ""
     },
+    dimensionUnit: "cm",
     startingBid: "",
     reservePrice: "",
     startDate: "",
@@ -108,26 +115,138 @@ const CreateAuction = () => {
     shippingCost: ""
   });
 
-  // Debug environment variables
+  // Get current user and location on component mount
   useEffect(() => {
-    console.log('API Base URL:', import.meta.env.VITE_API_BASE_URL);
-    console.log('S3 Bucket:', import.meta.env.VITE_S3_BUCKET);
-    console.log('AWS Region:', import.meta.env.VITE_AWS_REGION);
+    getCurrentUserInfo();
+    getUserLocation();
   }, []);
 
-  // Test S3 upload function
-  const testS3Upload = async () => {
+  // Auto-fill location when userLocation is detected
+  useEffect(() => {
+    if (userLocation && !formData.location) {
+      setFormData(prev => ({
+        ...prev,
+        location: userLocation
+      }));
+    }
+  }, [userLocation]);
+
+  // Get current user information
+  const getCurrentUserInfo = async () => {
     try {
-      const testFile = new File(['test'], 'test.txt', { type: 'text/plain' });
-      const result = await uploadData({
-        key: `test/${Date.now()}_test.txt`,
-        data: testFile,
-      }).result;
-      console.log('✅ S3 upload successful:', result);
-      return true;
+      const user = await getCurrentUser();
+      const attributes = await fetchUserAttributes();
+      setCurrentUser(user);
+      setUserAttributes(attributes);
     } catch (error) {
-      console.error('❌ S3 upload failed:', error);
-      return false;
+      console.error("Error getting current user:", error);
+    }
+  };
+
+  // Function to get user's display name - FIXED to combine first + last name
+  const getUserDisplayName = () => {
+    // Try to get the name from localStorage first (if user updated their profile)
+    const savedName = localStorage.getItem('userDisplayName');
+    if (savedName) {
+      return savedName;
+    }
+
+    // Use the userAttributes we fetched explicitly
+    if (userAttributes) {
+      const givenName = userAttributes.given_name;
+      const familyName = userAttributes.family_name;
+      
+      if (givenName && familyName) {
+        return `${givenName} ${familyName}`; // "Sunshine Mbovu"
+      }
+      
+      // Fallbacks
+      return userAttributes.name || 
+             userAttributes.nickname ||
+             userAttributes.email || // This is the fallback that was showing
+             currentUser?.username || 
+             "Artist";
+    }
+    
+    // Fallback if no attributes yet
+    return currentUser?.username || "Artist";
+  };
+
+  // Function to get user's current location
+  const getUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+            
+            // Use reverse geocoding to get city name
+            const response = await fetch(
+              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+            );
+            
+            if (response.ok) {
+              const data = await response.json();
+              const city = data.city || data.locality || data.principalSubdivision;
+              const country = data.countryName;
+              
+              if (city && country) {
+                setUserLocation(`${city}, ${country}`);
+              } else {
+                setUserLocation("Location detected");
+              }
+            } else {
+              setUserLocation("Location detected");
+            }
+          } catch (error) {
+            console.error("Error getting location:", error);
+            setUserLocation("Location detected");
+          }
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
+          // Fallback: Try to get location from IP
+          getLocationFromIP();
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000
+        }
+      );
+    } else {
+      getLocationFromIP();
+    }
+  };
+
+  // Fallback: Get location from IP
+  const getLocationFromIP = async () => {
+    try {
+      const response = await fetch('https://ipapi.co/json/');
+      if (response.ok) {
+        const data = await response.json();
+        const city = data.city;
+        const country = data.country_name;
+        
+        if (city && country) {
+          setUserLocation(`${city}, ${country}`);
+        } else {
+          setUserLocation("South Africa"); // Default fallback
+        }
+      }
+    } catch (error) {
+      console.error("IP location error:", error);
+      setUserLocation("South Africa"); // Default fallback
+    }
+  };
+
+  // Use detected location
+  const useDetectedLocation = () => {
+    if (userLocation) {
+      setFormData(prev => ({
+        ...prev,
+        location: userLocation
+      }));
     }
   };
 
@@ -264,7 +383,8 @@ const CreateAuction = () => {
         dimensions: {
           width: parseFloat(formData.dimensions.width) || 0,
           height: parseFloat(formData.dimensions.height) || 0,
-          depth: parseFloat(formData.dimensions.depth) || 0
+          depth: parseFloat(formData.dimensions.depth) || 0,
+          unit: formData.dimensionUnit
         },
         startingBid: parseFloat(formData.startingBid),
         reservePrice: formData.reservePrice ? parseFloat(formData.reservePrice) : undefined,
@@ -276,7 +396,7 @@ const CreateAuction = () => {
         shippingCost: formData.shippingCost ? parseFloat(formData.shippingCost) : undefined,
         images: uploadedImageKeys,
         artistId: user.userId,
-        artistName: user.username || "Unknown Artist",
+        artistName: getUserDisplayName(),
         status: "active" as const,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -338,7 +458,8 @@ const CreateAuction = () => {
         dimensions: {
           width: parseFloat(formData.dimensions.width) || 0,
           height: parseFloat(formData.dimensions.height) || 0,
-          depth: parseFloat(formData.dimensions.depth) || 0
+          depth: parseFloat(formData.dimensions.depth) || 0,
+          unit: formData.dimensionUnit
         },
         startingBid: parseFloat(formData.startingBid),
         reservePrice: formData.reservePrice ? parseFloat(formData.reservePrice) : undefined,
@@ -529,36 +650,55 @@ const CreateAuction = () => {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="width">Width (inches)</Label>
-                      <Input 
-                        id="width" 
-                        type="number" 
-                        placeholder="24"
-                        value={formData.dimensions.width}
-                        onChange={(e) => handleDimensionChange('width', e.target.value)}
-                      />
+                  <div className="space-y-2">
+                    <Label>Dimensions</Label>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Ruler className="w-4 h-4 text-muted-foreground" />
+                      <Select 
+                        value={formData.dimensionUnit} 
+                        onValueChange={(value) => handleInputChange('dimensionUnit', value)}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cm">Centimeters</SelectItem>
+                          <SelectItem value="in">Inches</SelectItem>
+                          <SelectItem value="mm">Millimeters</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="height">Height (inches)</Label>
-                      <Input 
-                        id="height" 
-                        type="number" 
-                        placeholder="36"
-                        value={formData.dimensions.height}
-                        onChange={(e) => handleDimensionChange('height', e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="depth">Depth (inches)</Label>
-                      <Input 
-                        id="depth" 
-                        type="number" 
-                        placeholder="1.5"
-                        value={formData.dimensions.depth}
-                        onChange={(e) => handleDimensionChange('depth', e.target.value)}
-                      />
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="width">Width</Label>
+                        <Input 
+                          id="width" 
+                          type="number" 
+                          placeholder="60"
+                          value={formData.dimensions.width}
+                          onChange={(e) => handleDimensionChange('width', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="height">Height</Label>
+                        <Input 
+                          id="height" 
+                          type="number" 
+                          placeholder="80"
+                          value={formData.dimensions.height}
+                          onChange={(e) => handleDimensionChange('height', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="depth">Depth</Label>
+                        <Input 
+                          id="depth" 
+                          type="number" 
+                          placeholder="2"
+                          value={formData.dimensions.depth}
+                          onChange={(e) => handleDimensionChange('depth', e.target.value)}
+                        />
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -568,7 +708,7 @@ const CreateAuction = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center">
-                    <DollarSign className="w-5 h-5 mr-2" />
+                    <Calendar className="w-5 h-5 mr-2" />
                     Auction Details
                   </CardTitle>
                 </CardHeader>
@@ -653,12 +793,30 @@ const CreateAuction = () => {
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="location">Artwork Location</Label>
-                    <Input 
-                      id="location" 
-                      placeholder="Bloemfontein, SA"
-                      value={formData.location}
-                      onChange={(e) => handleInputChange('location', e.target.value)}
-                    />
+                    <div className="flex gap-2">
+                      <Input 
+                        id="location" 
+                        placeholder="Bloemfontein, SA"
+                        value={formData.location}
+                        onChange={(e) => handleInputChange('location', e.target.value)}
+                      />
+                      {userLocation && (
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="icon"
+                          onClick={useDetectedLocation}
+                          title="Use my current location"
+                        >
+                          <MapPin className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                    {userLocation && (
+                      <p className="text-xs text-muted-foreground">
+                        Detected location: {userLocation}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       This helps local buyers find your artwork
                     </p>
@@ -725,7 +883,7 @@ const CreateAuction = () => {
                   <div className="mt-4 space-y-2">
                     <h3 className="font-semibold">{formData.title || "Artwork Title"}</h3>
                     <p className="text-sm text-muted-foreground">
-                      by {"Your Name"}
+                      by {getUserDisplayName()}
                     </p>
                     <p className="text-lg font-bold text-accent">
                       Starting at R{formData.startingBid || "500"}
@@ -740,22 +898,24 @@ const CreateAuction = () => {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span>Listing Fee</span>
-                    <span>R0</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Success Fee</span>
+                    <span>Platform Fee</span>
                     <span>5% of final price</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Payment Processing</span>
-                    <span>2.9% + R0.30</span>
+                    <span>2.9% + R2</span>
                   </div>
                   <div className="border-t pt-2">
                     <div className="flex justify-between font-semibold">
                       <span>You'll receive</span>
                       <span>~92% of final price</span>
                     </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                    <p>Example for R1,000 sale:</p>
+                    <p>• Platform fee: R50</p>
+                    <p>• Payment processing: R31</p>
+                    <p>• You receive: R919</p>
                   </div>
                 </CardContent>
               </Card>
@@ -776,17 +936,6 @@ const CreateAuction = () => {
                   disabled={loading}
                 >
                   {loading ? "Saving..." : "Save as Draft"}
-                </Button>
-                
-                {/* Test button for debugging */}
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  className="w-full"
-                  onClick={testS3Upload}
-                  disabled={loading}
-                >
-                  Test S3 Connection
                 </Button>
               </div>
 

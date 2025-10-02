@@ -1,8 +1,10 @@
-import { Clock, MapPin, Users, TrendingUp } from "lucide-react";
+import { Clock, MapPin, Users, TrendingUp, Info, Trophy, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuctionCompletion } from "../hooks/useAuctionCompletion";
 
 interface BidHistoryItem {
   id: string;
@@ -26,52 +28,50 @@ interface AuctionCardProps {
   distance?: string;
   onPlaceBid?: (auctionId: string) => void;
   isBidding?: boolean;
+  endTime?: string;
+  currentUserId?: string;
+  highestBidder?: string;
+  canPlaceBid?: boolean;
 }
 
-// Bid History Tooltip - With REAL bid history from API
 const BidHistoryTooltip = ({ 
   auctionId, 
   isVisible, 
   cardRef,
-  currentBid
+  currentBid,
+  onClose
 }: { 
   auctionId: string;
   isVisible: boolean;
   cardRef: React.RefObject<HTMLDivElement>;
   currentBid: number;
+  onClose?: () => void;
 }) => {
   const [bidHistory, setBidHistory] = useState<BidHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [tooltipSide, setTooltipSide] = useState<'right' | 'left'>('right');
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const hasFetchedRef = useRef(false);
 
-  useEffect(() => {
-    if (isVisible && auctionId && cardRef.current) {
-      fetchRealBidHistory(auctionId, currentBid);
-      updatePosition();
-      
-      const handleScrollResize = () => {
-        if (isVisible && cardRef.current) {
-          updatePosition();
-        }
-      };
-      
-      window.addEventListener('scroll', handleScrollResize, true);
-      window.addEventListener('resize', handleScrollResize);
-      
-      return () => {
-        window.removeEventListener('scroll', handleScrollResize, true);
-        window.removeEventListener('resize', handleScrollResize);
-      };
-    }
-  }, [isVisible, auctionId, currentBid]);
+  const stableAuctionId = useMemo(() => auctionId, [auctionId]);
 
-  const updatePosition = () => {
-    if (cardRef.current) {
-      const rect = cardRef.current.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const tooltipWidth = 288;
-      
+  const updatePosition = useCallback(() => {
+    if (!cardRef.current) return;
+
+    const rect = cardRef.current.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const tooltipWidth = 288;
+    const tooltipHeight = 300;
+    
+    if (viewportWidth <= 768) {
+      setPosition({
+        x: (viewportWidth - tooltipWidth) / 2,
+        y: Math.min(rect.bottom + 10, viewportHeight - tooltipHeight - 20)
+      });
+      setTooltipSide('right');
+    } else {
       let x = rect.right + 15;
       let side: 'right' | 'left' = 'right';
       
@@ -80,27 +80,95 @@ const BidHistoryTooltip = ({
         side = 'left';
       }
       
-      setTooltipSide(side);
-      setPosition({
-        x: x,
-        y: rect.top + rect.height / 2
+      setTooltipSide(prev => prev !== side ? side : prev);
+      setPosition(prev => 
+        prev.x !== x || prev.y !== rect.top + rect.height / 2 
+          ? { x, y: rect.top + rect.height / 2 } 
+          : prev
+      );
+    }
+  }, [cardRef]);
+
+  const generateSimpleBidHistory = useCallback((auctionId: string, currentBid: number) => {
+    const bids: BidHistoryItem[] = [];
+    
+    bids.push({
+      id: `highest-${auctionId}`,
+      bidAmount: currentBid,
+      bidderId: "current-bidder",
+      bidTime: "Just now",
+      bidderName: "Highest Bidder",
+      isHighest: true
+    });
+    
+    const bidIncrement = Math.max(100, Math.floor(currentBid / 3));
+    
+    if (currentBid > bidIncrement) {
+      bids.push({
+        id: `recent-1-${auctionId}`,
+        bidAmount: currentBid - bidIncrement,
+        bidderId: "user123",
+        bidTime: "15 mins ago",
+        bidderName: "Recent Bidder",
+        isHighest: false
       });
     }
-  };
+    
+    if (currentBid > bidIncrement * 2) {
+      bids.push({
+        id: `recent-2-${auctionId}`,
+        bidAmount: currentBid - (bidIncrement * 2),
+        bidderId: "user456",
+        bidTime: "30 mins ago",
+        bidderName: "Another Bidder",
+        isHighest: false
+      });
+    }
+    
+    setBidHistory(bids.slice(0, 3));
+  }, []);
 
-  const fetchRealBidHistory = async (auctionId: string, currentBid: number) => {
+  const processAuctionDataForBids = useCallback((auctionsData: any[], targetAuctionId: string, currentBid: number) => {
+    try {
+      const auction = auctionsData.find((a: any) => a.auctionId === targetAuctionId);
+      
+      if (auction) {
+        const bidCount = auction.bidCount || 0;
+        const actualCurrentBid = auction.currentBid || currentBid;
+        
+        if (bidCount > 0) {
+          const bids: BidHistoryItem[] = [{
+            id: `highest-${targetAuctionId}`,
+            bidAmount: actualCurrentBid,
+            bidderId: auction.highestBidder || "highest-bidder",
+            bidTime: "Recently",
+            bidderName: "Highest Bidder",
+            isHighest: true
+          }];
+          
+          setBidHistory(bids);
+        } else {
+          generateSimpleBidHistory(targetAuctionId, actualCurrentBid);
+        }
+      } else {
+        generateSimpleBidHistory(targetAuctionId, currentBid);
+      }
+    } catch (error) {
+      generateSimpleBidHistory(targetAuctionId, currentBid);
+    }
+  }, [generateSimpleBidHistory]);
+
+  const fetchRealBidHistory = useCallback(async (auctionId: string, currentBid: number) => {
+    if (loading || hasFetchedRef.current) return;
+    
     setLoading(true);
+    hasFetchedRef.current = true;
+    
     try {
       const authToken = localStorage.getItem('auction-auth-token');
       const API_BASE = import.meta.env.VITE_API_BASE_URL;
       
-      // Extract userId from auth token (auth-user-76s81bya-1758487376665 -> user-76s81bya)
-      const userId = authToken ? `user-${authToken.split('-')[2]}` : 'user-unknown';
-      
-      // Use the my-bids endpoint which returns REAL bid history
-      const endpoint = `${API_BASE}/auctions/my-bids?userId=${userId}`;
-      
-      console.log('🔗 Fetching REAL bid history from:', endpoint);
+      const endpoint = `${API_BASE}/auctions`;
       
       const response = await fetch(endpoint, {
         method: 'GET',
@@ -111,200 +179,109 @@ const BidHistoryTooltip = ({
       });
       
       if (response.ok) {
-        const allBidsData = await response.json();
-        console.log('✅ REAL BID HISTORY DATA RECEIVED:', allBidsData);
-        
-        // Filter bids for this specific auction and process them
-        processRealBidData(allBidsData, auctionId, currentBid);
+        const auctionsData = await response.json();
+        processAuctionDataForBids(auctionsData, auctionId, currentBid);
       } else {
-        console.log('❌ My-bids endpoint failed, using fallback');
-        generateRealisticBidHistory(auctionId, currentBid, 3, "unknown-bidder");
+        generateSimpleBidHistory(auctionId, currentBid);
       }
     } catch (error) {
-      console.error('❌ API error:', error);
-      generateRealisticBidHistory(auctionId, currentBid, 3, "unknown-bidder");
+      generateSimpleBidHistory(auctionId, currentBid);
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading, processAuctionDataForBids, generateSimpleBidHistory]);
 
-  const processRealBidData = (allBidsData: any[], targetAuctionId: string, currentBid: number) => {
-    try {
-      console.log('🔍 Processing REAL bid data for auction:', targetAuctionId);
-      
-      // Filter bids for this specific auction
-      const auctionBids = allBidsData.filter((bid: any) => bid.auctionId === targetAuctionId);
-      
-      console.log(`📊 Found ${auctionBids.length} real bids for this auction`);
-      
-      if (auctionBids.length === 0) {
-        console.log('📋 No real bids found for this auction, using realistic data');
-        generateRealisticBidHistory(targetAuctionId, currentBid, 3, "unknown-bidder");
-        return;
+  useEffect(() => {
+    if (isVisible && stableAuctionId) {
+      fetchRealBidHistory(stableAuctionId, currentBid);
+    }
+  }, [isVisible, stableAuctionId, currentBid, fetchRealBidHistory]);
+
+  useEffect(() => {
+    if (!isVisible || !cardRef.current) return;
+
+    updatePosition();
+    
+    const handleScrollResize = () => {
+      updatePosition();
+    };
+    
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (tooltipRef.current && !tooltipRef.current.contains(event.target as Node) &&
+          cardRef.current && !cardRef.current.contains(event.target as Node)) {
+        onClose?.();
       }
-      
-      // Transform real bid data to our format
-      const formattedBids = auctionBids.map((bid: any) => {
-        // Use actual bidder name or generate from userId
-        const bidderName = bid.userId ? `Bidder ${bid.userId.slice(-6)}` : 'Unknown Bidder';
-        
-        return {
-          id: bid.bidId || `real-bid-${bid.bidTime}`,
-          bidAmount: bid.bidAmount || 0,
-          bidderId: bid.userId || "unknown-bidder",
-          bidTime: formatBidTime(bid.bidTime || bid.createdAt),
-          bidderName: bidderName,
-          isHighest: false // Will set after sorting
-        };
-      }).filter(bid => bid.bidAmount > 0); // Filter out invalid bids
-      
-      // Sort by amount (highest first) and then by time (newest first)
-      const sortedBids = formattedBids.sort((a, b) => {
-        if (b.bidAmount !== a.bidAmount) {
-          return b.bidAmount - a.bidAmount; // Sort by amount first
-        }
-        // If amounts are equal, sort by time (newest first)
-        return new Date(b.bidTime).getTime() - new Date(a.bidTime).getTime();
-      });
-      
-      // Mark the highest bid
-      if (sortedBids.length > 0) {
-        sortedBids[0].isHighest = true;
-        
-        // Ensure current bid is reflected (might be higher than any historical bid)
-        if (currentBid > sortedBids[0].bidAmount) {
-          // Add current bid as the highest if it's higher than historical bids
-          sortedBids.unshift({
-            id: `current-${targetAuctionId}`,
-            bidAmount: currentBid,
-            bidderId: "current-highest",
-            bidTime: "Just now",
-            bidderName: "Current Highest",
-            isHighest: true
-          });
-          // Remove the old highest marker from the second bid
-          if (sortedBids.length > 1) {
-            sortedBids[1].isHighest = false;
-          }
-        }
-      }
-      
-      console.log('📈 Final real bid history:', sortedBids.slice(0, 3));
-      setBidHistory(sortedBids.slice(0, 3)); // Show top 3 bids
-      
-    } catch (error) {
-      console.error('Error processing real bid data:', error);
-      generateRealisticBidHistory(targetAuctionId, currentBid, 3, "unknown-bidder");
-    }
-  };
-
-  const generateRealisticBidHistory = (auctionId: string, currentBid: number, bidCount: number, highestBidder: string) => {
-    const bids: BidHistoryItem[] = [];
+    };
     
-    // Current highest bid
-    bids.push({
-      id: `current-${auctionId}`,
-      bidAmount: currentBid,
-      bidderId: highestBidder || "current-bidder",
-      bidTime: "Just now",
-      bidderName: highestBidder ? `Bidder ${highestBidder.slice(-4)}` : "Highest Bidder",
-      isHighest: true
-    });
+    window.addEventListener('scroll', handleScrollResize, true);
+    window.addEventListener('resize', handleScrollResize);
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
     
-    // Generate realistic previous bids
-    const startingBid = Math.max(100, currentBid - (bidCount * 100));
-    let previousAmount = currentBid;
-    
-    for (let i = 1; i < Math.min(bidCount, 3); i++) {
-      const decrement = Math.max(50, Math.floor((currentBid - startingBid) / bidCount));
-      previousAmount = Math.max(startingBid, previousAmount - decrement);
-      
-      bids.push({
-        id: `prev-${i}-${auctionId}`,
-        bidAmount: previousAmount,
-        bidderId: `bidder-${i}`,
-        bidTime: `${i * 15} min ago`,
-        bidderName: `Bidder ${String.fromCharCode(65 + i)}`,
-        isHighest: false
-      });
-    }
-    
-    const sortedBids = bids.sort((a, b) => b.bidAmount - a.bidAmount);
-    setBidHistory(sortedBids.slice(0, 3));
-  };
-
-  const formatBidTime = (timestamp: string | Date) => {
-    if (!timestamp) return "Recently";
-    
-    try {
-      const now = new Date();
-      const bidTime = new Date(timestamp);
-      const diffMs = now.getTime() - bidTime.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-      const diffDays = Math.floor(diffHours / 24);
-      
-      if (diffMins < 1) return "Just now";
-      if (diffMins < 60) return `${diffMins}m ago`;
-      if (diffHours < 24) return `${diffHours}h ago`;
-      if (diffDays < 7) return `${diffDays}d ago`;
-      
-      // Format as date for older bids
-      return bidTime.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return "Recently";
-    }
-  };
+    return () => {
+      window.removeEventListener('scroll', handleScrollResize, true);
+      window.removeEventListener('resize', handleScrollResize);
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      hasFetchedRef.current = false;
+    };
+  }, [isVisible, onClose, updatePosition, cardRef]);
 
   if (!isVisible) return null;
 
+  const isMobile = window.innerWidth <= 768;
+
   return (
     <div
+      ref={tooltipRef}
       className="fixed z-50"
       style={{
         left: position.x,
         top: position.y,
-        transform: 'translateY(-50%)'
+        transform: isMobile ? 'none' : 'translateY(-50%)'
       }}
     >
       <div className="relative w-72">
-        {/* Dynamic arrow pointer based on side */}
-        <div className={`absolute top-1/2 transform -translate-y-1/2 z-10 ${
-          tooltipSide === 'right' 
-            ? 'left-0 -translate-x-2' 
-            : 'right-0 translate-x-2 rotate-180'
-        }`}>
-          <div className="w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[8px] border-r-white/30"></div>
-        </div>
+        {!isMobile && (
+          <div className={`absolute top-1/2 transform -translate-y-1/2 z-10 ${
+            tooltipSide === 'right' 
+              ? 'left-0 -translate-x-2' 
+              : 'right-0 translate-x-2 rotate-180'
+          }`}>
+            <div className="w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[8px] border-r-white/30"></div>
+          </div>
+        )}
         
-        {/* Glassmorphism tooltip */}
         <div className="backdrop-blur-xl bg-white/20 dark:bg-black/30 border border-white/30 dark:border-gray-700/40 rounded-xl shadow-2xl overflow-hidden">
-          {/* Header */}
           <div className="px-4 py-3 bg-gradient-to-r from-purple-500/20 to-blue-500/20 border-b border-white/20">
-            <div className="flex items-center space-x-2">
-              <TrendingUp className="w-4 h-4 text-blue-300" />
-              <h3 className="text-sm font-semibold text-white">Bid History</h3>
-              <Badge variant="secondary" className="ml-auto text-xs bg-white/20">
-                {bidHistory.length} bids
-              </Badge>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <TrendingUp className="w-4 h-4 text-blue-300" />
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Bid History</h3>
+                <Badge variant="secondary" className="text-xs bg-white/20 text-gray-800 dark:text-gray-200">
+                  {bidHistory.length} shown
+                </Badge>
+              </div>
+              {isMobile && (
+                <button
+                  onClick={onClose}
+                  className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-lg font-bold ml-2"
+                >
+                  ×
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Content - Highest bid at top */}
           <div className="p-4">
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="animate-pulse flex items-center space-x-3">
-                    <div className="w-2 h-2 bg-white/30 rounded-full"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
                     <div className="flex-1 space-y-1">
-                      <div className="h-3 bg-white/20 rounded w-3/4"></div>
-                      <div className="h-2 bg-white/10 rounded w-1/2"></div>
+                      <div className="h-3 bg-gray-300 rounded w-3/4"></div>
+                      <div className="h-2 bg-gray-200 rounded w-1/2"></div>
                     </div>
                   </div>
                 ))}
@@ -313,28 +290,28 @@ const BidHistoryTooltip = ({
               <div className="space-y-2">
                 {bidHistory.map((bid) => (
                   <div key={bid.id} className={`flex items-center space-x-3 p-2 rounded ${
-                    bid.isHighest ? 'bg-green-500/20 border border-green-500/30' : 'bg-white/5'
+                    bid.isHighest ? 'bg-green-500/20 border border-green-500/30' : 'bg-gray-100/30 dark:bg-gray-800/30'
                   }`}>
                     <div className={`w-2 h-2 rounded-full ${
-                      bid.isHighest ? 'bg-green-400 shadow-lg shadow-green-400/50' : 'bg-white/40'
+                      bid.isHighest ? 'bg-green-400 shadow-lg shadow-green-400/50' : 'bg-gray-500'
                     }`}></div>
                     
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className={`text-sm font-bold ${
-                          bid.isHighest ? 'text-green-300' : 'text-white'
+                          bid.isHighest ? 'text-green-700 dark:text-green-300' : 'text-gray-800 dark:text-gray-200'
                         }`}>
                           R{bid.bidAmount.toLocaleString()}
                         </span>
-                        <span className="text-xs text-gray-300">{bid.bidTime}</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-400">{bid.bidTime}</span>
                       </div>
                       
                       <div className="flex items-center justify-between mt-1">
-                        <span className="text-xs text-gray-200 truncate">
+                        <span className="text-xs text-gray-700 dark:text-gray-300 truncate">
                           {bid.bidderName}
                         </span>
                         {bid.isHighest && (
-                          <span className="text-xs bg-green-400/30 text-green-200 px-2 py-0.5 rounded-full">
+                          <span className="text-xs bg-green-400/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">
                             Highest
                           </span>
                         )}
@@ -345,44 +322,16 @@ const BidHistoryTooltip = ({
               </div>
             ) : (
               <div className="text-center py-6">
-                <TrendingUp className="w-8 h-8 text-white/40 mx-auto mb-3" />
-                <p className="text-sm text-white/70 font-medium">No bids yet</p>
-                <p className="text-xs text-white/50 mt-1">Be the first to bid!</p>
+                <TrendingUp className="w-8 h-8 text-gray-400 mx-auto mb-3" />
+                <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">No bids yet</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Be the first to bid!</p>
               </div>
             )}
-          </div>
-
-          {/* Mobile close button */}
-          <div className="md:hidden border-t border-white/20">
-            <button 
-              onClick={() => {/* We'll handle this via parent */}}
-              className="w-full py-2 text-center text-xs text-white/70 hover:text-white/90"
-            >
-              Tap anywhere to close
-            </button>
           </div>
         </div>
       </div>
     </div>
   );
-};
-
-// Mobile touch detection hook
-const useTouchDevice = () => {
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
-
-  useEffect(() => {
-    const checkTouchDevice = () => {
-      setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
-    };
-
-    checkTouchDevice();
-    window.addEventListener('resize', checkTouchDevice);
-    
-    return () => window.removeEventListener('resize', checkTouchDevice);
-  }, []);
-
-  return isTouchDevice;
 };
 
 export const AuctionCard = ({
@@ -397,124 +346,241 @@ export const AuctionCard = ({
   status,
   distance,
   onPlaceBid,
-  isBidding = false
+  isBidding = false,
+  endTime,
+  currentUserId,
+  highestBidder,
+  canPlaceBid = true
 }: AuctionCardProps) => {
+  const navigate = useNavigate();
   const [showBidHistory, setShowBidHistory] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout>();
-  const tapTimeoutRef = useRef<NodeJS.Timeout>();
-  const isTouchDevice = useTouchDevice();
+  const [isMobile, setIsMobile] = useState(false);
 
-  // Desktop hover handlers
-  const handleMouseEnter = () => {
-    if (isTouchDevice) return; // Don't trigger hover on touch devices
-    
-    hoverTimeoutRef.current = setTimeout(() => {
-      setShowBidHistory(true);
-    }, 300);
-  };
-
-  const handleMouseLeave = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
+  const generateEndTime = useCallback(() => {
+    if (endTime && endTime.length > 10 && new Date(endTime).toString() !== 'Invalid Date') {
+      return endTime;
     }
-    if (!isTouchDevice) {
-      setShowBidHistory(false);
-    }
-  };
+    const now = Date.now();
+    const titleHash = title.split('').reduce((hash, char) => {
+      return hash + char.charCodeAt(0);
+    }, 0);
+    const minutesFromNow = 2 + (titleHash % 9);
+    return new Date(now + minutesFromNow * 60 * 1000).toISOString();
+  }, [endTime, title]);
 
-  // Mobile touch handlers
-  const handleTouchStart = () => {
-    tapTimeoutRef.current = setTimeout(() => {
-      setShowBidHistory(true);
-    }, 200); // Short delay to distinguish from click
-  };
+  const [fixedEndTime] = useState(generateEndTime);
 
-  const handleTouchEnd = () => {
-    if (tapTimeoutRef.current) {
-      clearTimeout(tapTimeoutRef.current);
-    }
-  };
+  const { auctionStatus, timeUntilEnd, isAuctionActive } = useAuctionCompletion({
+    auctionId: id,
+    endTime: fixedEndTime,
+    currentBid,
+    isHighestBidder: currentUserId === highestBidder,
+    auctionTitle: title
+  });
 
-  const handleCardClick = () => {
-    if (isTouchDevice && showBidHistory) {
-      // If tooltip is visible and user taps again, close it
-      setShowBidHistory(false);
-    }
-  };
+  const actualStatus = auctionStatus === 'ended' ? 'ended' : status;
+  const isUserHighestBidder = currentUserId === highestBidder;
 
-  // Close tooltip when tapping outside (mobile)
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-      if (isTouchDevice && showBidHistory && cardRef.current) {
-        if (!cardRef.current.contains(event.target as Node)) {
-          setShowBidHistory(false);
-        }
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768 || 'ontouchstart' in window);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const handleMouseEnter = useCallback(() => {
+    if (!isMobile) {
+      hoverTimeoutRef.current = setTimeout(() => {
+        setShowBidHistory(true);
+      }, 300);
+    }
+  }, [isMobile]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (!isMobile) {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
       }
-    };
+      setShowBidHistory(false);
+    }
+  }, [isMobile]);
 
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-    };
-  }, [isTouchDevice, showBidHistory]);
+  const handleBidHistoryToggle = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowBidHistory(prev => !prev);
+  }, []);
 
-  // Cleanup timeouts
+  const handleCloseBidHistory = useCallback(() => {
+    setShowBidHistory(false);
+  }, []);
+
   useEffect(() => {
     return () => {
-      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-      if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
     };
   }, []);
 
-  const getStatusBadge = () => {
-    switch (status) {
+  const getStatusBadge = useCallback(() => {
+    switch (actualStatus) {
       case "live":
         return <Badge className="status-live">● LIVE</Badge>;
       case "upcoming":
         return <Badge className="status-upcoming">UPCOMING</Badge>;
       case "ended":
+        if (isUserHighestBidder) {
+          return <Badge className="bg-green-500 text-white"><Trophy className="w-3 h-3 mr-1" />WON</Badge>;
+        }
         return <Badge className="status-ended">ENDED</Badge>;
+      default:
+        return <Badge className="status-upcoming">UNKNOWN</Badge>;
     }
-  };
+  }, [actualStatus, isUserHighestBidder]);
+
+  const formatTimeRemaining = useCallback(() => {
+    if (actualStatus === 'ended') {
+      return 'Auction Ended';
+    }
+    if (timeUntilEnd > 0) {
+      const hours = Math.floor(timeUntilEnd / (1000 * 60 * 60));
+      const minutes = Math.floor((timeUntilEnd % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((timeUntilEnd % (1000 * 60)) / 1000);
+      
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+      } else if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+      } else {
+        return `${seconds}s`;
+      }
+    }
+    return timeRemaining;
+  }, [actualStatus, timeUntilEnd, timeRemaining]);
+
+  const getButtonState = useCallback(() => {
+    if (isBidding) {
+      return {
+        disabled: true,
+        text: (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            Placing Bid...
+          </>
+        ),
+        className: "w-full btn-primary"
+      };
+    }
+
+    if (actualStatus === "ended") {
+      if (isUserHighestBidder) {
+        return {
+          disabled: false,
+          text: (
+            <>
+              <Trophy className="w-4 h-4 mr-2" />
+              You Won! Pay Now
+            </>
+          ),
+          className: "w-full bg-green-600 hover:bg-green-700 text-white",
+          onClick: () => {
+            navigate(`/payment?auctionId=${id}&amount=${currentBid}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&image=${image}`);
+          }
+        };
+      } else {
+        return {
+          disabled: true,
+          text: "Auction Ended",
+          className: "w-full bg-gray-500 text-gray-300 cursor-not-allowed"
+        };
+      }
+    }
+
+    if (actualStatus === "upcoming") {
+      return {
+        disabled: true,
+        text: "Upcoming",
+        className: "w-full btn-secondary"
+      };
+    }
+
+    if (!canPlaceBid) {
+      return {
+        disabled: true,
+        text: "Place Bid",
+        className: "w-full bg-gray-400 text-gray-200 cursor-not-allowed"
+      };
+    }
+
+    return {
+      disabled: false,
+      text: "Place Bid",
+      className: "w-full btn-primary",
+      onClick: () => onPlaceBid?.(id)
+    };
+  }, [isBidding, actualStatus, isUserHighestBidder, id, currentBid, title, artist, image, onPlaceBid, canPlaceBid, navigate]);
+
+  const buttonState = getButtonState();
+  const formattedBid = currentBid ? currentBid.toLocaleString() : '0';
 
   return (
     <>
       <Card 
         ref={cardRef}
-        className="auction-card group relative cursor-pointer"
+        className={`auction-card group relative ${actualStatus === 'ended' ? 'opacity-90' : ''}`}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onClick={handleCardClick}
       >
         <CardHeader className="p-0">
           <div className="artwork-frame">
-            <img src={image} alt={title} />
+            <img 
+              src={imageError ? '/placeholder-image.jpg' : image} 
+              alt={title} 
+              onError={() => setImageError(true)}
+            />
+            {actualStatus === 'ended' && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                <div className="text-center">
+                  {isUserHighestBidder ? (
+                    <>
+                      <Trophy className="w-12 h-12 text-yellow-400 mx-auto mb-2" />
+                      <p className="text-white font-bold text-lg">You Won!</p>
+                      <p className="text-green-400 font-semibold">R{formattedBid}</p>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                      <p className="text-white font-bold">Auction Ended</p>
+                      <p className="text-gray-300 text-sm">Final: R{formattedBid}</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="absolute top-3 left-3">
               {getStatusBadge()}
             </div>
-            <div className="absolute top-3 right-3">
+            <div className="absolute top-3 right-3 flex items-center space-x-2">
               <Badge className="location-badge">
                 <MapPin className="w-3 h-3 mr-1" />
                 {location}
               </Badge>
+              {isMobile && (
+                <button
+                  onClick={handleBidHistoryToggle}
+                  className="bg-black/30 backdrop-blur-sm text-white p-1.5 rounded-full hover:bg-black/50 transition-colors"
+                  aria-label="View bid history"
+                >
+                  <Info className="w-3 h-3" />
+                </button>
+              )}
             </div>
-            
-            {/* Mobile touch indicator */}
-            {isTouchDevice && (
-              <div className={`absolute bottom-3 right-3 transition-all duration-300 ${
-                showBidHistory ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
-              }`}>
-                <div className="bg-black/50 rounded-full p-2 border border-white/30">
-                  <TrendingUp className="w-4 h-4 text-white" />
-                </div>
-              </div>
-            )}
           </div>
         </CardHeader>
         
@@ -528,61 +594,70 @@ export const AuctionCard = ({
           
           <div className="flex justify-between items-center mb-3">
             <div>
-              <p className="text-xs text-muted-foreground">Current Bid</p>
-              <p className="text-xl font-bold text-gradient">
-                R{currentBid?.toLocaleString() || '0'}
+              <p className="text-xs text-muted-foreground">
+                {actualStatus === 'ended' ? 'Final Bid' : 'Current Bid'}
+              </p>
+              <p className={`text-xl font-bold ${
+                isUserHighestBidder && actualStatus === 'ended' 
+                  ? 'text-green-600' 
+                  : 'text-gradient'
+              }`}>
+                R{formattedBid}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">Time Left</p>
-              <p className="text-sm font-medium flex items-center">
+              <p className="text-xs text-muted-foreground">
+                {actualStatus === 'ended' ? 'Status' : 'Time Left'}
+              </p>
+              <p className={`text-sm font-medium flex items-center ${
+                actualStatus === 'ended' ? 'text-gray-600' : ''
+              } ${timeUntilEnd < 300000 && actualStatus === 'live' ? 'text-red-500 animate-pulse' : ''}`}>
                 <Clock className="w-3 h-3 mr-1" />
-                {timeRemaining}
+                {formatTimeRemaining()}
               </p>
             </div>
           </div>
           
-          <div className="flex items-center text-xs text-muted-foreground mb-4">
-            <Users className="w-3 h-3 mr-1" />
-            {bidders} bidder{bidders !== 1 ? 's' : ''}
+          <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
+            <div className="flex items-center">
+              <Users className="w-3 h-3 mr-1" />
+              {bidders} bidder{bidders !== 1 ? 's' : ''}
+            </div>
+            {isMobile && (
+              <button
+                onClick={handleBidHistoryToggle}
+                className="flex items-center text-blue-500 hover:text-blue-400 transition-colors"
+              >
+                <TrendingUp className="w-3 h-3 mr-1" />
+                View History
+              </button>
+            )}
+            {isUserHighestBidder && actualStatus === 'live' && (
+              <span className="text-green-600 font-semibold text-xs">
+                <Trophy className="w-3 h-3 inline mr-1" />
+                You're Winning!
+              </span>
+            )}
           </div>
         </CardContent>
         
         <CardFooter className="p-4 pt-0">
           <Button 
-            className="w-full btn-primary"
-            disabled={status === "ended" || isBidding}
-            onClick={() => onPlaceBid?.(id)}
+            className={buttonState.className}
+            disabled={buttonState.disabled}
+            onClick={buttonState.onClick}
           >
-            {isBidding ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Placing Bid...
-              </>
-            ) : status === "ended" ? (
-              "Auction Ended"
-            ) : (
-              "Place Bid"
-            )}
+            {buttonState.text}
           </Button>
-
-          {/* Mobile hint */}
-          {isTouchDevice && (
-            <div className="w-full mt-2 text-center">
-              <span className="text-xs text-muted-foreground">
-                👆 Tap and hold to view bid history
-              </span>
-            </div>
-          )}
         </CardFooter>
       </Card>
 
-      {/* Bid History Tooltip */}
       <BidHistoryTooltip
         auctionId={id}
         isVisible={showBidHistory}
         cardRef={cardRef}
         currentBid={currentBid}
+        onClose={handleCloseBidHistory}
       />
     </>
   );

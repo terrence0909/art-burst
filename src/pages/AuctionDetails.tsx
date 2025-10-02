@@ -18,6 +18,12 @@ interface Bid {
   time: string;
 }
 
+interface Dimensions {
+  width: number;
+  height: number;
+  depth: number;
+}
+
 interface Auction {
   id: string;
   title: string;
@@ -34,11 +40,13 @@ interface Auction {
   totalBids: number;
   watchers: number;
   medium: string;
-  dimensions: string;
+  dimensions: Dimensions | string;
   year: string;
   condition?: string;
   bidHistory?: Bid[];
   startingBid?: number;
+  startDate?: string;
+  endDate?: string;
 }
 
 // ----------------------
@@ -50,6 +58,30 @@ const AuctionDetails = () => {
   const [auction, setAuction] = useState<Auction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [timeRemaining, setTimeRemaining] = useState("");
+
+  // Calculate time remaining
+  const calculateTimeRemaining = (endDate: string) => {
+    const end = new Date(endDate);
+    const now = new Date();
+    const difference = end.getTime() - now.getTime();
+
+    if (difference <= 0) {
+      return "Auction ended";
+    }
+
+    const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (days > 0) {
+      return `${days}d ${hours}h ${minutes}m`;
+    } else if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return `${minutes}m`;
+    }
+  };
 
   // Fetch auction data
   useEffect(() => {
@@ -60,8 +92,14 @@ const AuctionDetails = () => {
         console.log("Raw API response:", data);
         if (!data) throw new Error("Auction not found");
         
-        // Type assertion to match your local interface
         setAuction(data as Auction);
+
+        // Calculate initial time remaining only if endDate exists
+        if (data.endDate) {
+          setTimeRemaining(calculateTimeRemaining(data.endDate));
+        } else {
+          setTimeRemaining(data.timeRemaining || "Time not set");
+        }
       } catch (err: any) {
         setError(err.message || "Failed to load auction");
       } finally {
@@ -70,6 +108,32 @@ const AuctionDetails = () => {
     };
     loadAuction();
   }, [id]);
+
+  // Update time remaining every minute only if endDate exists
+  useEffect(() => {
+    if (!auction) return;
+    
+    // Use a type guard to check if endDate exists
+    const hasEndDate = (auction: Auction): auction is Auction & { endDate: string } => {
+      return 'endDate' in auction && auction.endDate !== undefined;
+    };
+
+    if (!hasEndDate(auction)) return;
+
+    const timer = setInterval(() => {
+      setTimeRemaining(calculateTimeRemaining(auction.endDate));
+    }, 60000);
+
+    return () => clearInterval(timer);
+  }, [auction]);
+
+  // Format dimensions helper
+  const formatDimensions = (dimensions: Dimensions | string): string => {
+    if (typeof dimensions === 'string') {
+      return dimensions;
+    }
+    return `${dimensions.width}" x ${dimensions.height}" x ${dimensions.depth}"`;
+  };
 
   // Placeholder for bidding
   const handlePlaceBid = () => {
@@ -83,6 +147,7 @@ const AuctionDetails = () => {
 
   const currentBid = auction.currentBid || auction.startingBid || 0;
   const nextMinBid = currentBid + auction.bidIncrement;
+  const displayTimeRemaining = timeRemaining || auction.timeRemaining;
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,7 +213,7 @@ const AuctionDetails = () => {
                   <div className="text-right">
                     <div className="flex items-center text-accent">
                       <Clock className="w-4 h-4 mr-1" />
-                      <span className="font-semibold">{auction.timeRemaining}</span>
+                      <span className="font-semibold">{displayTimeRemaining}</span>
                     </div>
                     <p className="text-sm text-muted-foreground">remaining</p>
                   </div>
@@ -183,7 +248,9 @@ const AuctionDetails = () => {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Dimensions</p>
-                    <p className="font-medium">{auction.dimensions}</p>
+                    <p className="font-medium">
+                      {auction.dimensions ? formatDimensions(auction.dimensions) : "N/A"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Year</p>
