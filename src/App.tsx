@@ -10,7 +10,9 @@ import ArtistProfile from "./pages/ArtistProfile";
 import Dashboard from "./pages/Dashboard";
 import AuthPage from "./pages/AuthPage";
 import CreateAuction from "./pages/CreateAuction";
-import PaymentPage from "./pages/PaymentPage"; // Add this import
+import PaymentPage from "./pages/PaymentPage";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentCancelled from "./pages/PaymentCancelled";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,6 +33,8 @@ const App = () => (
         <Route path="/create" element={<CreateAuction />} />
         <Route path="/payment" element={<PaymentPage />} /> {/* Add this line */}
         <Route path="*" element={<NotFound />} />
+        <Route path="/payment-success" element={<PaymentSuccess />} />
+        <Route path="/payment-cancelled" element={<PaymentCancelled />} />
       </Routes>
     </TooltipProvider>
   </QueryClientProvider>
