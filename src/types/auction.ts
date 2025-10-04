@@ -33,9 +33,12 @@ export interface Auction {
   createdAt?: string;
   updatedAt?: string;
   highestBidder?: string;
-  // You might also want to add bids array to the Auction interface
   bids?: Bid[];
+  // Date/time fields - added missing ones
   endTime?: string;
+  endDate?: string;
+  startTime?: string;
+  startDate?: string;
 }
 
 export type CreateAuctionData = Omit<Auction, 'id' | 'createdAt' | 'updatedAt'>;

@@ -1,111 +1,77 @@
-// src/hooks/useAuctionCompletion.ts - CLEAN VERSION
+// src/hooks/useAuctionCompletion.ts - SIMPLE FIX
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 
 interface AuctionCompletionProps {
   auctionId: string;
-  endTime: string;
+  endDate: string;
   currentBid: number;
   isHighestBidder: boolean;
   auctionTitle: string;
+  startDate?: string;
+  status?: 'live' | 'upcoming' | 'ended';
 }
 
 interface UseAuctionCompletionReturn {
-  auctionStatus: 'live' | 'ended';
+  auctionStatus: 'live' | 'ended' | 'upcoming';
   timeUntilEnd: number;
   isAuctionActive: boolean;
+  timeUntilStart: number;
 }
 
 export const useAuctionCompletion = ({
   auctionId,
-  endTime,
+  endDate,
   currentBid,
   isHighestBidder,
-  auctionTitle
+  auctionTitle,
+  startDate,
+  status = 'live'
 }: AuctionCompletionProps): UseAuctionCompletionReturn => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [auctionStatus, setAuctionStatus] = useState<'live' | 'ended'>('live');
+  
+  const [auctionStatus, setAuctionStatus] = useState<'live' | 'ended' | 'upcoming'>(status);
   const [timeUntilEnd, setTimeUntilEnd] = useState(0);
+  const [timeUntilStart, setTimeUntilStart] = useState(0);
   const hasNotifiedRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleAuctionWon = useCallback((wonAuctionId: string, winningBid: number, title: string) => {
-    // Play success sound
-    try {
-      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N+QQAoUXrTp66hVFApGn+DyvmETBiuJzfPSgis');
-      audio.volume = 0.3;
-      audio.play().catch(() => {});
-    } catch {}
+  const checkAuctionCompletion = useCallback(() => {
+    const now = new Date();
+    
+    // Simple date parsing - no modifications
+    const auctionStart = startDate ? new Date(startDate) : null;
+    const auctionEnd = new Date(endDate);
 
-    // Store win data
-    const wins = JSON.parse(localStorage.getItem('auction-wins') || '{}');
-    wins[wonAuctionId] = { 
-      winningBid, 
-      title, 
-      wonAt: new Date().toISOString(),
-      paymentCompleted: false
-    };
-    localStorage.setItem('auction-wins', JSON.stringify(wins));
-
-    // Browser notification
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(`Auction Won: ${title}`, {
-        body: `You won with a bid of R${winningBid.toLocaleString()}`,
-        icon: '/favicon.ico',
-        tag: `auction-won-${wonAuctionId}`
-      });
+    if (isNaN(auctionEnd.getTime())) {
+      return;
     }
 
-    // Show toast notification with manual redirect
-    setTimeout(() => {
-      toast({ 
-        title: "🎉 Congratulations! You Won!", 
-        description: `You won "${title}" with a bid of R${winningBid.toLocaleString()}. Click here to proceed to payment.`,
-        duration: 15000,
-      });
+    const endTimeMs = auctionEnd.getTime();
+    const startTimeMs = auctionStart ? auctionStart.getTime() : null;
+    
+    const timeUntilEnd = Math.max(0, endTimeMs - now.getTime());
+    const timeUntilStart = startTimeMs ? Math.max(0, startTimeMs - now.getTime()) : 0;
 
-      // Optional: Show a browser confirm for immediate payment
-      setTimeout(() => {
-        const shouldProceed = confirm(`Congratulations! You won "${title}" for R${winningBid.toLocaleString()}. Would you like to proceed to payment now?`);
-        if (shouldProceed) {
-          const paymentUrl = `/payment?auctionId=${wonAuctionId}&amount=${winningBid}&title=${encodeURIComponent(title)}`;
-          navigate(paymentUrl);
-        }
-      }, 2000);
-    }, 500);
-  }, [navigate, toast]);
+    setTimeUntilEnd(timeUntilEnd);
+    setTimeUntilStart(timeUntilStart);
 
-  const handleAuctionLost = useCallback((lostAuctionId: string, finalBid: number, title: string) => {
-    toast({ 
-      title: "⏰ Auction Ended", 
-      description: `"${title}" has ended. Final bid: R${finalBid.toLocaleString()}`,
-      duration: 6000
-    });
+    let newStatus: 'live' | 'ended' | 'upcoming';
+    
+    if (timeUntilEnd <= 0) {
+      newStatus = 'ended';
+    } else if (startTimeMs && timeUntilStart > 0) {
+      newStatus = 'upcoming';
+    } else {
+      newStatus = 'live';
+    }
 
-    const losses = JSON.parse(localStorage.getItem('auction-losses') || '{}');
-    losses[lostAuctionId] = { 
-      title, 
-      finalBid, 
-      lostAt: new Date().toISOString() 
-    };
-    localStorage.setItem('auction-losses', JSON.stringify(losses));
-  }, [toast]);
+    setAuctionStatus(newStatus);
 
-  const checkAuctionCompletion = useCallback(() => {
-    if (!endTime) return;
-
-    const now = new Date();
-    const auctionEnd = new Date(endTime);
-    const timeRemaining = auctionEnd.getTime() - now.getTime();
-
-    setTimeUntilEnd(Math.max(0, timeRemaining));
-
-    if (timeRemaining <= 0 && auctionStatus === 'live') {
-      setAuctionStatus('ended');
-
-      // Only notify once per auction
+    // Handle notifications for ended auctions
+    if (newStatus === 'ended') {
       const notificationKey = `auction-${auctionId}-notified`;
       if (!hasNotifiedRef.current && !localStorage.getItem(notificationKey)) {
         hasNotifiedRef.current = true;
@@ -113,25 +79,40 @@ export const useAuctionCompletion = ({
 
         setTimeout(() => {
           if (isHighestBidder) {
-            handleAuctionWon(auctionId, currentBid, auctionTitle);
+            try {
+              const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N+QQAoUXrTp66hVFApGn+/DywmETBiuJzfPSgis');
+              audio.volume = 0.3;
+              audio.play().catch(() => {});
+            } catch {}
+
+            const wins = JSON.parse(localStorage.getItem('auction-wins') || '{}');
+            wins[auctionId] = { 
+              winningBid: currentBid, 
+              title: auctionTitle, 
+              wonAt: new Date().toISOString(),
+              paymentCompleted: false
+            };
+            localStorage.setItem('auction-wins', JSON.stringify(wins));
+
+            setTimeout(() => {
+              toast({ 
+                title: "🎉 Congratulations! You Won!", 
+                description: `You won "${auctionTitle}" with a bid of R${currentBid.toLocaleString()}. Click here to proceed to payment.`,
+                duration: 15000,
+              });
+            }, 500);
           } else {
-            handleAuctionLost(auctionId, currentBid, auctionTitle);
+            toast({ 
+              title: "⏰ Auction Ended", 
+              description: `"${auctionTitle}" has ended. Final bid: R${currentBid.toLocaleString()}`,
+              duration: 6000
+            });
           }
         }, 500);
       }
     }
-  }, [
-    endTime, 
-    auctionStatus, 
-    auctionId, 
-    isHighestBidder, 
-    currentBid, 
-    auctionTitle,
-    handleAuctionWon, 
-    handleAuctionLost
-  ]);
+  }, [endDate, startDate, auctionId, isHighestBidder, currentBid, auctionTitle, toast]);
 
-  // Request notification permission on first click
   useEffect(() => {
     const handleFirstClick = () => {
       if ('Notification' in window && Notification.permission === 'default') {
@@ -144,9 +125,8 @@ export const useAuctionCompletion = ({
     return () => document.removeEventListener('click', handleFirstClick);
   }, []);
 
-  // Set up completion checking
   useEffect(() => {
-    if (!endTime || !auctionId) return;
+    if (!endDate) return;
 
     checkAuctionCompletion();
 
@@ -159,12 +139,10 @@ export const useAuctionCompletion = ({
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
-        intervalRef.current = null;
       }
     };
-  }, [checkAuctionCompletion, endTime, auctionId]);
+  }, [checkAuctionCompletion, endDate, startDate, auctionId]);
 
-  // Reset notification state when auction changes
   useEffect(() => {
     hasNotifiedRef.current = false;
   }, [auctionId, isHighestBidder]);
@@ -172,6 +150,7 @@ export const useAuctionCompletion = ({
   return {
     auctionStatus,
     timeUntilEnd,
+    timeUntilStart,
     isAuctionActive: auctionStatus === 'live' && timeUntilEnd > 0
   };
 };

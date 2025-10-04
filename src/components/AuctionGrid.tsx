@@ -227,13 +227,27 @@ export const AuctionGrid = () => {
     }
   };
 
-  if (loading) return <div className="flex justify-center py-16"><div className="animate-spin h-12 w-12 border-b-2 border-primary"></div><span className="ml-3">Loading auctions...</span></div>;
+  // Updated loading state - just the spinning circle, no text
+  if (loading) return (
+    <section className="py-16 bg-muted/30">
+      <div className="container px-4 flex justify-center items-center min-h-[400px]">
+        <div className="animate-spin h-16 w-16 border-b-2 border-primary rounded-full"></div>
+      </div>
+    </section>
+  );
+
   if (error) return <div className="text-center py-16"><p>{error}</p><button onClick={() => refetch()}>Try Again</button></div>;
+
+  // DEBUG: Log the first auction to see what fields are available
+  if (auctions.length > 0) {
+    console.log('📊 Sample auction data:', auctions[0]);
+    console.log('📊 All auction fields:', Object.keys(auctions[0]));
+  }
 
   return (
     <section className="py-16 bg-muted/30">
       <div className="container px-4">
-        <h2 className="text-4xl font-bold text-center mb-8">Live Auctions</h2>
+        <h2 className="text-4xl font-bold text-center mb-12 font-playfair">Current Auctions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {auctions.map(a => (
             <AuctionCard
@@ -247,6 +261,10 @@ export const AuctionGrid = () => {
               bidders={a.bidders ?? 0}
               image={a.image || ""}
               status={a.status}
+              endDate={a.endDate}
+              startDate={a.startDate}
+              currentUserId={currentUserId}
+              highestBidder={a.highestBidder}
               onPlaceBid={handlePlaceBid}
               isBidding={biddingAuctionId === a.auctionId && isPlacingBid}
             />

@@ -28,7 +28,8 @@ interface AuctionCardProps {
   distance?: string;
   onPlaceBid?: (auctionId: string) => void;
   isBidding?: boolean;
-  endTime?: string;
+  endDate?: string;
+  startDate?: string;
   currentUserId?: string;
   highestBidder?: string;
   canPlaceBid?: boolean;
@@ -347,7 +348,8 @@ export const AuctionCard = ({
   distance,
   onPlaceBid,
   isBidding = false,
-  endTime,
+  endDate,
+  startDate,
   currentUserId,
   highestBidder,
   canPlaceBid = true
@@ -359,29 +361,25 @@ export const AuctionCard = ({
   const hoverTimeoutRef = useRef<NodeJS.Timeout>();
   const [isMobile, setIsMobile] = useState(false);
 
-  const generateEndTime = useCallback(() => {
-    if (endTime && endTime.length > 10 && new Date(endTime).toString() !== 'Invalid Date') {
-      return endTime;
+  // Use the actual endDate from props, no fake generation
+  const actualEndTime = useMemo(() => {
+    if (endDate && new Date(endDate).toString() !== 'Invalid Date') {
+      return endDate;
     }
-    const now = Date.now();
-    const titleHash = title.split('').reduce((hash, char) => {
-      return hash + char.charCodeAt(0);
-    }, 0);
-    const minutesFromNow = 2 + (titleHash % 9);
-    return new Date(now + minutesFromNow * 60 * 1000).toISOString();
-  }, [endTime, title]);
+    return null;
+  }, [endDate]);
 
-  const [fixedEndTime] = useState(generateEndTime);
-
-  const { auctionStatus, timeUntilEnd, isAuctionActive } = useAuctionCompletion({
+  const { auctionStatus, timeUntilEnd, isAuctionActive, timeUntilStart } = useAuctionCompletion({
     auctionId: id,
-    endTime: fixedEndTime,
+    endDate: actualEndTime || endDate || "",
+    startDate: startDate || "",
     currentBid,
     isHighestBidder: currentUserId === highestBidder,
-    auctionTitle: title
+    auctionTitle: title,
+    status: status
   });
 
-  const actualStatus = auctionStatus === 'ended' ? 'ended' : status;
+  const actualStatus = auctionStatus; // Trust the hook's calculated status
   const isUserHighestBidder = currentUserId === highestBidder;
 
   useEffect(() => {
@@ -448,7 +446,33 @@ export const AuctionCard = ({
     if (actualStatus === 'ended') {
       return 'Auction Ended';
     }
-    if (timeUntilEnd > 0) {
+    
+    if (actualStatus === 'upcoming') {
+      if (!timeUntilStart || timeUntilStart <= 0) {
+        return 'Starting soon';
+      }
+      
+      const days = Math.floor(timeUntilStart / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((timeUntilStart % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((timeUntilStart % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (days > 0) {
+        return `Starts in ${days}d ${hours}h`;
+      } else if (hours > 0) {
+        return `Starts in ${hours}h ${minutes}m`;
+      } else if (minutes > 0) {
+        return `Starts in ${minutes}m`;
+      } else {
+        return 'Starting soon';
+      }
+    }
+    
+    // Live auction - use timeUntilEnd from hook
+    if (actualStatus === 'live') {
+      if (!timeUntilEnd || timeUntilEnd <= 0) {
+        return 'Ending soon';
+      }
+      
       const hours = Math.floor(timeUntilEnd / (1000 * 60 * 60));
       const minutes = Math.floor((timeUntilEnd % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((timeUntilEnd % (1000 * 60)) / 1000);
@@ -457,12 +481,16 @@ export const AuctionCard = ({
         return `${hours}h ${minutes}m`;
       } else if (minutes > 0) {
         return `${minutes}m ${seconds}s`;
-      } else {
+      } else if (seconds > 0) {
         return `${seconds}s`;
+      } else {
+        return 'Ending soon';
       }
     }
+    
+    // Fallback to prop value
     return timeRemaining;
-  }, [actualStatus, timeUntilEnd, timeRemaining]);
+  }, [actualStatus, timeUntilStart, timeUntilEnd, timeRemaining]);
 
   const getButtonState = useCallback(() => {
     if (isBidding) {
@@ -505,8 +533,8 @@ export const AuctionCard = ({
     if (actualStatus === "upcoming") {
       return {
         disabled: true,
-        text: "Upcoming",
-        className: "w-full btn-secondary"
+        text: "Starts Soon",
+        className: "w-full bg-gray-400 text-gray-200 cursor-not-allowed"
       };
     }
 
@@ -607,7 +635,7 @@ export const AuctionCard = ({
             </div>
             <div className="text-right">
               <p className="text-xs text-muted-foreground">
-                {actualStatus === 'ended' ? 'Status' : 'Time Left'}
+                {actualStatus === 'ended' ? 'Status' : actualStatus === 'upcoming' ? 'Starts In' : 'Time Left'}
               </p>
               <p className={`text-sm font-medium flex items-center ${
                 actualStatus === 'ended' ? 'text-gray-600' : ''

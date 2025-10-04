@@ -34,18 +34,10 @@ const handleFetch = async (url: string, options: RequestInit = {}) => {
 
 // Helper functions
 const calculateTimeRemaining = (endDate?: string): string => {
-  if (!endDate) return "Time not specified";
+  if (!endDate) return new Date(Date.now() + 60 * 60 * 1000).toISOString(); // Default 1 hour
   
-  const end = new Date(endDate);
-  const now = new Date();
-  const diff = end.getTime() - now.getTime();
-  
-  if (diff <= 0) return "Auction ended";
-  
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  
-  return `${days}d ${hours}h`;
+  // Return the actual end date - let the frontend calculate the remaining time
+  return endDate;
 };
 
 const calculateDistance = (location?: string): string => {
@@ -139,7 +131,7 @@ const transformAuction = (item: any): Auction => {
     artistName: item.artistName || item.artist || "Unknown Artist",
     currentBid: item.currentBid || item.startingBid || 0,
     startingBid: item.startingBid || item.currentBid || 0,
-    timeRemaining: item.timeRemaining || calculateTimeRemaining(item.endDate),
+    timeRemaining: calculateTimeRemaining(item.endDate || item.endTime),
     location: item.location || "Location not specified",
     bidders: item.bidders || item.bidCount || item.totalBids || 0,
     bidCount: item.bidCount || item.totalBids || 0,
@@ -158,7 +150,11 @@ const transformAuction = (item: any): Auction => {
     updatedAt: item.updatedAt,
     highestBidder: item.highestBidder || item.winningBidderId,
     bids: item.bids || [],
-    endTime: item.endTime || item.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    // FIXED: Add all date/time fields
+    endTime: item.endTime || item.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    endDate: item.endDate || item.endTime || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    startTime: item.startTime || item.startDate || item.createdAt || new Date().toISOString(),
+    startDate: item.startDate || item.startTime || item.createdAt || new Date().toISOString()
   };
 };
 
