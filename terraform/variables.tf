@@ -60,3 +60,28 @@ variable "api_gateway_name" {
   type        = string
   default     = "artburst-api"
 }
+
+# PayFast Configuration Variables
+variable "payfast_merchant_id" {
+  description = "PayFast Merchant ID"
+  type        = string
+  default     = "10000100"  # Sandbox default
+}
+
+variable "payfast_merchant_key" {
+  description = "PayFast Merchant Key"
+  type        = string
+  default     = ""
+}
+
+variable "payfast_passphrase" {
+  description = "PayFast Passphrase"
+  type        = string
+  default     = ""
+}
+
+variable "payfast_sandbox" {
+  description = "PayFast Sandbox mode"
+  type        = string
+  default     = "true"
+}

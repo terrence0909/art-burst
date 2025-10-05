@@ -692,3 +692,113 @@ resource "aws_api_gateway_integration_response" "auction_options_integration_res
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
 }
+
+# -------------------------
+# PayFast Webhook Lambda Function
+# -------------------------
+resource "aws_lambda_function" "payfast_webhook" {
+  function_name = "payfast-webhook-handler"
+  role          = aws_iam_role.lambda_exec_role.arn
+  handler       = "index.handler"
+  runtime       = "nodejs18.x"
+
+  filename         = "${path.module}/lambdas/payfast-webhook/payfast-webhook.zip"
+  source_code_hash = filebase64sha256("${path.module}/lambdas/payfast-webhook/payfast-webhook.zip")
+
+  environment {
+    variables = {
+      TABLE_NAME           = aws_dynamodb_table.auctions.name
+      PAYMENTS_TABLE       = "Payments"
+      PAYFAST_MERCHANT_ID  = var.payfast_merchant_id
+      PAYFAST_MERCHANT_KEY = var.payfast_merchant_key
+      PAYFAST_PASSPHRASE   = var.payfast_passphrase
+      PAYFAST_SANDBOX      = var.payfast_sandbox
+    }
+  }
+
+  timeout = 30
+}
+
+# -------------------------
+# Payments DynamoDB Table
+# -------------------------
+resource "aws_dynamodb_table" "payments" {
+  name         = "Payments"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "paymentId"
+
+  attribute {
+    name = "paymentId"
+    type = "S"
+  }
+
+  attribute {
+    name = "auctionId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "auctionId-index"
+    hash_key        = "auctionId"
+    projection_type = "ALL"
+  }
+
+  tags = {
+    Name = "ArtBurst Payments Table"
+  }
+}
+
+# -------------------------
+# Lambda Function URL for PayFast Webhooks
+# -------------------------
+resource "aws_lambda_function_url" "payfast_webhook" {
+  function_name      = aws_lambda_function.payfast_webhook.function_name
+  authorization_type = "NONE"
+
+  cors {
+    allow_credentials = true
+    allow_origins     = ["*"]
+    allow_methods     = ["POST"]
+    allow_headers     = ["*"]
+    expose_headers    = ["*"]
+    max_age           = 0
+  }
+}
+
+# -------------------------
+# Lambda Permission for Function URL
+# -------------------------
+resource "aws_lambda_permission" "payfast_webhook_url" {
+  statement_id  = "AllowPublicInvoke"
+  action        = "lambda:InvokeFunctionUrl"
+  function_name = aws_lambda_function.payfast_webhook.function_name
+  principal     = "*"
+  function_url_auth_type = "NONE"
+}
+
+# -------------------------
+# Additional IAM Policy for Payments Table Access
+# -------------------------
+resource "aws_iam_role_policy" "lambda_payments_access" {
+  name = "lambda_payments_access"
+  role = aws_iam_role.lambda_exec_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query"
+        ]
+        Resource = [
+          aws_dynamodb_table.payments.arn,
+          "${aws_dynamodb_table.payments.arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
