@@ -10,6 +10,7 @@ import { Footer } from "@/components/Footer";
 import { AuctionCard } from "@/components/AuctionCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/use-toast";
+import { ShareProfileButton } from "@/components/ShareProfileButton";
 
 const API_BASE = "/api";
 
@@ -272,10 +273,11 @@ const ArtistProfile = () => {
                   <Heart className="w-4 h-4 mr-2" />
                   Follow ({stats.followers})
                 </Button>
-                <Button variant="outline">
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Share
-                </Button>
+                {/* Replaced Share button with QR code share button */}
+                <ShareProfileButton 
+                  artistId={artist.artistId} 
+                  artistName={artist.name} 
+                />
                 <Button className="btn-primary" onClick={handleMessage}>
                   Message Artist
                 </Button>
