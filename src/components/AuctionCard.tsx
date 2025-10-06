@@ -5,6 +5,7 @@ import { Button } from "./ui/button";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuctionCompletion } from "../hooks/useAuctionCompletion";
+import { getCurrentUser } from 'aws-amplify/auth';
 
 interface BidHistoryItem {
   id: string;
@@ -360,6 +361,42 @@ export const AuctionCard = ({
   const cardRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout>();
   const [isMobile, setIsMobile] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Monitor Cognito authentication state using Amplify Auth
+  useEffect(() => {
+    let mounted = true;
+
+    const checkAuth = async () => {
+      try {
+        setAuthLoading(true);
+        // Check if user is authenticated with Cognito - same as in AuthPage
+        const user = await getCurrentUser();
+        if (mounted) {
+          setIsAuthenticated(true);
+          setAuthLoading(false);
+        }
+      } catch (error) {
+        // No current authenticated user - same as in AuthPage
+        if (mounted) {
+          setIsAuthenticated(false);
+          setAuthLoading(false);
+        }
+      }
+    };
+
+    // Check initially
+    checkAuth();
+
+    // Set up interval to check auth state periodically
+    const interval = setInterval(checkAuth, 3000); // Check every 3 seconds
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Use the actual endDate from props, no fake generation
   const actualEndTime = useMemo(() => {
@@ -379,7 +416,7 @@ export const AuctionCard = ({
     status: status
   });
 
-  const actualStatus = auctionStatus; // Trust the hook's calculated status
+  const actualStatus = auctionStatus;
   const isUserHighestBidder = currentUserId === highestBidder;
 
   useEffect(() => {
@@ -538,6 +575,24 @@ export const AuctionCard = ({
       };
     }
 
+    // Show loading state while checking authentication
+    if (authLoading) {
+      return {
+        disabled: true,
+        text: "Checking...",
+        className: "w-full bg-gray-400 text-gray-200 cursor-not-allowed"
+      };
+    }
+
+    // Authentication check - grey out Place Bid button if not signed in with Cognito
+    if (!isAuthenticated) {
+      return {
+        disabled: true,
+        text: "Place Bid",
+        className: "w-full bg-gray-400 text-gray-200 cursor-not-allowed"
+      };
+    }
+
     if (!canPlaceBid) {
       return {
         disabled: true,
@@ -552,7 +607,7 @@ export const AuctionCard = ({
       className: "w-full btn-primary",
       onClick: () => onPlaceBid?.(id)
     };
-  }, [isBidding, actualStatus, isUserHighestBidder, id, currentBid, title, artist, image, onPlaceBid, canPlaceBid, navigate]);
+  }, [isAuthenticated, authLoading, isBidding, actualStatus, isUserHighestBidder, id, currentBid, title, artist, image, onPlaceBid, canPlaceBid, navigate]);
 
   const buttonState = getButtonState();
   const formattedBid = currentBid ? currentBid.toLocaleString() : '0';
