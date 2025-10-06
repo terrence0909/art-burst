@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, Filter, MapPin, Grid, List } from "lucide-react";
+import { Search, Filter, MapPin, Grid, List, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,9 +12,6 @@ import { AuctionCard } from "@/components/AuctionCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/use-toast";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
-import artwork1 from "@/assets/artwork-1.jpeg";
-import artwork2 from "@/assets/artwork-2.jpeg";
-import artwork3 from "@/assets/artwork-3.jpeg";
 
 // Update this to your API Gateway endpoint
 const API_BASE = "/api";
@@ -23,6 +20,7 @@ interface Auction {
   id: string;
   title: string;
   artist: string;
+  artistId?: string; // Added artistId
   currentBid: number;
   timeRemaining: string;
   image: string;
@@ -34,8 +32,17 @@ interface Auction {
   bidders?: number;
 }
 
+// Filter state interface
+interface Filters {
+  category: string;
+  priceRange: string;
+  distance: string;
+  status: string;
+  sortBy: string;
+}
+
 const Browse = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const urlQuery = searchParams.get('query') || '';
   const urlLocation = searchParams.get('location') || '';
   
@@ -44,6 +51,16 @@ const Browse = () => {
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  
+  // Filter states
+  const [filters, setFilters] = useState<Filters>({
+    category: "all",
+    priceRange: "all",
+    distance: "all",
+    status: "all",
+    sortBy: "ending-soon"
+  });
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
   // Sync with URL parameters when component loads
   useEffect(() => {
@@ -59,59 +76,46 @@ const Browse = () => {
   const fetchAuctions = async () => {
     try {
       setLoading(true);
-      console.log('Fetching auctions from:', `${API_BASE}/auctions`);
+      setError("");
       
       const response = await fetch(`${API_BASE}/auctions`);
-      console.log('Response status:', response.status);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch auctions: ${response.status}`);
       }
       
       const data = await response.json();
-      console.log('Raw API response:', data);
       
       // Handle both Lambda proxy format and direct array response
       const auctionData = data.body ? JSON.parse(data.body) : data;
-      console.log('Processed auction data:', auctionData);
       
-      if (auctionData.length > 0) {
-        console.log('First auction object:', auctionData[0]);
-        console.log('All field names in first auction:', Object.keys(auctionData[0] || {}));
-        console.log('First auction image URL:', auctionData[0]?.image || auctionData[0]?.images?.[0]);
+      if (!Array.isArray(auctionData)) {
+        throw new Error('Invalid data format received from API');
       }
-      
-      // Transform API data to match frontend structure
-      const transformedAuctions: Auction[] = auctionData.map((auction: any) => {
-        const transformed = {
-          id: auction.auctionId || auction.id,
-          title: auction.title || `Auction ${auction.auctionId}`,
-          artist: auction.artistName || auction.artist || "Unknown Artist",
-          currentBid: auction.currentBid || auction.startingBid || 0,
-          timeRemaining: calculateTimeRemaining(auction.endDate || auction.endTime),
-          image: auction.image || (auction.images && auction.images[0]) || getRandomArtwork(),
-          status: getAuctionStatus(auction.startDate || auction.startTime, auction.endDate || auction.endTime),
-          location: auction.location || "Bloemfontein, SA",
-          distance: calculateDistance(auction.location),
-          medium: auction.medium,
-          year: auction.year,
-          // Add the bidders prop that AuctionCard expects
-          bidders: auction.bidCount || 0,
-        };
 
-        console.log('Transformed auction:', transformed);
-        return transformed;
-      });
+      // Transform API data to match frontend structure
+      const transformedAuctions: Auction[] = auctionData.map((auction: any) => ({
+        id: auction.auctionId || auction.id,
+        title: auction.title || `Auction ${auction.auctionId}`,
+        artist: auction.artistName || auction.artist || "Unknown Artist",
+        artistId: auction.artistId, // ADDED THIS LINE
+        currentBid: auction.currentBid || auction.startingBid || 0,
+        timeRemaining: calculateTimeRemaining(auction.endDate || auction.endTime),
+        image: auction.image || (auction.images && auction.images[0]) || '/placeholder-artwork.jpg',
+        status: getAuctionStatus(auction.startDate || auction.startTime, auction.endDate || auction.endTime),
+        location: auction.location || "Location not specified",
+        distance: calculateDistance(auction.location),
+        medium: auction.medium,
+        year: auction.year,
+        bidders: auction.bidCount || 0,
+      }));
       
-      console.log('All transformed auctions:', transformedAuctions);
       setAuctions(transformedAuctions);
       
     } catch (err) {
       console.error('Error fetching auctions:', err);
       setError(err instanceof Error ? err.message : 'Failed to load auctions');
-      
-      // Fallback to mock data if API fails
-      setAuctions(getMockAuctions());
+      setAuctions([]); // Clear auctions on error
     } finally {
       setLoading(false);
     }
@@ -214,48 +218,107 @@ const Browse = () => {
     }
   };
 
-  // Fixed filtering with proper logic for location-only searches
+  // Enhanced filtering with all filters
   const filteredAuctions = auctions.filter(auction => {
     const searchTerm = searchQuery.toLowerCase();
     const locationTerm = urlLocation.toLowerCase();
     
-    // Query matching - only apply if there's a search query
+    // Query matching
     const matchesQuery = searchQuery ? 
       auction.title.toLowerCase().includes(searchTerm) ||
       auction.artist.toLowerCase().includes(searchTerm) ||
       auction.medium?.toLowerCase().includes(searchTerm)
-      : true; // If no search query, match all
+      : true;
     
-    // Location matching - only apply if there's a location filter
+    // Location matching
     const matchesLocation = urlLocation ?
       auction.location.toLowerCase().includes(locationTerm)
-      : true; // If no location filter, match all
+      : true;
 
-    // DEBUG LOGGING
-    if (urlLocation || searchQuery) {
-      console.log('🔍 Search Debug:', {
-        auctionTitle: auction.title,
-        auctionLocation: auction.location,
-        searchQuery,
-        searchLocation: urlLocation,
-        locationMatch: urlLocation ? auction.location.toLowerCase().includes(locationTerm) : 'N/A',
-        queryMatch: searchQuery ? (auction.title.toLowerCase().includes(searchTerm) || auction.artist.toLowerCase().includes(searchTerm) || auction.medium?.toLowerCase().includes(searchTerm)) : 'N/A',
-        matchesQuery,
-        matchesLocation,
-        passes: matchesQuery && matchesLocation
-      });
+    // Category filter
+    const matchesCategory = filters.category === "all" || 
+      (filters.category === "paintings" && auction.medium?.toLowerCase().includes("oil")) ||
+      (filters.category === "paintings" && auction.medium?.toLowerCase().includes("acrylic")) ||
+      (filters.category === "paintings" && auction.medium?.toLowerCase().includes("watercolor")) ||
+      (filters.category === "sculptures" && auction.medium?.toLowerCase().includes("sculpture")) ||
+      (filters.category === "photography" && auction.medium?.toLowerCase().includes("photo")) ||
+      (filters.category === "digital" && auction.medium?.toLowerCase().includes("digital"));
+
+    // Price range filter
+    const matchesPrice = filters.priceRange === "all" ||
+      (filters.priceRange === "under500" && auction.currentBid < 500) ||
+      (filters.priceRange === "500-1000" && auction.currentBid >= 500 && auction.currentBid <= 1000) ||
+      (filters.priceRange === "1000-2500" && auction.currentBid >= 1000 && auction.currentBid <= 2500) ||
+      (filters.priceRange === "over2500" && auction.currentBid > 2500);
+
+    // Status filter
+    const matchesStatus = filters.status === "all" || auction.status === filters.status;
+
+    // Distance filter (simplified - using numeric distance)
+    const auctionDistance = parseFloat(auction.distance.split(' ')[0]);
+    const matchesDistance = filters.distance === "all" ||
+      (filters.distance === "5" && auctionDistance <= 5) ||
+      (filters.distance === "10" && auctionDistance <= 10) ||
+      (filters.distance === "25" && auctionDistance <= 25) ||
+      (filters.distance === "50" && auctionDistance <= 50);
+
+    return matchesQuery && matchesLocation && matchesCategory && matchesPrice && matchesStatus && matchesDistance;
+  });
+
+  // Sorting function
+  const sortedAuctions = [...filteredAuctions].sort((a, b) => {
+    switch (filters.sortBy) {
+      case "ending-soon":
+        return a.timeRemaining.localeCompare(b.timeRemaining);
+      case "newest":
+        return b.id.localeCompare(a.id);
+      case "price-low":
+        return a.currentBid - b.currentBid;
+      case "price-high":
+        return b.currentBid - a.currentBid;
+      case "distance":
+        const aDist = parseFloat(a.distance.split(' ')[0]);
+        const bDist = parseFloat(b.distance.split(' ')[0]);
+        return aDist - bDist;
+      default:
+        return 0;
     }
-    
-    return matchesQuery && matchesLocation;
   });
 
-  // Log all auction locations for debugging
-  console.log('📍 All Auction Locations:');
-  auctions.forEach((auction, index) => {
-    console.log(`${index + 1}. "${auction.title}": Location = "${auction.location}"`);
-  });
+  // Update URL when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    if (value) {
+      searchParams.set('query', value);
+    } else {
+      searchParams.delete('query');
+    }
+    setSearchParams(searchParams);
+  };
 
-  // Helper functions for data transformation
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setFilters({
+      category: "all",
+      priceRange: "all",
+      distance: "all",
+      status: "all",
+      sortBy: "ending-soon"
+    });
+    setSearchParams({});
+  };
+
+  // Check if any filters are active
+  const hasActiveFilters = searchQuery || urlLocation || 
+    Object.values(filters).some(filter => filter !== "all");
+
+  // Remove individual filter
+  const removeFilter = (filterType: keyof Filters) => {
+    setFilters(prev => ({ ...prev, [filterType]: "all" }));
+  };
+
+  // Helper functions
   const calculateTimeRemaining = (endTime: string): string => {
     if (!endTime) return "Unknown";
     
@@ -293,61 +356,10 @@ const Browse = () => {
   };
 
   const calculateDistance = (location: string): string => {
-    // Simple mock distance calculation
+    // Simple mock distance calculation - you can replace this with real logic
     const distances = ["2.3 km", "5.1 km", "8.7 km", "12.4 km", "15.9 km"];
     return distances[Math.floor(Math.random() * distances.length)];
   };
-
-  const getRandomArtwork = (): string => {
-    const artworks = [artwork1, artwork2, artwork3];
-    return artworks[Math.floor(Math.random() * artworks.length)];
-  };
-
-  // Fallback mock data
-  const getMockAuctions = (): Auction[] => [
-    {
-      id: "1",
-      title: "Sunset Over Silicon Valley",
-      artist: "Lerato M",
-      currentBid: 2450,
-      timeRemaining: "2h 45m",
-      image: artwork1,
-      status: "live",
-      location: "Heidedal, BFN",
-      distance: "2.3 km",
-      medium: "Oil on Canvas",
-      year: "2024",
-      bidders: 3
-    },
-    {
-      id: "2",
-      title: "Urban Dreams",
-      artist: "Thato Morogi",
-      currentBid: 1200,
-      timeRemaining: "1d 12h",
-      image: artwork2,
-      status: "upcoming",
-      location: "Willows, BFN",
-      distance: "8.1 km",
-      medium: "Acrylic on Canvas",
-      year: "2024",
-      bidders: 0
-    },
-    {
-      id: "3",
-      title: "Coastal Memories",
-      artist: "Dineo Motloung",
-      currentBid: 890,
-      timeRemaining: "4h 20m",
-      image: artwork3,
-      status: "live",
-      location: "Rocklands, BFN",
-      distance: "12.5 km",
-      medium: "Watercolor",
-      year: "2023",
-      bidders: 1
-    },
-  ];
 
   if (loading) {
     return (
@@ -407,11 +419,14 @@ const Browse = () => {
                 placeholder="Search artworks, artists, or styles..."
                 className="pl-10"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
               />
             </div>
             <div className="flex space-x-2">
-              <Select>
+              <Select 
+                value={filters.category} 
+                onValueChange={(value) => setFilters(prev => ({ ...prev, category: value }))}
+              >
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
@@ -424,7 +439,10 @@ const Browse = () => {
                 </SelectContent>
               </Select>
               
-              <Select>
+              <Select 
+                value={filters.priceRange} 
+                onValueChange={(value) => setFilters(prev => ({ ...prev, priceRange: value }))}
+              >
                 <SelectTrigger className="w-32">
                   <SelectValue placeholder="Price" />
                 </SelectTrigger>
@@ -437,7 +455,10 @@ const Browse = () => {
                 </SelectContent>
               </Select>
               
-              <Select>
+              <Select 
+                value={filters.distance} 
+                onValueChange={(value) => setFilters(prev => ({ ...prev, distance: value }))}
+              >
                 <SelectTrigger className="w-32">
                   <SelectValue placeholder="Distance" />
                 </SelectTrigger>
@@ -450,72 +471,148 @@ const Browse = () => {
                 </SelectContent>
               </Select>
               
-              <Button variant="outline">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowMoreFilters(!showMoreFilters)}
+              >
                 <Filter className="w-4 h-4 mr-2" />
                 More Filters
               </Button>
             </div>
           </div>
 
+          {/* More Filters Dropdown */}
+          {showMoreFilters && (
+            <div className="bg-muted/50 p-4 rounded-lg space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Auction Status</label>
+                  <Select 
+                    value={filters.status} 
+                    onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="live">Live Only</SelectItem>
+                      <SelectItem value="upcoming">Upcoming</SelectItem>
+                      <SelectItem value="ended">Ended</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Sort By</label>
+                  <Select 
+                    value={filters.sortBy} 
+                    onValueChange={(value) => setFilters(prev => ({ ...prev, sortBy: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ending-soon">Ending Soon</SelectItem>
+                      <SelectItem value="newest">Newest First</SelectItem>
+                      <SelectItem value="price-low">Price: Low to High</SelectItem>
+                      <SelectItem value="price-high">Price: High to Low</SelectItem>
+                      <SelectItem value="distance">Distance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-end">
+                  <Button 
+                    variant="outline" 
+                    onClick={clearAllFilters}
+                    className="w-full"
+                  >
+                    Clear All Filters
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Active Filters */}
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-muted-foreground">Active filters:</span>
-            {urlLocation && (
-              <Badge variant="secondary">
-                <MapPin className="w-3 h-3 mr-1" />
-                {urlLocation}
-              </Badge>
-            )}
-            {searchQuery && (
-              <Badge variant="secondary">
-                <Search className="w-3 h-3 mr-1" />
-                "{searchQuery}"
-              </Badge>
-            )}
-            <Badge variant="secondary">Live Auctions</Badge>
-            {(urlLocation || searchQuery) && (
+          {hasActiveFilters && (
+            <div className="flex items-center space-x-2 flex-wrap gap-2">
+              <span className="text-sm text-muted-foreground">Active filters:</span>
+              
+              {urlLocation && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <MapPin className="w-3 h-3" />
+                  {urlLocation}
+                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => setSearchParams(prev => {
+                    prev.delete('location');
+                    return prev;
+                  })} />
+                </Badge>
+              )}
+              
+              {searchQuery && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <Search className="w-3 h-3" />
+                  "{searchQuery}"
+                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => handleSearchChange('')} />
+                </Badge>
+              )}
+              
+              {filters.category !== "all" && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  Category: {filters.category}
+                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFilter('category')} />
+                </Badge>
+              )}
+              
+              {filters.priceRange !== "all" && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  Price: {filters.priceRange}
+                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFilter('priceRange')} />
+                </Badge>
+              )}
+              
+              {filters.distance !== "all" && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  Distance: {filters.distance}km
+                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFilter('distance')} />
+                </Badge>
+              )}
+              
+              {filters.status !== "all" && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  Status: {filters.status}
+                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFilter('status')} />
+                </Badge>
+              )}
+              
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={() => {
-                  setSearchQuery('');
-                  window.history.replaceState({}, '', '/browse');
-                }}
+                onClick={clearAllFilters}
                 className="text-xs"
               >
                 Clear all
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Results Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="font-playfair text-2xl font-bold">
-              {urlLocation || searchQuery ? "Search Results" : "Browse Auctions"}
+              {urlLocation || searchQuery || hasActiveFilters ? "Search Results" : "Browse Auctions"}
             </h1>
             <p className="text-muted-foreground">
-              {filteredAuctions.length} {filteredAuctions.length === 1 ? 'auction' : 'auctions'} found
+              {sortedAuctions.length} {sortedAuctions.length === 1 ? 'auction' : 'auctions'} found
               {urlLocation && ` in ${urlLocation}`}
               {searchQuery && ` for "${searchQuery}"`}
             </p>
           </div>
           
           <div className="flex items-center space-x-2">
-            <Select defaultValue="ending-soon">
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ending-soon">Ending Soon</SelectItem>
-                <SelectItem value="newest">Newest First</SelectItem>
-                <SelectItem value="price-low">Price: Low to High</SelectItem>
-                <SelectItem value="price-high">Price: High to Low</SelectItem>
-                <SelectItem value="distance">Distance</SelectItem>
-              </SelectContent>
-            </Select>
-            
             <div className="flex border rounded-md">
               <Button
                 variant={viewMode === "grid" ? "default" : "ghost"}
@@ -538,38 +635,34 @@ const Browse = () => {
         </div>
 
         {/* Auction Grid/List */}
-        {filteredAuctions.length === 0 ? (
+        {sortedAuctions.length === 0 ? (
           <div className="text-center py-16">
             <Search className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-xl font-semibold mb-2">No auctions found</h3>
             <p className="text-muted-foreground mb-6">
-              {searchQuery || urlLocation ? 
-                "Try adjusting your search terms or location" : 
+              {searchQuery || urlLocation || hasActiveFilters ? 
+                "Try adjusting your search terms or filters" : 
                 "No auctions available at the moment"
               }
             </p>
-            <Button 
-              onClick={() => {
-                setSearchQuery('');
-                window.history.replaceState({}, '', '/browse');
-              }}
-            >
+            <Button onClick={clearAllFilters}>
               Browse All Auctions
             </Button>
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredAuctions.map((auction) => (
+            {sortedAuctions.map((auction) => (
               <AuctionCard 
                 key={auction.id} 
                 {...auction} 
+                artistId={auction.artistId} // Pass artistId explicitly
                 onPlaceBid={handlePlaceBid}
               />
             ))}
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredAuctions.map((auction) => (
+            {sortedAuctions.map((auction) => (
               <Card key={auction.id} className="hover:shadow-luxury transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex space-x-4">
@@ -611,8 +704,8 @@ const Browse = () => {
           </div>
         )}
 
-        {/* Load More */}
-        {filteredAuctions.length > 0 && (
+        {/* Refresh Button */}
+        {sortedAuctions.length > 0 && (
           <div className="text-center mt-8">
             <Button variant="outline" size="lg" onClick={fetchAuctions}>
               Refresh Auctions

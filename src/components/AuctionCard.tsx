@@ -3,7 +3,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuctionCompletion } from "../hooks/useAuctionCompletion";
 import { getCurrentUser } from 'aws-amplify/auth';
 
@@ -20,6 +20,7 @@ interface AuctionCardProps {
   id: string;
   title: string;
   artist: string;
+  artistId?: string;
   currentBid: number;
   timeRemaining: string;
   location: string;
@@ -340,6 +341,7 @@ export const AuctionCard = ({
   id,
   title,
   artist,
+  artistId,
   currentBid,
   timeRemaining,
   location,
@@ -672,7 +674,18 @@ export const AuctionCard = ({
             {title}
           </h3>
           <p className="text-muted-foreground text-sm mb-3">
-            by {artist}
+            by{" "}
+            {artistId ? (
+              <Link 
+                to={`/artist/${artistId}`}
+                className="text-muted-foreground hover:text-accent transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {artist}
+              </Link>
+            ) : (
+              <span>{artist}</span>
+            )}
           </p>
           
           <div className="flex justify-between items-center mb-3">

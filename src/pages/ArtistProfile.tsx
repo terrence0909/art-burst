@@ -1,5 +1,6 @@
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { MapPin, Calendar, Award, Users, Heart, Share2 } from "lucide-react";
+import { MapPin, Calendar, Award, Users, Heart, Share2, Loader } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,104 +8,226 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { AuctionCard } from "@/components/AuctionCard";
-import artwork1 from "@/assets/artwork-1.jpeg";
-import artwork2 from "@/assets/artwork-2.jpeg";
-import artwork3 from "@/assets/artwork-3.jpeg";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/components/ui/use-toast";
+
+const API_BASE = "/api";
+
+interface Artist {
+  artistId: string;
+  name: string;
+  email: string;
+  profileImage?: string;
+  bio?: string;
+  location?: string;
+  createdAt: string;
+  specialties?: string[];
+  achievements?: string[];
+  website?: string;
+  instagram?: string;
+  stats?: {
+    totalAuctions: number;
+    totalSales: number;
+    avgSalePrice: number;
+    followers: number;
+  };
+}
+
+interface Artwork {
+  id: string;
+  title: string;
+  image: string;
+  year?: string;
+  medium?: string;
+  sold: boolean;
+  price?: number;
+}
 
 const ArtistProfile = () => {
   const { id } = useParams();
+  const [artist, setArtist] = useState<Artist | null>(null);
+  const [artistAuctions, setArtistAuctions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Mock artist data - would come from API
-  const artist = {
-    id: id,
-    name: "Maria Rodriguez",
-    profileImage: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=400&h=400&fit=crop&crop=face",
-    bio: "Maria Rodriguez is a contemporary artist based in San Francisco, known for her vibrant oil paintings that capture the essence of California's natural beauty and urban landscapes. Her work has been featured in galleries across the Bay Area.",
-    location: "San Francisco, CA",
-    memberSince: "2019",
-    specialties: ["Oil Painting", "Landscape", "Urban Art"],
-    achievements: ["Featured Artist at SF Gallery Week 2023", "Winner - Bay Area Art Competition 2022"],
-    stats: {
-      totalAuctions: 47,
-      totalSales: 156000,
-      avgSalePrice: 2340,
-      followers: 1247
-    },
-    social: {
-      website: "mariaart.com",
-      instagram: "@maria_paints"
+  useEffect(() => {
+    if (id) {
+      fetchArtistData();
+    }
+  }, [id]);
+
+  const fetchArtistData = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      
+      // Get artist data from auctions
+      const response = await fetch(`${API_BASE}/auctions`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch auctions: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const auctionData = data.body ? JSON.parse(data.body) : data;
+      
+      if (!Array.isArray(auctionData)) {
+        throw new Error('Invalid data format received from API');
+      }
+
+      // Find auctions by this artist
+      const artistAuctions = auctionData.filter((auction: any) => 
+        auction.artistId === id
+      );
+      
+      if (artistAuctions.length > 0) {
+        // Create artist data from the auctions
+        const firstAuction = artistAuctions[0];
+        
+        // Calculate stats
+        const totalAuctions = artistAuctions.length;
+        const soldAuctions = artistAuctions.filter((a: any) => 
+          a.status === "ended" || a.status === "sold"
+        );
+        const totalSales = soldAuctions.reduce((sum: number, auction: any) => 
+          sum + (auction.currentBid || auction.startingBid || 0), 0
+        );
+        const avgSalePrice = soldAuctions.length > 0 
+          ? Math.round(totalSales / soldAuctions.length)
+          : 0;
+
+        const artistData: Artist = {
+          artistId: id!,
+          name: firstAuction.artistName || "Unknown Artist",
+          email: "",
+          profileImage: "/placeholder-avatar.jpg",
+          bio: "A talented artist creating beautiful works. More information coming soon.",
+          location: firstAuction.location || "Location not specified",
+          createdAt: firstAuction.createdAt || new Date().toISOString(),
+          specialties: firstAuction.medium ? [firstAuction.medium] : ["Various Art Forms"],
+          achievements: ["Featured Artist on ArtBurst"],
+          stats: {
+            totalAuctions,
+            totalSales,
+            avgSalePrice,
+            followers: Math.floor(Math.random() * 100) + 50 // Random followers for now
+          }
+        };
+        
+        setArtist(artistData);
+        setArtistAuctions(artistAuctions);
+      } else {
+        throw new Error("No auctions found for this artist");
+      }
+      
+    } catch (err) {
+      console.error('Error fetching artist:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load artist profile');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Mock auctions data
-  const activeAuctions = [
-    {
-      id: "1",
-      title: "Sunset Over Silicon Valley",
-      artist: artist.name,
-      currentBid: 2450,
-      timeRemaining: "2h 45m",
-      image: artwork1,
-      status: "live" as const,
-      location: "San Francisco, CA",
-      distance: "2.3 miles"
+  const handleFollow = async () => {
+    try {
+      // Implement follow functionality
+      toast({
+        title: "Followed!",
+        description: `You're now following ${artist?.name}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to follow artist",
+        variant: "destructive"
+      });
     }
-  ];
+  };
 
-  const pastAuctions = [
-    {
-      id: "2",
-      title: "Golden Gate Dreams",
-      artist: artist.name,
-      currentBid: 3200,
-      timeRemaining: "Sold",
-      image: artwork2,
-      status: "ended" as const,
-      location: "San Francisco, CA",
-      distance: "2.3 miles"
-    },
-    {
-      id: "3",
-      title: "Morning in Noe Valley",
-      artist: artist.name,
-      currentBid: 1890,
-      timeRemaining: "Sold",
-      image: artwork3,
-      status: "ended" as const,
-      location: "San Francisco, CA",
-      distance: "2.3 miles"
-    }
-  ];
+  const handleMessage = () => {
+    // Implement message functionality
+    toast({
+      title: "Message",
+      description: "Message feature coming soon!",
+    });
+  };
 
-  const portfolio = [
-    {
-      id: "p1",
-      title: "Bay Bridge at Twilight",
-      image: artwork1,
-      year: "2024",
-      medium: "Oil on Canvas",
-      sold: false,
-      price: 2800
-    },
-    {
-      id: "p2",
-      title: "Castro Street Festival",
-      image: artwork2,
-      year: "2023",
-      medium: "Oil on Canvas",
-      sold: true,
-      price: 3200
-    },
-    {
-      id: "p3",
-      title: "Presidio Morning",
-      image: artwork3,
-      year: "2024",
-      medium: "Oil on Canvas",
-      sold: false,
-      price: 2100
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.getFullYear().toString();
+    } catch {
+      return "Unknown";
     }
-  ];
+  };
+
+  // Transform auctions to portfolio items
+  const portfolio: Artwork[] = artistAuctions.map((auction: any) => ({
+    id: auction.auctionId,
+    title: auction.title,
+    image: auction.image || (auction.images && auction.images[0]) || '/placeholder-artwork.jpg',
+    year: auction.year,
+    medium: auction.medium,
+    sold: auction.status === "ended" || auction.status === "sold",
+    price: auction.currentBid || auction.startingBid
+  }));
+
+  const activeAuctions = artistAuctions.filter((auction: any) => 
+    auction.status === "active" || auction.status === "live"
+  );
+
+  const soldWorks = portfolio.filter(item => item.sold);
+  const availableWorks = portfolio.filter(item => !item.sold);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex flex-col md:flex-row gap-8 mb-8">
+            <Skeleton className="w-32 h-32 rounded-full" />
+            <div className="flex-1 space-y-4">
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-20" />
+            ))}
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error || !artist) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-8 text-center">
+          <div className="bg-destructive/15 text-destructive p-4 rounded-md max-w-md mx-auto">
+            <h3 className="font-semibold">Artist Not Found</h3>
+            <p className="text-sm mt-1">{error || "This artist profile doesn't exist."}</p>
+            <Button onClick={() => window.history.back()} className="mt-4">
+              Go Back
+            </Button>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  const stats = artist.stats || {
+    totalAuctions: artistAuctions.length,
+    totalSales: 0,
+    avgSalePrice: 0,
+    followers: 0
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -115,7 +238,7 @@ const ArtistProfile = () => {
         <div className="flex flex-col md:flex-row gap-8 mb-8">
           <div className="flex-shrink-0">
             <img 
-              src={artist.profileImage} 
+              src={artist.profileImage || "/placeholder-avatar.jpg"} 
               alt={artist.name}
               className="w-32 h-32 rounded-full object-cover border-4 border-accent"
             />
@@ -124,38 +247,44 @@ const ArtistProfile = () => {
           <div className="flex-1">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between">
               <div>
-                <h1 className="font-playfair text-3xl font-bold mb-2">{artist.name}</h1>
+                <h1 className="font-playfair text-3xl font-bold mb-2 text-foreground">
+                  {artist.name}
+                </h1>
                 <div className="flex items-center text-muted-foreground mb-3">
                   <MapPin className="w-4 h-4 mr-1" />
-                  {artist.location}
+                  {artist.location || "Location not specified"}
                 </div>
                 <div className="flex items-center text-muted-foreground mb-4">
                   <Calendar className="w-4 h-4 mr-1" />
-                  Member since {artist.memberSince}
+                  Member since {formatDate(artist.createdAt)}
                 </div>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {artist.specialties.map((specialty) => (
-                    <Badge key={specialty} variant="secondary">{specialty}</Badge>
-                  ))}
-                </div>
+                {artist.specialties && artist.specialties.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {artist.specialties.map((specialty) => (
+                      <Badge key={specialty} variant="secondary">{specialty}</Badge>
+                    ))}
+                  </div>
+                )}
               </div>
               
-              <div className="flex space-x-2">
-                <Button variant="outline">
+              <div className="flex space-x-2 mt-4 md:mt-0">
+                <Button variant="outline" onClick={handleFollow}>
                   <Heart className="w-4 h-4 mr-2" />
-                  Follow ({artist.stats.followers})
+                  Follow ({stats.followers})
                 </Button>
                 <Button variant="outline">
                   <Share2 className="w-4 h-4 mr-2" />
                   Share
                 </Button>
-                <Button className="btn-primary">
+                <Button className="btn-primary" onClick={handleMessage}>
                   Message Artist
                 </Button>
               </div>
             </div>
             
-            <p className="text-muted-foreground mt-4">{artist.bio}</p>
+            {artist.bio && (
+              <p className="text-muted-foreground mt-4">{artist.bio}</p>
+            )}
           </div>
         </div>
 
@@ -163,25 +292,25 @@ const ArtistProfile = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-accent">{artist.stats.totalAuctions}</p>
+              <p className="text-2xl font-bold text-accent">{stats.totalAuctions}</p>
               <p className="text-sm text-muted-foreground">Total Auctions</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-accent">${artist.stats.totalSales.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-accent">R{stats.totalSales.toLocaleString()}</p>
               <p className="text-sm text-muted-foreground">Total Sales</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-accent">${artist.stats.avgSalePrice.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-accent">R{stats.avgSalePrice.toLocaleString()}</p>
               <p className="text-sm text-muted-foreground">Avg. Sale Price</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-accent">{artist.stats.followers}</p>
+              <p className="text-2xl font-bold text-accent">{stats.followers}</p>
               <p className="text-sm text-muted-foreground">Followers</p>
             </CardContent>
           </Card>
@@ -197,83 +326,149 @@ const ArtistProfile = () => {
           </TabsList>
           
           <TabsContent value="auctions" className="space-y-6">
-            <h2 className="font-playfair text-2xl font-bold">Active Auctions</h2>
+            <h2 className="font-playfair text-2xl font-bold text-foreground">Active Auctions</h2>
             {activeAuctions.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {activeAuctions.map((auction) => (
-                  <AuctionCard key={auction.id} {...auction} />
+                  <AuctionCard 
+                    key={auction.auctionId} 
+                    id={auction.auctionId}
+                    title={auction.title}
+                    artist={artist.name}
+                    artistId={artist.artistId}
+                    currentBid={auction.currentBid || auction.startingBid}
+                    timeRemaining={auction.endDate ? "Ending soon" : "Unknown"}
+                    image={auction.image || (auction.images && auction.images[0])}
+                    status="live"
+                    location={artist.location || "Unknown"}
+                    distance="0 km"
+                    bidders={auction.bidCount || 0}
+                  />
                 ))}
               </div>
             ) : (
               <Card>
                 <CardContent className="p-8 text-center">
                   <p className="text-muted-foreground">No active auctions at the moment.</p>
-                  <Button className="mt-4">Follow for Updates</Button>
+                  <Button className="mt-4" onClick={handleFollow}>Follow for Updates</Button>
                 </CardContent>
               </Card>
             )}
           </TabsContent>
           
           <TabsContent value="portfolio" className="space-y-6">
-            <h2 className="font-playfair text-2xl font-bold">Portfolio</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {portfolio.map((artwork) => (
-                <Card key={artwork.id} className="overflow-hidden hover:shadow-luxury transition-shadow">
-                  <div className="relative">
-                    <img 
-                      src={artwork.image} 
-                      alt={artwork.title}
-                      className="w-full h-64 object-cover"
-                    />
-                    {artwork.sold && (
-                      <Badge className="absolute top-2 right-2 bg-red-500">Sold</Badge>
-                    )}
-                  </div>
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold">{artwork.title}</h3>
-                    <p className="text-sm text-muted-foreground">{artwork.year} • {artwork.medium}</p>
-                    <p className="text-lg font-bold text-accent mt-2">${artwork.price.toLocaleString()}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <h2 className="font-playfair text-2xl font-bold text-foreground">Portfolio</h2>
+            {availableWorks.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {availableWorks.map((artwork) => (
+                  <Card key={artwork.id} className="overflow-hidden hover:shadow-luxury transition-shadow">
+                    <div className="relative">
+                      <img 
+                        src={artwork.image} 
+                        alt={artwork.title}
+                        className="w-full h-64 object-cover"
+                      />
+                      {artwork.sold && (
+                        <Badge className="absolute top-2 right-2 bg-red-500">Sold</Badge>
+                      )}
+                    </div>
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold text-foreground">{artwork.title}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {artwork.year} • {artwork.medium}
+                      </p>
+                      {artwork.price && (
+                        <p className="text-lg font-bold text-accent mt-2">
+                          R{artwork.price.toLocaleString()}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p className="text-muted-foreground">No available works in portfolio.</p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
           
           <TabsContent value="sold" className="space-y-6">
-            <h2 className="font-playfair text-2xl font-bold">Recently Sold</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {pastAuctions.map((auction) => (
-                <AuctionCard key={auction.id} {...auction} />
-              ))}
-            </div>
+            <h2 className="font-playfair text-2xl font-bold text-foreground">Sold Works</h2>
+            {soldWorks.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {soldWorks.map((artwork) => (
+                  <Card key={artwork.id} className="overflow-hidden hover:shadow-luxury transition-shadow">
+                    <div className="relative">
+                      <img 
+                        src={artwork.image} 
+                        alt={artwork.title}
+                        className="w-full h-64 object-cover"
+                      />
+                      <Badge className="absolute top-2 right-2 bg-red-500">Sold</Badge>
+                    </div>
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold text-foreground">{artwork.title}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {artwork.year} • {artwork.medium}
+                      </p>
+                      {artwork.price && (
+                        <p className="text-lg font-bold text-accent mt-2">
+                          R{artwork.price.toLocaleString()}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p className="text-muted-foreground">No sold works yet.</p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
           
           <TabsContent value="about" className="space-y-6">
-            <h2 className="font-playfair text-2xl font-bold">About the Artist</h2>
+            <h2 className="font-playfair text-2xl font-bold text-foreground">About the Artist</h2>
             <Card>
               <CardContent className="p-6 space-y-6">
-                <div>
-                  <h3 className="font-semibold mb-2">Biography</h3>
-                  <p className="text-muted-foreground">{artist.bio}</p>
-                </div>
+                {artist.bio && (
+                  <div>
+                    <h3 className="font-semibold mb-2 text-foreground">Biography</h3>
+                    <p className="text-muted-foreground">{artist.bio}</p>
+                  </div>
+                )}
+                
+                {artist.achievements && artist.achievements.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-2 text-foreground">Achievements</h3>
+                    <ul className="space-y-1">
+                      {artist.achievements.map((achievement, index) => (
+                        <li key={index} className="flex items-center text-muted-foreground">
+                          <Award className="w-4 h-4 mr-2 text-accent" />
+                          {achievement}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 
                 <div>
-                  <h3 className="font-semibold mb-2">Achievements</h3>
-                  <ul className="space-y-1">
-                    {artist.achievements.map((achievement, index) => (
-                      <li key={index} className="flex items-center text-muted-foreground">
-                        <Award className="w-4 h-4 mr-2 text-accent" />
-                        {achievement}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                
-                <div>
-                  <h3 className="font-semibold mb-2">Connect</h3>
+                  <h3 className="font-semibold mb-2 text-foreground">Connect</h3>
                   <div className="space-y-2">
-                    <p className="text-muted-foreground">Website: {artist.social.website}</p>
-                    <p className="text-muted-foreground">Instagram: {artist.social.instagram}</p>
+                    {artist.website && (
+                      <p className="text-muted-foreground">Website: {artist.website}</p>
+                    )}
+                    {artist.instagram && (
+                      <p className="text-muted-foreground">Instagram: {artist.instagram}</p>
+                    )}
+                    {artist.email && (
+                      <p className="text-muted-foreground">Email: {artist.email}</p>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -288,4 +483,3 @@ const ArtistProfile = () => {
 };
 
 export default ArtistProfile;
-
