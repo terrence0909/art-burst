@@ -479,14 +479,18 @@ export const Header = () => {
             </DropdownMenu>
           ) : (
             <Link to="/auth">
-              <Button variant="outline" size="sm">
+              {/* UPDATED: Sign In button - text on desktop, icon on mobile */}
+              <Button variant="outline" size="sm" className="hidden sm:flex">
                 <User className="w-4 h-4 mr-1" />
                 Sign In
+              </Button>
+              <Button size="icon" variant="outline" className="sm:hidden">
+                <User className="w-4 h-4" />
               </Button>
             </Link>
           )}
 
-          {/* List Artwork */}
+          {/* List Artwork - UPDATED: Keep the responsive behavior */}
           <Link to="/create">
             <Button className="btn-primary hidden sm:flex">
               List Artwork
