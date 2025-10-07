@@ -20,7 +20,7 @@ interface Auction {
   id: string;
   title: string;
   artist: string;
-  artistId?: string; // Added artistId
+  artistId?: string;
   currentBid: number;
   timeRemaining: string;
   image: string;
@@ -30,6 +30,9 @@ interface Auction {
   medium?: string;
   year?: string;
   bidders?: number;
+  startDate?: string;
+  endDate?: string;
+  highestBidder?: string;
 }
 
 // Filter state interface
@@ -93,21 +96,27 @@ const Browse = () => {
         throw new Error('Invalid data format received from API');
       }
 
-      // Transform API data to match frontend structure
+      // Use EXACT same data as AuctionGrid - no recalculation
       const transformedAuctions: Auction[] = auctionData.map((auction: any) => ({
         id: auction.auctionId || auction.id,
         title: auction.title || `Auction ${auction.auctionId}`,
         artist: auction.artistName || auction.artist || "Unknown Artist",
-        artistId: auction.artistId, // ADDED THIS LINE
+        artistId: auction.artistId,
         currentBid: auction.currentBid || auction.startingBid || 0,
-        timeRemaining: calculateTimeRemaining(auction.endDate || auction.endTime),
+        // Use the exact timeRemaining from API (same as grid)
+        timeRemaining: auction.timeRemaining || "",
         image: auction.image || (auction.images && auction.images[0]) || '/placeholder-artwork.jpg',
-        status: getAuctionStatus(auction.startDate || auction.startTime, auction.endDate || auction.endTime),
+        // Use the exact status from API (same as grid)
+        status: auction.status || "upcoming",
         location: auction.location || "Location not specified",
-        distance: calculateDistance(auction.location),
+        distance: auction.distance || "0 km",
         medium: auction.medium,
         year: auction.year,
-        bidders: auction.bidCount || 0,
+        bidders: auction.bidders || auction.bidCount || 0,
+        // Include additional fields that AuctionCard might need
+        startDate: auction.startDate,
+        endDate: auction.endDate,
+        highestBidder: auction.highestBidder
       }));
       
       setAuctions(transformedAuctions);
@@ -318,45 +327,8 @@ const Browse = () => {
     setFilters(prev => ({ ...prev, [filterType]: "all" }));
   };
 
-  // Helper functions
-  const calculateTimeRemaining = (endTime: string): string => {
-    if (!endTime) return "Unknown";
-    
-    try {
-      const end = new Date(endTime);
-      const now = new Date();
-      const diff = end.getTime() - now.getTime();
-      
-      if (diff <= 0) return "Ended";
-      
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      
-      if (days > 0) return `${days}d ${hours}h`;
-      if (hours > 0) return `${hours}h ${minutes}m`;
-      return `${minutes}m`;
-    } catch {
-      return "Unknown";
-    }
-  };
-
-  const getAuctionStatus = (startTime: string, endTime: string): "live" | "upcoming" | "ended" => {
-    try {
-      const now = new Date();
-      const start = startTime ? new Date(startTime) : new Date();
-      const end = endTime ? new Date(endTime) : new Date(now.getTime() + 2 * 60 * 60 * 1000);
-      
-      if (now > end) return "ended";
-      if (now >= start) return "live";
-      return "upcoming";
-    } catch {
-      return "upcoming";
-    }
-  };
-
+  // Simple distance calculation (same as grid might use)
   const calculateDistance = (location: string): string => {
-    // Simple mock distance calculation - you can replace this with real logic
     const distances = ["2.3 km", "5.1 km", "8.7 km", "12.4 km", "15.9 km"];
     return distances[Math.floor(Math.random() * distances.length)];
   };
@@ -655,7 +627,7 @@ const Browse = () => {
               <AuctionCard 
                 key={auction.id} 
                 {...auction} 
-                artistId={auction.artistId} // Pass artistId explicitly
+                artistId={auction.artistId}
                 onPlaceBid={handlePlaceBid}
               />
             ))}
