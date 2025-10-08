@@ -41,7 +41,17 @@ export const useAuctions = () => {
       setLoading(true);
       setError(null);
       const data = await fetchAuctions();
-      setAuctions(data.map(normalizeAuction));
+      
+      // FIX: Sort auctions by createdAt date (newest first)
+      const sortedAuctions = data
+        .map(normalizeAuction)
+        .sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.startDate || 0);
+          const dateB = new Date(b.createdAt || b.startDate || 0);
+          return dateB.getTime() - dateA.getTime(); // Newest first
+        });
+      
+      setAuctions(sortedAuctions);
     } catch (err) {
       console.error('Error in useAuctions hook:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch auctions');
@@ -58,7 +68,17 @@ export const useAuctions = () => {
     try {
       setError(null);
       const data = await fetchAuctions();
-      setAuctions(data.map(normalizeAuction));
+      
+      // FIX: Apply same sorting to refetch
+      const sortedAuctions = data
+        .map(normalizeAuction)
+        .sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.startDate || 0);
+          const dateB = new Date(b.createdAt || b.startDate || 0);
+          return dateB.getTime() - dateA.getTime(); // Newest first
+        });
+      
+      setAuctions(sortedAuctions);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refetch auctions');
     }
