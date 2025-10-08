@@ -174,6 +174,17 @@ const CreateAuction = () => {
 
   // Function to get user's current location
   const getUserLocation = () => {
+    // Check if we're on HTTPS or localhost (which allows geolocation)
+    const isSecure = window.location.protocol === 'https:' || 
+                     window.location.hostname === 'localhost' || 
+                     window.location.hostname === '127.0.0.1';
+    
+    if (!isSecure) {
+      console.log('Geolocation not available on HTTP, using IP-based location');
+      getLocationFromIP();
+      return;
+    }
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
@@ -200,7 +211,8 @@ const CreateAuction = () => {
             }
           } catch (error) {
             console.error("Error getting location:", error);
-            setUserLocation("Location detected");
+            // Fallback: Try to get location from IP
+            getLocationFromIP();
           }
         },
         (error) => {

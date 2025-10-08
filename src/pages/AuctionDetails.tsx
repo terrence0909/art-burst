@@ -49,6 +49,32 @@ interface Auction {
   endDate?: string;
 }
 
+// Image URL helper function
+const getImageUrl = (imagePath: string) => {
+  if (!imagePath) return '/placeholder-image.jpg';
+  
+  console.log('🖼️ AuctionDetails - Processing image:', imagePath);
+  
+  // If it's already a full URL, return as is
+  if (imagePath.startsWith('http')) {
+    return imagePath;
+  }
+  
+  // If it's a relative path that should be in S3
+  // This is the key fix - construct the proper S3 URL
+  const s3BaseUrl = 'https://artburst-images.s3.us-east-1.amazonaws.com';
+  
+  // Handle different possible path formats
+  if (imagePath.startsWith('public/')) {
+    return `${s3BaseUrl}/${imagePath}`;
+  } else if (imagePath.startsWith('uploads/')) {
+    return `${s3BaseUrl}/${imagePath}`;
+  } else {
+    // Assume it's a public image
+    return `${s3BaseUrl}/public/${imagePath}`;
+  }
+};
+
 // ----------------------
 // Component
 // ----------------------
@@ -89,6 +115,10 @@ const AuctionDetails = () => {
       setLoading(true);
       try {
         const data = await fetchAuctionById(id!);
+        console.log("🖼️ AuctionDetails API Image:", {
+          image: data?.image,
+          fullData: data
+        });
         console.log("Raw API response:", data);
         if (!data) throw new Error("Auction not found");
         
@@ -165,9 +195,17 @@ const AuctionDetails = () => {
           <div className="space-y-4">
             <div className="relative">
               <img
-                src={auction.image}
+                src={getImageUrl(auction.image)}
                 alt={auction.title}
                 className="w-full rounded-lg shadow-luxury frame-luxury"
+                onError={(e) => {
+                  console.error('❌ Image failed to load in AuctionDetails:', {
+                    original: auction.image,
+                    processed: e.currentTarget.src
+                  });
+                  e.currentTarget.src = '/placeholder-image.jpg';
+                }}
+                onLoad={() => console.log('✅ Image loaded successfully in AuctionDetails:', auction.image)}
               />
               <Badge className="absolute top-4 left-4 bg-accent text-accent-foreground">
                 {auction.status === "live" ? "Live Auction" : "Upcoming"}

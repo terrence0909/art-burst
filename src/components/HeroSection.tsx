@@ -1,6 +1,6 @@
 import { MapPin, Zap, Users } from "lucide-react";
 import { Button } from "./ui/button";
-import heroImage from "@/assets/art-burst.jpeg";
+import heroImage from "@/assets/art-burst.jpg";
 import { useNavigate } from "react-router-dom";
 
 export const HeroSection = () => {
@@ -9,19 +9,18 @@ export const HeroSection = () => {
   return (
     <section
       className="relative min-h-[80vh] flex items-center justify-center overflow-hidden"
-      aria-label="Hero section showcasing art auctions"
+      aria-label="Hero section showcasing local art auctions"
     >
       {/* Background Image */}
-      <div className="absolute inset-0">
-        <img
-          src={heroImage}
-          alt="Colorful abstract painting representing local art"
-          className="w-full h-full object-cover"
-          loading="lazy"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-transparent" />
-      </div>
-
+      <img 
+        src={heroImage} 
+        alt="" 
+        className="absolute inset-0 w-full h-full object-cover"
+      />
+      
+      {/* Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-transparent" />
+      
       {/* Main Content */}
       <div className="relative z-10 container px-4 text-white">
         <div className="max-w-2xl">

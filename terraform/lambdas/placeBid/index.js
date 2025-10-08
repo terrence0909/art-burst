@@ -1,9 +1,13 @@
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, QueryCommand, DeleteCommand } = require("@aws-sdk/lib-dynamodb");
-const { LambdaClient, InvokeCommand } = require("@aws-sdk/client-lambda");
+const { LambdaClient, InvokeCommand } = require("@aws-sdk/client-lambda"); // ADD THIS
 
 const client = new DynamoDBClient({ region: "us-east-1" });
 const dynamo = DynamoDBDocumentClient.from(client);
+
+// REMOVE the ApiGatewayManagementApiClient import and apiGatewayClient variable
+// const { ApiGatewayManagementApiClient, PostToConnectionCommand } = require("@aws-sdk/client-apigatewaymanagementapi"); // REMOVE
+// let apiGatewayClient; // REMOVE
 
 const TABLE_NAME = process.env.TABLE_NAME;           // Auctions table
 const BIDS_TABLE_NAME = process.env.BIDS_TABLE_NAME; // Bids table
@@ -14,37 +18,17 @@ function generateId() {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
 
-// SECURITY FIX: Extract authenticated user from Cognito
-function getUserIdFromEvent(event) {
-  console.log('=== AUTH DEBUG ===');
-  console.log('Request context:', JSON.stringify(event.requestContext, null, 2));
-  
-  // For API Gateway with Cognito authorizer
-  if (event.requestContext?.authorizer?.claims?.sub) {
-    const userId = event.requestContext.authorizer.claims.sub;
-    console.log('User ID from Cognito claims:', userId);
-    return userId;
-  }
-  
-  // For REST API with JWT token in headers
-  const authHeader = event.headers?.Authorization || event.headers?.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    try {
-      const token = authHeader.substring(7);
-      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-      console.log('User ID from JWT token:', payload.sub);
-      return payload.sub; // Cognito user ID
-    } catch (error) {
-      console.error('Error parsing JWT:', error);
-    }
-  }
-  
-  console.error('No user ID found in event');
-  return null;
-}
-
 exports.handler = async (event) => {
   console.log("Raw event received:", JSON.stringify(event, null, 2));
+
+  // REMOVE the API Gateway client initialization
+  // if (!apiGatewayClient && process.env.WEBSOCKET_ENDPOINT) {
+  //   apiGatewayClient = new ApiGatewayManagementApiClient({
+  //     region: "us-east-1",
+  //     endpoint: process.env.WEBSOCKET_ENDPOINT
+  //   });
+  //   console.log("Initialized API Gateway WebSocket client with endpoint:", process.env.WEBSOCKET_ENDPOINT);
+  // }
 
   let body;
   try {
@@ -70,27 +54,15 @@ exports.handler = async (event) => {
     };
   }
 
-  // SECURITY FIX: Extract authenticated user instead of taking from request
-  const bidderId = getUserIdFromEvent(event);
-  if (!bidderId) {
-    console.error("No authenticated user found - rejecting bid");
-    return {
-      statusCode: 401,
-      body: JSON.stringify({ message: "Authentication required to place bid" })
-    };
-  }
+  const { action, auctionId, bidAmount, bidderId } = body;
 
-  const { action, auctionId, bidAmount } = body;
-
-  if (!auctionId || !bidAmount) {
-    console.error("Missing required fields:", { auctionId, bidAmount });
+  if (!auctionId || !bidAmount || !bidderId) {
+    console.error("Missing required fields:", { auctionId, bidAmount, bidderId });
     return {
       statusCode: 400,
-      body: JSON.stringify({ message: "Missing required fields: auctionId, bidAmount" }),
+      body: JSON.stringify({ message: "Missing required fields: auctionId, bidAmount, bidderId" }),
     };
   }
-
-  console.log(`User ${bidderId} attempting to place bid of R${bidAmount} on auction ${auctionId}`);
 
   try {
     // Fetch auction
@@ -119,13 +91,13 @@ exports.handler = async (event) => {
       };
     }
 
-    // Create bid item with authenticated user
+    // Create bid item
     const bidId = generateId();
     const bidItem = {
       bidId,
       auctionId,
       bidAmount: numericBid,
-      userId: bidderId, // SECURITY: Use authenticated user, not from request
+      userId: bidderId,
       bidTime: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -156,7 +128,7 @@ exports.handler = async (event) => {
     const updatedAuction = updateResult.Attributes;
     console.log("Auction updated:", updatedAuction);
 
-    // ✅ Call broadcastToSubscribers Lambda
+    // ✅ NEW: Call broadcastToSubscribers Lambda instead of direct WebSocket sending
     try {
       const lambdaClient = new LambdaClient({ region: "us-east-1" });
       
@@ -194,3 +166,4 @@ exports.handler = async (event) => {
     };
   }
 };
+

@@ -21,6 +21,7 @@ export const AuctionGrid = () => {
   const lastToastTimeRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wsServiceRef = useRef<any>(null);
+  const pendingBidsRef = useRef<Set<string>>(new Set()); // Track pending bids
 
   const { auctionId: routeAuctionId } = useParams();
 
@@ -99,7 +100,7 @@ export const AuctionGrid = () => {
     return () => clearInterval(interval);
   }, [connectWebSocket]);
 
-  // Handle bid updates - FIXED LOGIC
+  // Handle bid updates - FIXED: Don't revert optimistic updates
   const handleBidUpdate = useCallback((message: WebSocketMessage) => {
     if (message.message?.includes('Subscription') || message.message?.includes('Subscribed')) return;
 
@@ -110,21 +111,37 @@ export const AuctionGrid = () => {
       const messageId = `${auctionId}-${bidAmount}-${bidTime}`;
       if (processedBidsRef.current.has(messageId)) return;
       processedBidsRef.current.add(messageId);
-      if (processedBidsRef.current.size > 100) processedBidsRef.current = new Set(Array.from(processedBidsRef.current).slice(-50));
+      if (processedBidsRef.current.size > 100) {
+        processedBidsRef.current = new Set(Array.from(processedBidsRef.current).slice(-50));
+      }
 
       const currentAuction = auctions.find(a => a.auctionId === auctionId);
       if (!currentAuction) return;
 
-      // FIXED: Store the old highest bidder before updating
+      // Check if this is a pending bid we already optimistically updated
+      const pendingBidKey = `${auctionId}-${bidderId}`;
+      const wasMyPendingBid = pendingBidsRef.current.has(pendingBidKey);
+      
+      // Remove from pending
+      if (wasMyPendingBid) {
+        pendingBidsRef.current.delete(pendingBidKey);
+      }
+
       const previousHighestBidder = currentAuction.highestBidder;
       const wasMyBid = bidderId === currentUserId;
-      const wasIPreviouslyHighest = previousHighestBidder === currentUserId;
-      const isNewBidder = bidderId !== currentAuction.highestBidder;
+      const isNewHighestBidder = bidderId !== previousHighestBidder;
 
-      // Update auction state
+      // Calculate new bidder count
+      let newBidderCount = currentAuction.bidders || 0;
+      if (isNewHighestBidder && !wasMyPendingBid) {
+        // Only increment if this is a new bidder AND we didn't already optimistically update
+        newBidderCount += 1;
+      }
+
+      // CRITICAL: Always update to the latest bid info from server
       updateAuction(auctionId, {
         currentBid: bidAmount,
-        bidders: isNewBidder ? (currentAuction.bidders || 0) + 1 : currentAuction.bidders,
+        bidders: newBidderCount,
         highestBidder: bidderId
       });
 
@@ -133,29 +150,29 @@ export const AuctionGrid = () => {
         let toastTitle = "";
         let toastDescription = "";
 
-        // FIXED: Better logic for determining toast messages
         if (wasMyBid) {
-          // I placed this bid
-          toastTitle = "🎉 Your Bid Placed!";
-          toastDescription = `Successfully bid R${bidAmount.toLocaleString()} on "${currentAuction.title}"`;
+          if (!wasMyPendingBid) {
+            // Only show success toast if we didn't already show it optimistically
+            toastTitle = "🎉 Bid Confirmed!";
+            toastDescription = `Your bid of R${bidAmount.toLocaleString()} on "${currentAuction.title}" is confirmed`;
+          }
         } else {
-          // Someone else placed a bid - show general activity
-          // Note: "You've Been Outbid" notifications should only show when auction ends
+          // Someone else placed a bid
           toastTitle = "🔥 New Bid Alert!";
-          toastDescription = `New bid of R${bidAmount.toLocaleString()} placed on "${currentAuction.title}"`;
+          toastDescription = `R${bidAmount.toLocaleString()} bid placed on "${currentAuction.title}"`;
+          
+          toast({ 
+            title: toastTitle, 
+            description: toastDescription, 
+            duration: 4000 
+          });
+          lastToastTimeRef.current = now;
         }
-
-        toast({ 
-          title: toastTitle, 
-          description: toastDescription, 
-          duration: wasMyBid ? 5000 : 4000 
-        });
-        lastToastTimeRef.current = now;
       }
     }
   }, [updateAuction, toast, currentUserId, auctions]);
 
-  // Subscribe - REDUCED TOAST FREQUENCY
+  // Subscribe
   useEffect(() => {
     if (!wsServiceRef.current) return;
     const subscribe = () => {
@@ -163,8 +180,6 @@ export const AuctionGrid = () => {
         const unsubscribe = wsServiceRef.current.subscribe('*', handleBidUpdate);
         hasSubscribedRef.current = true;
         (window as any).__auctionUnsubscribe = unsubscribe;
-        
-        // Only show this toast once per connection, not every 3 seconds
         console.log('🔔 Subscribed to auction updates');
       }
     };
@@ -177,57 +192,103 @@ export const AuctionGrid = () => {
         hasSubscribedRef.current = false; 
       } 
     };
-  }, [wsServiceRef.current, handleBidUpdate]);
+  }, [handleBidUpdate]);
 
-  // Place bid
+  // Place bid - FIXED: Better optimistic updates
   const handlePlaceBid = async (auctionId: string) => {
-    if (isPlacingBid) return toast({ title: "⏳ Please Wait", description: "Previous bid still processing...", duration: 2000 });
-    if (!authToken) return toast({ title: "❌ Authentication Required", description: "Please wait for authentication to complete", variant: "destructive" });
+    if (isPlacingBid) {
+      toast({ title: "⏳ Please Wait", description: "Previous bid still processing...", duration: 2000 });
+      return;
+    }
+    
+    if (!authToken) {
+      toast({ title: "❌ Authentication Required", description: "Please wait for authentication to complete", variant: "destructive" });
+      return;
+    }
 
     const auction = auctions.find(a => a.auctionId === auctionId);
-    if (!auction) return toast({ title: "❌ Error", description: "Auction not found", variant: "destructive" });
+    if (!auction) {
+      toast({ title: "❌ Error", description: "Auction not found", variant: "destructive" });
+      return;
+    }
 
     setBiddingAuctionId(auctionId);
     setIsPlacingBid(true);
-    const originalState = { currentBid: auction.currentBid, bidders: auction.bidders, highestBidder: auction.highestBidder };
 
     try {
       const currentBid = auction.currentBid || auction.startingBid || 0;
       const minBid = currentBid + (auction.bidIncrement || 100);
       const bidAmountStr = prompt(`💰 Place your bid on "${auction.title}"\nCurrent bid: R${currentBid.toLocaleString()}\nMinimum bid: R${minBid.toLocaleString()}`);
-      if (!bidAmountStr) throw new Error("Bid cancelled by user");
+      
+      if (!bidAmountStr) {
+        throw new Error("Bid cancelled by user");
+      }
 
       const bidAmount = Number(bidAmountStr.replace(/[^0-9.]/g, ''));
-      if (isNaN(bidAmount) || bidAmount < minBid) throw new Error(`Bid must be at least R${minBid.toLocaleString()}`);
+      if (isNaN(bidAmount) || bidAmount < minBid) {
+        throw new Error(`Bid must be at least R${minBid.toLocaleString()}`);
+      }
 
+      // Mark this bid as pending
+      const pendingBidKey = `${auctionId}-${currentUserId}`;
+      pendingBidsRef.current.add(pendingBidKey);
+
+      // Optimistic update - only increment bidders if I wasn't already the highest bidder
+      const isNewBidder = auction.highestBidder !== currentUserId;
       updateAuction(auctionId, {
         currentBid: bidAmount,
-        bidders: auction.highestBidder === currentUserId ? auction.bidders : (auction.bidders || 0) + 1,
+        bidders: isNewBidder ? (auction.bidders || 0) + 1 : auction.bidders,
         highestBidder: currentUserId
       });
 
+      // Show optimistic success toast
+      toast({ 
+        title: "🎉 Bid Placed!", 
+        description: `Placing bid of R${bidAmount.toLocaleString()}...`, 
+        duration: 3000 
+      });
+
+      // Send bid to server
       if (wsServiceRef.current?.isConnected()) {
         await wsServiceRef.current.placeBid(auctionId, bidAmount, currentUserId);
-        toast({ title: "🎉 Bid Placed Successfully!", description: `Your bid of R${bidAmount.toLocaleString()} is now active`, duration: 5000 });
       } else {
         const response = await fetch('https://x3ikd4thrj6qe3dwys2vbeo3ba0yondc.lambda-url.us-east-1.on.aws/', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auctionId, bidAmount, bidderId: currentUserId, authToken })
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ auctionId, bidAmount, bidderId: currentUserId, authToken })
         });
-        if (!response.ok) throw new Error(`Bid failed: ${response.status}`);
-        toast({ title: "🎉 Bid Placed Successfully!", description: `Your bid of R${bidAmount.toLocaleString()} is now active`, duration: 5000 });
+        
+        if (!response.ok) {
+          throw new Error(`Bid failed: ${response.status}`);
+        }
+        
+        // Server confirmation will come through WebSocket, don't update again here
       }
 
     } catch (error: any) {
-      console.error(error);
-      updateAuction(auctionId, originalState);
-      toast({ title: "❌ Bid Failed", description: error.message, variant: "destructive", duration: 5000 });
+      console.error('Bid error:', error);
+      
+      // Remove from pending on error
+      const pendingBidKey = `${auctionId}-${currentUserId}`;
+      pendingBidsRef.current.delete(pendingBidKey);
+      
+      // Revert optimistic update by refetching
+      await refetch();
+      
+      if (error.message !== "Bid cancelled by user") {
+        toast({ 
+          title: "❌ Bid Failed", 
+          description: error.message, 
+          variant: "destructive", 
+          duration: 5000 
+        });
+      }
     } finally {
       setIsPlacingBid(false);
       setBiddingAuctionId(null);
     }
   };
 
-  // Updated loading state - just the spinning circle, no text
   if (loading) return (
     <section className="py-16 bg-muted/30">
       <div className="container px-4 flex justify-center items-center min-h-[400px]">
@@ -236,13 +297,12 @@ export const AuctionGrid = () => {
     </section>
   );
 
-  if (error) return <div className="text-center py-16"><p>{error}</p><button onClick={() => refetch()}>Try Again</button></div>;
-
-  // DEBUG: Log the first auction to see what fields are available
-  if (auctions.length > 0) {
-    console.log('📊 Sample auction data:', auctions[0]);
-    console.log('📊 All auction fields:', Object.keys(auctions[0]));
-  }
+  if (error) return (
+    <div className="text-center py-16">
+      <p>{error}</p>
+      <button onClick={() => refetch()}>Try Again</button>
+    </div>
+  );
 
   return (
     <section className="py-16 bg-muted/30">
