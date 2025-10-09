@@ -6,7 +6,6 @@ import {
   Heart,
   Gavel,
   Plus,
-  Settings,
   TrendingUp,
   Clock,
   DollarSign,
@@ -224,11 +223,7 @@ const Dashboard = () => {
               <p className="text-muted-foreground">Member since {user.memberSince}</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => navigate("/settings")}>
-              <Settings className="w-4 h-4 mr-2" /> Account Settings
-            </Button>
-          </div>
+          {/* Removed Account Settings button from here */}
         </div>
 
         {/* Quick Stats */}

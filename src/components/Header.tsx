@@ -1,4 +1,4 @@
-import { MapPin, User, Search, Bell, LogOut, Home, Gavel, Menu, Plus, Loader2 } from "lucide-react";
+import { MapPin, User, Search, Bell, LogOut, Home, Gavel, Menu, Plus, Loader2, Settings } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Link, useNavigate, useLocation } from "react-router-dom";
@@ -460,6 +460,12 @@ export const Header = () => {
                   <Link to="/auctions" className="cursor-pointer">
                     <Gavel className="w-4 h-4 mr-2" />
                     My Bids
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/settings" className="cursor-pointer">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Account Settings
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
