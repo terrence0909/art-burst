@@ -225,7 +225,7 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => navigate("/settings")}>
               <Settings className="w-4 h-4 mr-2" /> Account Settings
             </Button>
           </div>

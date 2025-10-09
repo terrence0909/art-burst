@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { createWebSocketService, WebSocketMessage } from "../services/websocket";
 import { useParams } from 'react-router-dom';
 import { bidHistoryManager } from "../services/bidHistoryManager";
+import { fetchUserAttributes } from "aws-amplify/auth";
 
 export const AuctionGrid = () => {
   const { toast } = useToast();
@@ -24,6 +25,52 @@ export const AuctionGrid = () => {
   const pendingBidsRef = useRef<Set<string>>(new Set());
 
   const { auctionId: routeAuctionId } = useParams();
+
+  // Add this function to get real user names from Cognito
+  const getBidderDisplayName = async (bidderId: string, currentUserId: string): Promise<string> => {
+    if (bidderId === currentUserId) {
+      return 'You';
+    }
+
+    // Try cache first for performance
+    const cachedName = localStorage.getItem(`bidder-name-${bidderId}`);
+    if (cachedName) {
+      return cachedName;
+    }
+
+    try {
+      // Fetch actual user attributes from Cognito
+      const attributes = await fetchUserAttributes();
+      
+      // Try different name fields from Cognito
+      let realName = 'Art Collector'; // Default fallback
+      
+      if (attributes.given_name && attributes.family_name) {
+        realName = `${attributes.given_name} ${attributes.family_name}`;
+      } else if (attributes.name) {
+        realName = attributes.name;
+      } else if (attributes.nickname) {
+        realName = attributes.nickname;
+      } else if (attributes.email) {
+        // Use the name part of email (before @)
+        realName = attributes.email.split('@')[0];
+        realName = realName.charAt(0).toUpperCase() + realName.slice(1); // Capitalize
+      }
+
+      // Cache the name for future use
+      localStorage.setItem(`bidder-name-${bidderId}`, realName);
+      return realName;
+      
+    } catch (error) {
+      console.log('Could not fetch user name, using fallback:', error);
+      
+      // Sophisticated fallback names
+      const fallbackNames = ['Art Collector', 'Gallery Patron', 'Art Connoisseur', 'Collector'];
+      const nameIndex = bidderId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % fallbackNames.length;
+      
+      return fallbackNames[nameIndex];
+    }
+  };
 
   useEffect(() => {
     let token = localStorage.getItem('auction-auth-token');
@@ -97,7 +144,7 @@ export const AuctionGrid = () => {
     return () => clearInterval(interval);
   }, [connectWebSocket]);
 
-  const handleBidUpdate = useCallback((message: WebSocketMessage) => {
+  const handleBidUpdate = useCallback(async (message: WebSocketMessage) => {
     if (message.message?.includes('Subscription') || message.message?.includes('Subscribed')) return;
 
     if (message.action === 'bidUpdate' && message.bid && message.auctionId) {
@@ -125,13 +172,16 @@ export const AuctionGrid = () => {
       const wasMyBid = bidderId === currentUserId;
       const isNewHighestBidder = bidderId !== previousHighestBidder;
 
+      // 🔥 GET REAL BIDDER NAME
+      const bidderName = await getBidderDisplayName(bidderId, currentUserId);
+
       // *** ADD BID TO HISTORY MANAGER ***
       bidHistoryManager.addBid(auctionId, {
         bidId: bidId || `bid-${Date.now()}`,
         auctionId,
         bidAmount,
         bidderId,
-        bidderName: wasMyBid ? 'You' : `Bidder ${bidderId.slice(-6)}`,
+        bidderName: bidderName,
         bidTime: bidTime || new Date().toISOString(),
         timestamp: new Date(bidTime || Date.now()).getTime()
       });
@@ -159,7 +209,7 @@ export const AuctionGrid = () => {
           }
         } else {
           toastTitle = "🔥 New Bid Alert!";
-          toastDescription = `R${bidAmount.toLocaleString()} bid placed on "${currentAuction.title}"`;
+          toastDescription = `${bidderName} placed R${bidAmount.toLocaleString()} bid on "${currentAuction.title}"`;
           
           toast({ 
             title: toastTitle, 
@@ -236,6 +286,18 @@ export const AuctionGrid = () => {
         bidders: isNewBidder ? (auction.bidders || 0) + 1 : auction.bidders,
         highestBidder: currentUserId
       });
+
+      // 🔥 STORE CURRENT USER'S NAME FOR FUTURE BID HISTORY
+      try {
+        const attributes = await fetchUserAttributes();
+        const userName = attributes.given_name && attributes.family_name 
+          ? `${attributes.given_name} ${attributes.family_name}`
+          : attributes.name || attributes.nickname || attributes.email?.split('@')[0] || 'You';
+        
+        localStorage.setItem(`bidder-name-${currentUserId}`, userName);
+      } catch (error) {
+        console.log('Could not store user name:', error);
+      }
 
       toast({ 
         title: "🎉 Bid Placed!", 

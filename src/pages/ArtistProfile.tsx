@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { MapPin, Calendar, Award, Users, Heart, Share2, Loader } from "lucide-react";
+import { MapPin, Calendar, Award, Users, Heart, Share2, ExternalLink, Instagram, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,6 +50,7 @@ const ArtistProfile = () => {
   const [artistAuctions, setArtistAuctions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isFollowing, setIsFollowing] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -62,7 +63,6 @@ const ArtistProfile = () => {
       setLoading(true);
       setError("");
       
-      // Get artist data from auctions
       const response = await fetch(`${API_BASE}/auctions`);
       
       if (!response.ok) {
@@ -76,16 +76,13 @@ const ArtistProfile = () => {
         throw new Error('Invalid data format received from API');
       }
 
-      // Find auctions by this artist
       const artistAuctions = auctionData.filter((auction: any) => 
         auction.artistId === id
       );
       
       if (artistAuctions.length > 0) {
-        // Create artist data from the auctions
         const firstAuction = artistAuctions[0];
         
-        // Calculate stats
         const totalAuctions = artistAuctions.length;
         const soldAuctions = artistAuctions.filter((a: any) => 
           a.status === "ended" || a.status === "sold"
@@ -111,7 +108,7 @@ const ArtistProfile = () => {
             totalAuctions,
             totalSales,
             avgSalePrice,
-            followers: Math.floor(Math.random() * 100) + 50 // Random followers for now
+            followers: Math.floor(Math.random() * 100) + 50
           }
         };
         
@@ -130,23 +127,16 @@ const ArtistProfile = () => {
   };
 
   const handleFollow = async () => {
-    try {
-      // Implement follow functionality
-      toast({
-        title: "Followed!",
-        description: `You're now following ${artist?.name}`,
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to follow artist",
-        variant: "destructive"
-      });
-    }
+    setIsFollowing(!isFollowing);
+    toast({
+      title: isFollowing ? "Unfollowed" : "Followed!",
+      description: isFollowing 
+        ? `You've unfollowed ${artist?.name}` 
+        : `You're now following ${artist?.name}`,
+    });
   };
 
   const handleMessage = () => {
-    // Implement message functionality
     toast({
       title: "Message",
       description: "Message feature coming soon!",
@@ -162,7 +152,6 @@ const ArtistProfile = () => {
     }
   };
 
-  // Transform auctions to portfolio items
   const portfolio: Artwork[] = artistAuctions.map((auction: any) => ({
     id: auction.auctionId,
     title: auction.title,
@@ -184,19 +173,20 @@ const ArtistProfile = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex flex-col md:flex-row gap-8 mb-8">
-            <Skeleton className="w-32 h-32 rounded-full" />
-            <div className="flex-1 space-y-4">
-              <Skeleton className="h-8 w-64" />
-              <Skeleton className="h-4 w-48" />
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-20 w-full" />
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          <div className="bg-gradient-to-r from-accent/10 via-accent/5 to-transparent rounded-2xl p-6 md:p-8 mb-8">
+            <div className="flex flex-col md:flex-row gap-6">
+              <Skeleton className="w-32 h-32 rounded-2xl mx-auto md:mx-0 flex-shrink-0" />
+              <div className="flex-1 space-y-4">
+                <Skeleton className="h-8 w-3/4 mx-auto md:mx-0" />
+                <Skeleton className="h-4 w-1/2 mx-auto md:mx-0" />
+                <Skeleton className="h-20 w-full" />
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-20" />
+              <Skeleton key={i} className="h-24 rounded-xl" />
             ))}
           </div>
         </div>
@@ -209,11 +199,11 @@ const ArtistProfile = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="container mx-auto px-4 py-8 text-center">
-          <div className="bg-destructive/15 text-destructive p-4 rounded-md max-w-md mx-auto">
-            <h3 className="font-semibold">Artist Not Found</h3>
-            <p className="text-sm mt-1">{error || "This artist profile doesn't exist."}</p>
-            <Button onClick={() => window.history.back()} className="mt-4">
+        <div className="container mx-auto px-4 py-16 text-center max-w-2xl">
+          <div className="bg-gradient-to-br from-destructive/10 to-destructive/5 border border-destructive/20 text-destructive p-8 rounded-2xl">
+            <h3 className="text-2xl font-bold mb-2">Artist Not Found</h3>
+            <p className="text-sm opacity-80 mb-6">{error || "This artist profile doesn't exist."}</p>
+            <Button onClick={() => window.history.back()} size="lg" className="btn-primary">
               Go Back
             </Button>
           </div>
@@ -234,103 +224,130 @@ const ArtistProfile = () => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      <div className="container mx-auto px-4 py-8">
-        {/* Artist Header */}
-        <div className="flex flex-col md:flex-row gap-8 mb-8">
-          <div className="flex-shrink-0">
-            <img 
-              src={artist.profileImage || "/placeholder-avatar.jpg"} 
-              alt={artist.name}
-              className="w-32 h-32 rounded-full object-cover border-4 border-accent"
-            />
-          </div>
-          
-          <div className="flex-1">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between">
-              <div>
-                <h1 className="font-playfair text-3xl font-bold mb-2 text-foreground">
-                  {artist.name}
-                </h1>
-                <div className="flex items-center text-muted-foreground mb-3">
-                  <MapPin className="w-4 h-4 mr-1" />
-                  {artist.location || "Location not specified"}
-                </div>
-                <div className="flex items-center text-muted-foreground mb-4">
-                  <Calendar className="w-4 h-4 mr-1" />
-                  Member since {formatDate(artist.createdAt)}
-                </div>
-                {artist.specialties && artist.specialties.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {artist.specialties.map((specialty) => (
-                      <Badge key={specialty} variant="secondary">{specialty}</Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex space-x-2 mt-4 md:mt-0">
-                <Button variant="outline" onClick={handleFollow}>
-                  <Heart className="w-4 h-4 mr-2" />
-                  Follow ({stats.followers})
-                </Button>
-                {/* Replaced Share button with QR code share button */}
-                <ShareProfileButton 
-                  artistId={artist.artistId} 
-                  artistName={artist.name} 
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10 max-w-7xl">
+        {/* Hero Header Section with Gradient Background */}
+        <div className="bg-gradient-to-br from-accent/10 via-accent/5 to-transparent rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 mb-8 shadow-lg border border-accent/10">
+          <div className="flex flex-col md:flex-row gap-6 md:gap-8">
+            {/* Enhanced Profile Image with Glow Effect */}
+            <div className="flex-shrink-0 mx-auto md:mx-0">
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-accent to-accent/50 rounded-2xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity" />
+                <img 
+                  src={artist.profileImage || "/placeholder-avatar.jpg"} 
+                  alt={artist.name}
+                  className="relative w-32 h-32 md:w-40 md:h-40 rounded-2xl object-cover border-4 border-white shadow-xl"
                 />
-                <Button className="btn-primary" onClick={handleMessage}>
-                  Message Artist
-                </Button>
               </div>
             </div>
             
-            {artist.bio && (
-              <p className="text-muted-foreground mt-4">{artist.bio}</p>
-            )}
+            {/* Artist Info - Enhanced Typography */}
+            <div className="flex-1 space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                <div className="space-y-3 text-center md:text-left">
+                  <h1 className="font-playfair text-3xl md:text-4xl lg:text-5xl font-bold text-foreground">
+                    {artist.name}
+                  </h1>
+                  
+                  <div className="flex flex-wrap items-center gap-3 md:gap-4 text-sm text-muted-foreground justify-center md:justify-start">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-accent" />
+                      <span>{artist.location || "Location not specified"}</span>
+                    </div>
+                    <span className="hidden sm:inline text-accent/30">•</span>
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-accent" />
+                      <span>Joined {formatDate(artist.createdAt)}</span>
+                    </div>
+                  </div>
+                  
+                  {artist.specialties && artist.specialties.length > 0 && (
+                    <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                      {artist.specialties.map((specialty) => (
+                        <Badge key={specialty} variant="secondary" className="text-xs px-3 py-1">
+                          {specialty}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Enhanced Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-2 lg:gap-3 justify-center lg:justify-end">
+                  <Button 
+                    variant={isFollowing ? "default" : "outline"} 
+                    size="lg" 
+                    className="gap-2"
+                    onClick={handleFollow}
+                  >
+                    <Heart className={`w-4 h-4 ${isFollowing ? 'fill-current' : ''}`} />
+                    <span className="hidden sm:inline">{isFollowing ? 'Following' : 'Follow'}</span>
+                    <span className="text-xs opacity-75">({stats.followers})</span>
+                  </Button>
+                  <ShareProfileButton 
+                    artistId={artist.artistId} 
+                    artistName={artist.name} 
+                  />
+                  <Button className="btn-primary gap-2" size="lg" onClick={handleMessage}>
+                    Message
+                  </Button>
+                </div>
+              </div>
+              
+              {artist.bio && (
+                <p className="text-muted-foreground leading-relaxed text-center md:text-left max-w-3xl">
+                  {artist.bio}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-accent">{stats.totalAuctions}</p>
-              <p className="text-sm text-muted-foreground">Total Auctions</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-accent">R{stats.totalSales.toLocaleString()}</p>
-              <p className="text-sm text-muted-foreground">Total Sales</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-accent">R{stats.avgSalePrice.toLocaleString()}</p>
-              <p className="text-sm text-muted-foreground">Avg. Sale Price</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-accent">{stats.followers}</p>
-              <p className="text-sm text-muted-foreground">Followers</p>
-            </CardContent>
-          </Card>
+        {/* Enhanced Stats Grid with Hover Effects */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-6 mb-10">
+          {[
+            { label: 'Total Auctions', value: stats.totalAuctions, prefix: '' },
+            { label: 'Total Sales', value: stats.totalSales, prefix: 'R' },
+            { label: 'Avg. Sale Price', value: stats.avgSalePrice, prefix: 'R' },
+            { label: 'Followers', value: stats.followers, prefix: '' }
+          ].map((stat, index) => (
+            <Card key={index} className="group hover:shadow-2xl hover:scale-105 transition-all duration-300 border-accent/10">
+              <CardContent className="p-4 md:p-6 text-center">
+                <div className="text-2xl md:text-3xl lg:text-4xl font-bold text-accent mb-1 group-hover:scale-110 transition-transform">
+                  {stat.prefix}{stat.value.toLocaleString()}
+                </div>
+                <div className="text-xs md:text-sm text-muted-foreground font-medium">
+                  {stat.label}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        {/* Content Tabs */}
-        <Tabs defaultValue="auctions" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="auctions">Active Auctions</TabsTrigger>
-            <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-            <TabsTrigger value="sold">Sold Works</TabsTrigger>
-            <TabsTrigger value="about">About</TabsTrigger>
+        {/* Enhanced Tabs */}
+        <Tabs defaultValue="auctions" className="space-y-8">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto p-1 bg-muted/50 backdrop-blur">
+            <TabsTrigger value="auctions" className="text-sm md:text-base py-3 md:py-4 data-[state=active]:bg-accent data-[state=active]:text-white">
+              Active Auctions
+            </TabsTrigger>
+            <TabsTrigger value="portfolio" className="text-sm md:text-base py-3 md:py-4 data-[state=active]:bg-accent data-[state=active]:text-white">
+              Portfolio
+            </TabsTrigger>
+            <TabsTrigger value="sold" className="text-sm md:text-base py-3 md:py-4 data-[state=active]:bg-accent data-[state=active]:text-white">
+              Sold Works
+            </TabsTrigger>
+            <TabsTrigger value="about" className="text-sm md:text-base py-3 md:py-4 data-[state=active]:bg-accent data-[state=active]:text-white">
+              About
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="auctions" className="space-y-6">
-            <h2 className="font-playfair text-2xl font-bold text-foreground">Active Auctions</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-playfair text-2xl md:text-3xl font-bold text-foreground">Active Auctions</h2>
+              <Badge variant="secondary" className="text-sm px-3 py-1">{activeAuctions.length} Active</Badge>
+            </div>
+            
             {activeAuctions.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {activeAuctions.map((auction) => (
                   <AuctionCard 
                     key={auction.auctionId} 
@@ -349,75 +366,96 @@ const ArtistProfile = () => {
                 ))}
               </div>
             ) : (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground">No active auctions at the moment.</p>
-                  <Button className="mt-4" onClick={handleFollow}>Follow for Updates</Button>
+              <Card className="border-dashed border-2">
+                <CardContent className="p-12 text-center">
+                  <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Users className="w-8 h-8 text-accent" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">No Active Auctions</h3>
+                  <p className="text-muted-foreground mb-6">This artist doesn't have any active auctions at the moment.</p>
+                  <Button onClick={handleFollow} size="lg" className="btn-primary">
+                    <Heart className="w-4 h-4 mr-2" />
+                    Follow for Updates
+                  </Button>
                 </CardContent>
               </Card>
             )}
           </TabsContent>
           
           <TabsContent value="portfolio" className="space-y-6">
-            <h2 className="font-playfair text-2xl font-bold text-foreground">Portfolio</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-playfair text-2xl md:text-3xl font-bold text-foreground">Portfolio</h2>
+              <Badge variant="secondary" className="text-sm px-3 py-1">{availableWorks.length} Works</Badge>
+            </div>
+            
             {availableWorks.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {availableWorks.map((artwork) => (
-                  <Card key={artwork.id} className="overflow-hidden hover:shadow-luxury transition-shadow">
-                    <div className="relative">
+                  <Card key={artwork.id} className="group overflow-hidden hover:shadow-2xl transition-all duration-300 border-accent/10">
+                    <div className="relative aspect-square overflow-hidden bg-muted">
                       <img 
                         src={artwork.image} 
                         alt={artwork.title}
-                        className="w-full h-64 object-cover"
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       />
-                      {artwork.sold && (
-                        <Badge className="absolute top-2 right-2 bg-red-500">Sold</Badge>
-                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
-                    <CardContent className="p-4">
-                      <h3 className="font-semibold text-foreground">{artwork.title}</h3>
-                      <p className="text-sm text-muted-foreground">
+                    <CardContent className="p-4 md:p-5">
+                      <h3 className="font-semibold text-foreground text-base md:text-lg mb-1 line-clamp-1">{artwork.title}</h3>
+                      <p className="text-sm text-muted-foreground mb-3">
                         {artwork.year} • {artwork.medium}
                       </p>
                       {artwork.price && (
-                        <p className="text-lg font-bold text-accent mt-2">
-                          R{artwork.price.toLocaleString()}
-                        </p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xl md:text-2xl font-bold text-accent">
+                            R{artwork.price.toLocaleString()}
+                          </p>
+                          <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            View
+                          </Button>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
                 ))}
               </div>
             ) : (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground">No available works in portfolio.</p>
+              <Card className="border-dashed border-2">
+                <CardContent className="p-12 text-center">
+                  <p className="text-muted-foreground text-lg">No available works in portfolio.</p>
                 </CardContent>
               </Card>
             )}
           </TabsContent>
           
           <TabsContent value="sold" className="space-y-6">
-            <h2 className="font-playfair text-2xl font-bold text-foreground">Sold Works</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-playfair text-2xl md:text-3xl font-bold text-foreground">Sold Works</h2>
+              <Badge variant="secondary" className="text-sm px-3 py-1">{soldWorks.length} Sold</Badge>
+            </div>
+            
             {soldWorks.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {soldWorks.map((artwork) => (
-                  <Card key={artwork.id} className="overflow-hidden hover:shadow-luxury transition-shadow">
-                    <div className="relative">
+                  <Card key={artwork.id} className="group overflow-hidden hover:shadow-2xl transition-all duration-300 border-accent/10">
+                    <div className="relative aspect-square overflow-hidden bg-muted">
                       <img 
                         src={artwork.image} 
                         alt={artwork.title}
-                        className="w-full h-64 object-cover"
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       />
-                      <Badge className="absolute top-2 right-2 bg-red-500">Sold</Badge>
+                      <Badge className="absolute top-3 right-3 bg-red-500 text-white border-0 shadow-lg">
+                        Sold
+                      </Badge>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
-                    <CardContent className="p-4">
-                      <h3 className="font-semibold text-foreground">{artwork.title}</h3>
-                      <p className="text-sm text-muted-foreground">
+                    <CardContent className="p-4 md:p-5">
+                      <h3 className="font-semibold text-foreground text-base md:text-lg mb-1 line-clamp-1">{artwork.title}</h3>
+                      <p className="text-sm text-muted-foreground mb-3">
                         {artwork.year} • {artwork.medium}
                       </p>
                       {artwork.price && (
-                        <p className="text-lg font-bold text-accent mt-2">
+                        <p className="text-xl md:text-2xl font-bold text-accent">
                           R{artwork.price.toLocaleString()}
                         </p>
                       )}
@@ -426,55 +464,99 @@ const ArtistProfile = () => {
                 ))}
               </div>
             ) : (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground">No sold works yet.</p>
+              <Card className="border-dashed border-2">
+                <CardContent className="p-12 text-center">
+                  <p className="text-muted-foreground text-lg">No sold works yet.</p>
                 </CardContent>
               </Card>
             )}
           </TabsContent>
           
           <TabsContent value="about" className="space-y-6">
-            <h2 className="font-playfair text-2xl font-bold text-foreground">About the Artist</h2>
-            <Card>
-              <CardContent className="p-6 space-y-6">
-                {artist.bio && (
-                  <div>
-                    <h3 className="font-semibold mb-2 text-foreground">Biography</h3>
-                    <p className="text-muted-foreground">{artist.bio}</p>
-                  </div>
-                )}
-                
-                {artist.achievements && artist.achievements.length > 0 && (
-                  <div>
-                    <h3 className="font-semibold mb-2 text-foreground">Achievements</h3>
-                    <ul className="space-y-1">
+            <h2 className="font-playfair text-2xl md:text-3xl font-bold text-foreground">About the Artist</h2>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              {artist.bio && (
+                <Card className="md:col-span-2 border-accent/10">
+                  <CardContent className="p-6 md:p-8">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
+                        <Users className="w-5 h-5 text-accent" />
+                      </div>
+                      <h3 className="font-semibold text-xl text-foreground">Biography</h3>
+                    </div>
+                    <p className="text-muted-foreground leading-relaxed text-base">{artist.bio}</p>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {artist.achievements && artist.achievements.length > 0 && (
+                <Card className="border-accent/10">
+                  <CardContent className="p-6 md:p-8">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
+                        <Award className="w-5 h-5 text-accent" />
+                      </div>
+                      <h3 className="font-semibold text-xl text-foreground">Achievements</h3>
+                    </div>
+                    <ul className="space-y-3">
                       {artist.achievements.map((achievement, index) => (
-                        <li key={index} className="flex items-center text-muted-foreground">
-                          <Award className="w-4 h-4 mr-2 text-accent" />
-                          {achievement}
+                        <li key={index} className="flex items-start gap-3 text-muted-foreground">
+                          <div className="w-2 h-2 bg-accent rounded-full mt-2 flex-shrink-0" />
+                          <span>{achievement}</span>
                         </li>
                       ))}
                     </ul>
+                  </CardContent>
+                </Card>
+              )}
+              
+              <Card className="border-accent/10">
+                <CardContent className="p-6 md:p-8">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
+                      <Share2 className="w-5 h-5 text-accent" />
+                    </div>
+                    <h3 className="font-semibold text-xl text-foreground">Connect</h3>
                   </div>
-                )}
-                
-                <div>
-                  <h3 className="font-semibold mb-2 text-foreground">Connect</h3>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {artist.website && (
-                      <p className="text-muted-foreground">Website: {artist.website}</p>
+                      <a 
+                        href={artist.website} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 text-muted-foreground hover:text-accent transition-colors group"
+                      >
+                        <Globe className="w-5 h-5 flex-shrink-0" />
+                        <span className="group-hover:underline break-all">{artist.website}</span>
+                        <ExternalLink className="w-4 h-4 ml-auto flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </a>
                     )}
                     {artist.instagram && (
-                      <p className="text-muted-foreground">Instagram: {artist.instagram}</p>
+                      <a 
+                        href={`https://instagram.com/${artist.instagram.replace('@', '')}`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 text-muted-foreground hover:text-accent transition-colors group"
+                      >
+                        <Instagram className="w-5 h-5 flex-shrink-0" />
+                        <span className="group-hover:underline break-all">{artist.instagram}</span>
+                        <ExternalLink className="w-4 h-4 ml-auto flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </a>
                     )}
                     {artist.email && (
-                      <p className="text-muted-foreground">Email: {artist.email}</p>
+                      <a 
+                        href={`mailto:${artist.email}`}
+                        className="flex items-center gap-3 text-muted-foreground hover:text-accent transition-colors group"
+                      >
+                        <div className="w-5 h-5 flex-shrink-0">✉️</div>
+                        <span className="group-hover:underline break-all">{artist.email}</span>
+                      </a>
                     )}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
