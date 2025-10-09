@@ -18,6 +18,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 // Add your OpenCage API key here
 const OPENCAGE_API_KEY = import.meta.env.VITE_OPENCAGE_API_KEY;
@@ -47,6 +52,9 @@ export const Header = () => {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
   const [customLocationSearch, setCustomLocationSearch] = useState("");
+
+  // Mobile menu state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     checkAuthStatus();
@@ -240,25 +248,19 @@ export const Header = () => {
     }
   };
 
-  // Fixed search function to properly handle location searches
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchTerm.trim()) {
-      // Navigate to Browse page with search parameters
       const searchParams = new URLSearchParams();
       
-      // Check if the search term looks like a location (city name)
       const isLocationSearch = /^[a-zA-Z\s,]+$/.test(searchTerm.trim());
       
       if (isLocationSearch) {
-        // If it looks like a location, search by location
         searchParams.set('location', searchTerm.trim());
       } else {
-        // Otherwise, search by text query
         searchParams.set('query', searchTerm.trim());
       }
       
-      // Always include current location for context
       if (currentLocation) {
         searchParams.set('currentLocation', currentLocation.city);
         searchParams.set('lat', currentLocation.coordinates.lat.toString());
@@ -266,13 +268,8 @@ export const Header = () => {
       }
       
       navigate(`/browse?${searchParams.toString()}`);
-      setSearchTerm(""); // Clear the search input
-      
-      console.log('🔍 Header Search:', {
-        searchTerm: searchTerm.trim(),
-        isLocationSearch,
-        params: Object.fromEntries(searchParams)
-      });
+      setSearchTerm("");
+      setMobileMenuOpen(false); // Close mobile menu after search
     }
   };
 
@@ -286,20 +283,7 @@ export const Header = () => {
             </div>
             <span className="font-playfair font-bold text-xl">ArtBurst</span>
           </Link>
-          <div className="flex-1 max-w-md mx-8">
-            <form onSubmit={handleSearch} className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search artwork, artists, or locations..."
-                className="pl-10 bg-muted/50"
-              />
-            </form>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="w-8 h-8 bg-muted rounded-full animate-pulse"></div>
-          </div>
+          <div className="w-8 h-8 bg-muted rounded-full animate-pulse"></div>
         </div>
       </header>
     );
@@ -308,16 +292,16 @@ export const Header = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4">
-        {/* Logo */}
-        <Link to="/" className="flex items-center space-x-2">
+        {/* Logo - Always visible */}
+        <Link to="/" className="flex items-center space-x-2 flex-shrink-0">
           <div className="w-8 h-8 bg-gradient-luxury rounded-lg flex items-center justify-center">
             <span className="text-luxury-foreground font-bold text-sm">A</span>
           </div>
-          <span className="font-playfair font-bold text-xl">ArtBurst</span>
+          <span className="font-playfair font-bold text-xl hidden sm:block">ArtBurst</span>
         </Link>
 
-        {/* Search - Centered */}
-        <div className="flex-1 max-w-md mx-8">
+        {/* Search - Hidden on mobile, shown on tablet+ */}
+        <div className="flex-1 max-w-md mx-4 hidden md:block">
           <form onSubmit={handleSearch} className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
@@ -330,8 +314,48 @@ export const Header = () => {
         </div>
 
         {/* Right Side Actions */}
-        <div className="flex items-center space-x-3">
-          {/* Location Selector */}
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* Mobile Search Button */}
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden text-muted-foreground"
+              >
+                <Search className="w-5 h-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="top" className="pt-16">
+              <div className="space-y-4">
+                <form onSubmit={handleSearch} className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
+                  <Input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder={`Search in ${currentLocation?.city || 'your area'}...`}
+                    className="pl-12 h-12 text-base bg-muted/50"
+                    autoFocus
+                  />
+                </form>
+                
+                {/* Quick Location Display in Mobile Search */}
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>Searching near: {currentLocation?.city}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setLocationDialogOpen(true)}
+                    className="h-auto p-0 text-primary hover:bg-transparent"
+                  >
+                    Change
+                  </Button>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+
+          {/* Location - Hidden on mobile, shown on tablet+ */}
           <Dialog open={locationDialogOpen} onOpenChange={setLocationDialogOpen}>
             <DialogTrigger asChild>
               <Button
@@ -357,7 +381,6 @@ export const Header = () => {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
-                {/* Current Location */}
                 {currentLocation && (
                   <div className="p-3 bg-muted rounded-lg">
                     <div className="flex items-center justify-between">
@@ -372,7 +395,6 @@ export const Header = () => {
                   </div>
                 )}
 
-                {/* Use Current Location */}
                 <Button
                   onClick={getCurrentLocation}
                   disabled={locationLoading}
@@ -387,7 +409,6 @@ export const Header = () => {
                   Use Current Location
                 </Button>
 
-                {/* Search Location */}
                 <div className="space-y-2">
                   <Input
                     value={customLocationSearch}
@@ -414,7 +435,6 @@ export const Header = () => {
                   </Button>
                 </div>
 
-                {/* Error Display */}
                 {locationError && (
                   <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
                     <p className="text-sm text-destructive">{locationError}</p>
@@ -424,15 +444,22 @@ export const Header = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Notifications */}
+          {/* Notifications - Hidden on mobile, shown on tablet+ */}
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground"
+            className="text-muted-foreground hidden sm:flex"
             onClick={() => navigate('/notifications')}
           >
             <Bell className="w-4 h-4" />
           </Button>
+
+          {/* List Artwork - Hidden on mobile, shown on tablet+ */}
+          <Link to="/create" className="hidden sm:block">
+            <Button className="btn-primary">
+              List Artwork
+            </Button>
+          </Link>
 
           {/* User Profile Dropdown */}
           {isAuthenticated ? (
@@ -485,7 +512,6 @@ export const Header = () => {
             </DropdownMenu>
           ) : (
             <Link to="/auth">
-              {/* UPDATED: Sign In button - text on desktop, icon on mobile */}
               <Button variant="outline" size="sm" className="hidden sm:flex">
                 <User className="w-4 h-4 mr-1" />
                 Sign In
@@ -496,15 +522,143 @@ export const Header = () => {
             </Link>
           )}
 
-          {/* List Artwork - UPDATED: Keep the responsive behavior */}
-          <Link to="/create">
-            <Button className="btn-primary hidden sm:flex">
-              List Artwork
-            </Button>
-            <Button size="icon" className="btn-primary sm:hidden">
-              <Plus className="w-4 h-4" />
-            </Button>
-          </Link>
+          {/* Mobile Menu for additional actions */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden text-muted-foreground"
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-64">
+              <div className="flex flex-col h-full">
+                {/* User Info */}
+                {isAuthenticated && (
+                  <div className="flex items-center space-x-3 p-4 border-b">
+                    <img
+                      src={userProfileImage}
+                      alt={userName}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{userName}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {currentLocation?.city}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mobile Navigation */}
+                <nav className="flex-1 space-y-2 p-4">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      navigate('/');
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    <Home className="w-4 h-4 mr-3" />
+                    Home
+                  </Button>
+                  
+                  {isAuthenticated && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          navigate('/dashboard');
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <User className="w-4 h-4 mr-3" />
+                        Dashboard
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          navigate('/auctions');
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <Gavel className="w-4 h-4 mr-3" />
+                        My Bids
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          navigate('/settings');
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <Settings className="w-4 h-4 mr-3" />
+                        Account Settings
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          navigate('/notifications');
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <Bell className="w-4 h-4 mr-3" />
+                        Notifications
+                      </Button>
+                    </>
+                  )}
+                </nav>
+
+                {/* Bottom Actions */}
+                <div className="p-4 space-y-3 border-t">
+                  {!isAuthenticated && (
+                    <Button
+                      className="w-full"
+                      onClick={() => {
+                        navigate('/auth');
+                        setMobileMenuOpen(false);
+                      }}
+                    >
+                      <User className="w-4 h-4 mr-2" />
+                      Sign In
+                    </Button>
+                  )}
+                  
+                  <Button
+                    className="w-full btn-primary"
+                    onClick={() => {
+                      navigate('/create');
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    List Artwork
+                  </Button>
+
+                  {isAuthenticated && (
+                    <Button
+                      variant="outline"
+                      className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                      onClick={() => {
+                        handleSignOut();
+                        setMobileMenuOpen(false);
+                      }}
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Sign Out
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </header>

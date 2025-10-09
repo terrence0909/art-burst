@@ -38,38 +38,15 @@ export const AuctionGrid = () => {
       return cachedName;
     }
 
-    try {
-      // Fetch actual user attributes from Cognito
-      const attributes = await fetchUserAttributes();
-      
-      // Try different name fields from Cognito
-      let realName = 'Art Collector'; // Default fallback
-      
-      if (attributes.given_name && attributes.family_name) {
-        realName = `${attributes.given_name} ${attributes.family_name}`;
-      } else if (attributes.name) {
-        realName = attributes.name;
-      } else if (attributes.nickname) {
-        realName = attributes.nickname;
-      } else if (attributes.email) {
-        // Use the name part of email (before @)
-        realName = attributes.email.split('@')[0];
-        realName = realName.charAt(0).toUpperCase() + realName.slice(1); // Capitalize
-      }
-
-      // Cache the name for future use
-      localStorage.setItem(`bidder-name-${bidderId}`, realName);
-      return realName;
-      
-    } catch (error) {
-      console.log('Could not fetch user name, using fallback:', error);
-      
-      // Sophisticated fallback names
-      const fallbackNames = ['Art Collector', 'Gallery Patron', 'Art Connoisseur', 'Collector'];
-      const nameIndex = bidderId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % fallbackNames.length;
-      
-      return fallbackNames[nameIndex];
-    }
+    // 🔥 FIX: We cannot fetch other users' Cognito attributes directly
+    // Instead, we need to rely on the bid data sent from the server
+    // For now, use a fallback system
+    
+    // Check if we have any stored bidder info from previous bids
+    const fallbackNames = ['Art Collector', 'Gallery Patron', 'Art Connoisseur', 'Collector'];
+    const nameIndex = bidderId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % fallbackNames.length;
+    
+    return fallbackNames[nameIndex];
   };
 
   useEffect(() => {
@@ -209,7 +186,8 @@ export const AuctionGrid = () => {
           }
         } else {
           toastTitle = "🔥 New Bid Alert!";
-          toastDescription = `${bidderName} placed R${bidAmount.toLocaleString()} bid on "${currentAuction.title}"`;
+          // 🔥 FIX: Changed back to generic message like it was working before
+          toastDescription = `R${bidAmount.toLocaleString()} bid placed on "${currentAuction.title}"`;
           
           toast({ 
             title: toastTitle, 

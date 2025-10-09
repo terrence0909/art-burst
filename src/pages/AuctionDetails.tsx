@@ -183,21 +183,21 @@ const AuctionDetails = () => {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10 max-w-7xl">
         {/* Back Button */}
-        <Button variant="ghost" className="mb-6" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="lg" className="mb-6 hover:bg-accent/10" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Auctions
         </Button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Artwork */}
           <div className="space-y-4">
-            <div className="relative">
+            <div className="relative aspect-square lg:aspect-[4/5] max-w-2xl mx-auto lg:mx-0 overflow-hidden rounded-2xl bg-muted">
               <img
                 src={getImageUrl(auction.image)}
                 alt={auction.title}
-                className="w-full rounded-lg shadow-luxury frame-luxury"
+                className="w-full h-full object-cover shadow-2xl"
                 onError={(e) => {
                   console.error('❌ Image failed to load in AuctionDetails:', {
                     original: auction.image,
@@ -207,18 +207,20 @@ const AuctionDetails = () => {
                 }}
                 onLoad={() => console.log('✅ Image loaded successfully in AuctionDetails:', auction.image)}
               />
-              <Badge className="absolute top-4 left-4 bg-accent text-accent-foreground">
-                {auction.status === "live" ? "Live Auction" : "Upcoming"}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none" />
+              <Badge className="absolute top-4 left-4 bg-accent text-white border-0 shadow-lg px-3 py-1.5">
+                {auction.status === "live" ? "🔴 Live Auction" : "📅 Upcoming"}
               </Badge>
             </div>
 
-            <div className="flex space-x-2">
-              <Button variant="outline" size="sm">
-                <Heart className="w-4 h-4 mr-2" />
-                Watch ({auction.watchers})
+            <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
+              <Button variant="outline" size="lg" className="gap-2">
+                <Heart className="w-4 h-4" />
+                <span>Watch</span>
+                <Badge variant="secondary" className="ml-1">{auction.watchers}</Badge>
               </Button>
-              <Button variant="outline" size="sm">
-                <Share2 className="w-4 h-4 mr-2" />
+              <Button variant="outline" size="lg" className="gap-2">
+                <Share2 className="w-4 h-4" />
                 Share
               </Button>
             </div>
@@ -227,48 +229,53 @@ const AuctionDetails = () => {
           {/* Auction Info */}
           <div className="space-y-6">
             {/* Title & Artist */}
-            <div>
-              <h1 className="font-playfair text-3xl font-bold mb-2">{auction.title}</h1>
-              <p className="text-lg text-muted-foreground">
-                by {auction.artistName || auction.artist || "Unknown Artist"}
+            <div className="text-center lg:text-left">
+              <h1 className="font-playfair text-3xl md:text-4xl lg:text-5xl font-bold mb-3 leading-tight">{auction.title}</h1>
+              <p className="text-lg md:text-xl text-muted-foreground mb-3">
+                by <span className="text-accent font-medium">{auction.artistName || auction.artist || "Unknown Artist"}</span>
               </p>
-              <div className="flex items-center mt-2 text-sm text-muted-foreground">
-                <MapPin className="w-4 h-4 mr-1" />
-                {auction.location} • {auction.distance} away
+              <div className="flex items-center justify-center lg:justify-start gap-2 text-sm text-muted-foreground">
+                <MapPin className="w-4 h-4 text-accent" />
+                <span>{auction.location}</span>
+                <span className="text-accent/50">•</span>
+                <span>{auction.distance} away</span>
               </div>
             </div>
 
             {/* Current Bid */}
-            <Card className="border-accent">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Current Bid</p>
-                    <p className="text-3xl font-bold text-accent">
+            <Card className="border-accent/20 shadow-xl bg-gradient-to-br from-accent/5 to-transparent">
+              <CardContent className="p-6 md:p-8">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+                  <div className="text-center sm:text-left">
+                    <p className="text-sm text-muted-foreground mb-1">Current Bid</p>
+                    <p className="text-4xl md:text-5xl font-bold text-accent">
                       R{currentBid.toLocaleString()}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <div className="flex items-center text-accent">
-                      <Clock className="w-4 h-4 mr-1" />
-                      <span className="font-semibold">{displayTimeRemaining}</span>
+                  <div className="text-center sm:text-right">
+                    <div className="flex items-center justify-center sm:justify-end text-accent mb-1">
+                      <Clock className="w-5 h-5 mr-2" />
+                      <span className="text-2xl font-bold">{displayTimeRemaining}</span>
                     </div>
                     <p className="text-sm text-muted-foreground">remaining</p>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex space-x-2">
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Input
                       placeholder={`Min bid: R${nextMinBid.toLocaleString()}`}
-                      className="flex-1"
+                      className="flex-1 h-12 text-lg"
                     />
-                    <Button className="btn-primary" onClick={handlePlaceBid}>
+                    <Button className="btn-primary h-12 px-8 text-lg font-semibold" onClick={handlePlaceBid}>
                       Place Bid
                     </Button>
                   </div>
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>{auction.totalBids} bids</span>
+                  <div className="flex justify-between text-sm text-muted-foreground px-1">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-accent rounded-full"></span>
+                      {auction.totalBids} bids
+                    </span>
                     <span>Next min: R{nextMinBid.toLocaleString()}</span>
                   </div>
                 </div>
@@ -276,52 +283,68 @@ const AuctionDetails = () => {
             </Card>
 
             {/* Artwork Details */}
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="font-semibold mb-4">Artwork Details</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+            <Card className="border-accent/10">
+              <CardContent className="p-6 md:p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
+                    <span className="text-xl">🎨</span>
+                  </div>
+                  <h3 className="text-xl font-semibold">Artwork Details</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-6 text-sm">
                   <div>
-                    <p className="text-muted-foreground">Medium</p>
-                    <p className="font-medium">{auction.medium}</p>
+                    <p className="text-muted-foreground mb-1">Medium</p>
+                    <p className="font-semibold text-base">{auction.medium}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Dimensions</p>
-                    <p className="font-medium">
+                    <p className="text-muted-foreground mb-1">Dimensions</p>
+                    <p className="font-semibold text-base">
                       {auction.dimensions ? formatDimensions(auction.dimensions) : "N/A"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Year</p>
-                    <p className="font-medium">{auction.year}</p>
+                    <p className="text-muted-foreground mb-1">Year</p>
+                    <p className="font-semibold text-base">{auction.year}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Condition</p>
-                    <p className="font-medium">{auction.condition || "N/A"}</p>
+                    <p className="text-muted-foreground mb-1">Condition</p>
+                    <p className="font-semibold text-base">{auction.condition || "N/A"}</p>
                   </div>
                 </div>
-                <div className="mt-4">
-                  <p className="text-muted-foreground text-sm">Description</p>
-                  <p className="mt-1">{auction.description}</p>
+                <div className="mt-6 pt-6 border-t">
+                  <p className="text-muted-foreground text-sm font-medium mb-2">Description</p>
+                  <p className="text-base leading-relaxed">{auction.description}</p>
                 </div>
               </CardContent>
             </Card>
 
             {/* Bid History */}
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="font-semibold mb-4">Recent Bids</h3>
-                <div className="space-y-3">
+            <Card className="border-accent/10">
+              <CardContent className="p-6 md:p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
+                    <span className="text-xl">📊</span>
+                  </div>
+                  <h3 className="text-xl font-semibold">Recent Bids</h3>
+                </div>
+                <div className="space-y-4">
                   {auction.bidHistory?.map((bid, index) => (
-                    <div key={index} className="flex justify-between items-center">
+                    <div key={index} className="flex justify-between items-center p-3 rounded-lg hover:bg-accent/5 transition-colors">
                       <div>
-                        <p className="font-medium">R{bid.amount.toLocaleString()}</p>
+                        <p className="font-bold text-lg text-accent">R{bid.amount.toLocaleString()}</p>
                         <p className="text-sm text-muted-foreground">{bid.bidder}</p>
                       </div>
                       <p className="text-sm text-muted-foreground">{bid.time}</p>
                     </div>
                   ))}
                   {(!auction.bidHistory || auction.bidHistory.length === 0) && (
-                    <p className="text-muted-foreground text-center">No bids yet</p>
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <span className="text-2xl">💰</span>
+                      </div>
+                      <p className="text-muted-foreground">No bids yet</p>
+                      <p className="text-sm text-muted-foreground mt-1">Be the first to place a bid!</p>
+                    </div>
                   )}
                 </div>
               </CardContent>
