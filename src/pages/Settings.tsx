@@ -52,10 +52,10 @@ export default function Settings() {
         given_name: attributes.given_name || "",
         family_name: attributes.family_name || "",
         name: attributes.name || "",
-        bio: attributes.bio || "",
-        location: attributes.location || "",
+        bio: attributes.profile || "",        // Map from 'profile' instead of 'bio'
+        location: attributes.address || "",   // Map from 'address' instead of 'location'
         website: attributes.website || "",
-        instagram: attributes.instagram || "",
+        instagram: attributes.website || "",  // Map from 'website' instead of 'instagram'
         avatar_url: attributes.picture || attributes.avatar_url || "",
       });
 
@@ -85,10 +85,9 @@ export default function Settings() {
           given_name: profile.given_name,
           family_name: profile.family_name,
           name: profile.name,
-          bio: profile.bio,
-          location: profile.location,
-          website: profile.website,
-          instagram: profile.instagram,
+          profile: profile.bio,           // Map to 'profile' instead of 'bio'
+          address: profile.location,      // Map to 'address' instead of 'location'
+          website: profile.instagram,     // Map to 'website' instead of 'instagram'
           picture: profile.avatar_url,
         }
       });
@@ -307,6 +306,26 @@ export default function Settings() {
                     onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
                     placeholder="Tell us about yourself and your art"
                     rows={4}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="location">Location</Label>
+                  <Input
+                    id="location"
+                    value={profile.location}
+                    onChange={(e) => setProfile({ ...profile, location: e.target.value })}
+                    placeholder="Your city or location"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="instagram">Instagram</Label>
+                  <Input
+                    id="instagram"
+                    value={profile.instagram}
+                    onChange={(e) => setProfile({ ...profile, instagram: e.target.value })}
+                    placeholder="Your Instagram username"
                   />
                 </div>
 
