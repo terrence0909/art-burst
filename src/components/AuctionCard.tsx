@@ -6,6 +6,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuctionCompletion } from "../hooks/useAuctionCompletion";
 import { getCurrentUser } from 'aws-amplify/auth';
+import { bidHistoryManager } from "../services/bidHistoryManager";
 
 interface BidHistoryItem {
   id: string;
@@ -92,113 +93,73 @@ const BidHistoryTooltip = ({
     }
   }, [cardRef]);
 
-  const generateSimpleBidHistory = useCallback((auctionId: string, currentBid: number) => {
-    const bids: BidHistoryItem[] = [];
-    
-    bids.push({
-      id: `highest-${auctionId}`,
-      bidAmount: currentBid,
-      bidderId: "current-bidder",
-      bidTime: "Just now",
-      bidderName: "Highest Bidder",
-      isHighest: true
-    });
-    
-    const bidIncrement = Math.max(100, Math.floor(currentBid / 3));
-    
-    if (currentBid > bidIncrement) {
-      bids.push({
-        id: `recent-1-${auctionId}`,
-        bidAmount: currentBid - bidIncrement,
-        bidderId: "user123",
-        bidTime: "15 mins ago",
-        bidderName: "Recent Bidder",
-        isHighest: false
-      });
-    }
-    
-    if (currentBid > bidIncrement * 2) {
-      bids.push({
-        id: `recent-2-${auctionId}`,
-        bidAmount: currentBid - (bidIncrement * 2),
-        bidderId: "user456",
-        bidTime: "30 mins ago",
-        bidderName: "Another Bidder",
-        isHighest: false
-      });
-    }
-    
-    setBidHistory(bids.slice(0, 3));
-  }, []);
-
-  const processAuctionDataForBids = useCallback((auctionsData: any[], targetAuctionId: string, currentBid: number) => {
+  const formatTime = (bidTime: string) => {
     try {
-      const auction = auctionsData.find((a: any) => a.auctionId === targetAuctionId);
+      const date = new Date(bidTime);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
       
-      if (auction) {
-        const bidCount = auction.bidCount || 0;
-        const actualCurrentBid = auction.currentBid || currentBid;
-        
-        if (bidCount > 0) {
-          const bids: BidHistoryItem[] = [{
-            id: `highest-${targetAuctionId}`,
-            bidAmount: actualCurrentBid,
-            bidderId: auction.highestBidder || "highest-bidder",
-            bidTime: "Recently",
-            bidderName: "Highest Bidder",
-            isHighest: true
-          }];
-          
-          setBidHistory(bids);
-        } else {
-          generateSimpleBidHistory(targetAuctionId, actualCurrentBid);
-        }
-      } else {
-        generateSimpleBidHistory(targetAuctionId, currentBid);
-      }
-    } catch (error) {
-      generateSimpleBidHistory(targetAuctionId, currentBid);
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+      const diffDays = Math.floor(diffHours / 24);
+      return `${diffDays}d ago`;
+    } catch {
+      return 'Recently';
     }
-  }, [generateSimpleBidHistory]);
+  };
 
-  const fetchRealBidHistory = useCallback(async (auctionId: string, currentBid: number) => {
+  const fetchRealBidHistory = useCallback(() => {
     if (loading || hasFetchedRef.current) return;
     
     setLoading(true);
     hasFetchedRef.current = true;
     
     try {
-      const authToken = localStorage.getItem('auction-auth-token');
-      const API_BASE = import.meta.env.VITE_API_BASE_URL;
+      // Get real bids from the history manager
+      const realBids = bidHistoryManager.getBidHistory(auctionId, 5);
       
-      const endpoint = `${API_BASE}/auctions`;
-      
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-        },
-      });
-      
-      if (response.ok) {
-        const auctionsData = await response.json();
-        processAuctionDataForBids(auctionsData, auctionId, currentBid);
+      if (realBids.length > 0) {
+        const formattedBids = realBids.map((bid, index) => ({
+          id: bid.bidId,
+          bidAmount: bid.bidAmount,
+          bidderId: bid.bidderId,
+          bidTime: formatTime(bid.bidTime),
+          bidderName: bid.bidderName || `Bidder ${bid.bidderId.slice(-6)}`,
+          isHighest: index === 0
+        }));
+        
+        setBidHistory(formattedBids);
+        console.log(`✅ Loaded ${formattedBids.length} real bids from history`);
       } else {
-        generateSimpleBidHistory(auctionId, currentBid);
+        // No bids yet - show empty state
+        setBidHistory([]);
+        console.log('📭 No bids in history yet');
       }
     } catch (error) {
-      generateSimpleBidHistory(auctionId, currentBid);
+      console.error('Error loading bid history:', error);
+      setBidHistory([]);
     } finally {
       setLoading(false);
     }
-  }, [loading, processAuctionDataForBids, generateSimpleBidHistory]);
+  }, [auctionId, loading]);
 
   useEffect(() => {
     if (isVisible && stableAuctionId) {
-      fetchRealBidHistory(stableAuctionId, currentBid);
+      fetchRealBidHistory();
+      
+      // Refresh every 2 seconds while tooltip is visible
+      const interval = setInterval(() => {
+        hasFetchedRef.current = false;
+        setLoading(false);
+        fetchRealBidHistory();
+      }, 2000);
+      
+      return () => clearInterval(interval);
     }
-  }, [isVisible, stableAuctionId, currentBid, fetchRealBidHistory]);
+  }, [isVisible, stableAuctionId, fetchRealBidHistory]);
 
   useEffect(() => {
     if (!isVisible || !cardRef.current) return;
@@ -260,9 +221,9 @@ const BidHistoryTooltip = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <TrendingUp className="w-4 h-4 text-blue-300" />
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Bid History</h3>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Live Bid History</h3>
                 <Badge variant="secondary" className="text-xs bg-white/20 text-gray-800 dark:text-gray-200">
-                  {bidHistory.length} shown
+                  {bidHistory.length} bids
                 </Badge>
               </div>
               {isMobile && (
@@ -314,8 +275,9 @@ const BidHistoryTooltip = ({
                           {bid.bidderName}
                         </span>
                         {bid.isHighest && (
-                          <span className="text-xs bg-green-400/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">
-                            Highest
+                          <span className="text-xs bg-green-400/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full flex items-center">
+                            <Trophy className="w-3 h-3 mr-1" />
+                            Leading
                           </span>
                         )}
                       </div>
@@ -366,21 +328,18 @@ export const AuctionCard = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Monitor Cognito authentication state using Amplify Auth
   useEffect(() => {
     let mounted = true;
 
     const checkAuth = async () => {
       try {
         setAuthLoading(true);
-        // Check if user is authenticated with Cognito - same as in AuthPage
         const user = await getCurrentUser();
         if (mounted) {
           setIsAuthenticated(true);
           setAuthLoading(false);
         }
       } catch (error) {
-        // No current authenticated user - same as in AuthPage
         if (mounted) {
           setIsAuthenticated(false);
           setAuthLoading(false);
@@ -388,11 +347,8 @@ export const AuctionCard = ({
       }
     };
 
-    // Check initially
     checkAuth();
-
-    // Set up interval to check auth state periodically
-    const interval = setInterval(checkAuth, 3000); // Check every 3 seconds
+    const interval = setInterval(checkAuth, 3000);
 
     return () => {
       mounted = false;
@@ -400,7 +356,6 @@ export const AuctionCard = ({
     };
   }, []);
 
-  // Use the actual endDate from props, no fake generation
   const actualEndTime = useMemo(() => {
     if (endDate && new Date(endDate).toString() !== 'Invalid Date') {
       return endDate;
@@ -506,7 +461,6 @@ export const AuctionCard = ({
       }
     }
     
-    // Live auction - use timeUntilEnd from hook
     if (actualStatus === 'live') {
       if (!timeUntilEnd || timeUntilEnd <= 0) {
         return 'Ending soon';
@@ -527,7 +481,6 @@ export const AuctionCard = ({
       }
     }
     
-    // Fallback to prop value
     return timeRemaining;
   }, [actualStatus, timeUntilStart, timeUntilEnd, timeRemaining]);
 
@@ -577,7 +530,6 @@ export const AuctionCard = ({
       };
     }
 
-    // Show loading state while checking authentication
     if (authLoading) {
       return {
         disabled: true,
@@ -586,7 +538,6 @@ export const AuctionCard = ({
       };
     }
 
-    // Authentication check - grey out Place Bid button if not signed in with Cognito
     if (!isAuthenticated) {
       return {
         disabled: true,

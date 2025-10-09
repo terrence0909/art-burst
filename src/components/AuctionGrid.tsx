@@ -1,10 +1,10 @@
-// src/components/AuctionGrid.tsx
 import { AuctionCard } from "./AuctionCard";
 import { useAuctions } from "../hooks/useAuctions";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { createWebSocketService, WebSocketMessage } from "../services/websocket";
 import { useParams } from 'react-router-dom';
+import { bidHistoryManager } from "../services/bidHistoryManager";
 
 export const AuctionGrid = () => {
   const { toast } = useToast();
@@ -21,11 +21,10 @@ export const AuctionGrid = () => {
   const lastToastTimeRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wsServiceRef = useRef<any>(null);
-  const pendingBidsRef = useRef<Set<string>>(new Set()); // Track pending bids
+  const pendingBidsRef = useRef<Set<string>>(new Set());
 
   const { auctionId: routeAuctionId } = useParams();
 
-  // Generate/get auth token
   useEffect(() => {
     let token = localStorage.getItem('auction-auth-token');
     if (!token) {
@@ -36,7 +35,6 @@ export const AuctionGrid = () => {
     console.log('🔐 Using auth token:', token.substring(0, 20) + '...');
   }, [currentUserId]);
 
-  // WebSocket connection with retry
   const connectWebSocket = useCallback(async () => {
     if (!authToken) return;
     if (wsServiceRef.current?.isConnected()) return;
@@ -89,7 +87,6 @@ export const AuctionGrid = () => {
     };
   }, [authToken, connectWebSocket]);
 
-  // Heartbeat
   useEffect(() => {
     if (!wsServiceRef.current) return;
     const interval = setInterval(async () => {
@@ -100,12 +97,11 @@ export const AuctionGrid = () => {
     return () => clearInterval(interval);
   }, [connectWebSocket]);
 
-  // Handle bid updates - FIXED: Don't revert optimistic updates
   const handleBidUpdate = useCallback((message: WebSocketMessage) => {
     if (message.message?.includes('Subscription') || message.message?.includes('Subscribed')) return;
 
     if (message.action === 'bidUpdate' && message.bid && message.auctionId) {
-      const { bidAmount, bidderId, bidTime } = message.bid;
+      const { bidAmount, bidderId, bidTime, bidId } = message.bid;
       const auctionId = message.auctionId;
 
       const messageId = `${auctionId}-${bidAmount}-${bidTime}`;
@@ -118,11 +114,9 @@ export const AuctionGrid = () => {
       const currentAuction = auctions.find(a => a.auctionId === auctionId);
       if (!currentAuction) return;
 
-      // Check if this is a pending bid we already optimistically updated
       const pendingBidKey = `${auctionId}-${bidderId}`;
       const wasMyPendingBid = pendingBidsRef.current.has(pendingBidKey);
       
-      // Remove from pending
       if (wasMyPendingBid) {
         pendingBidsRef.current.delete(pendingBidKey);
       }
@@ -131,14 +125,22 @@ export const AuctionGrid = () => {
       const wasMyBid = bidderId === currentUserId;
       const isNewHighestBidder = bidderId !== previousHighestBidder;
 
-      // Calculate new bidder count
+      // *** ADD BID TO HISTORY MANAGER ***
+      bidHistoryManager.addBid(auctionId, {
+        bidId: bidId || `bid-${Date.now()}`,
+        auctionId,
+        bidAmount,
+        bidderId,
+        bidderName: wasMyBid ? 'You' : `Bidder ${bidderId.slice(-6)}`,
+        bidTime: bidTime || new Date().toISOString(),
+        timestamp: new Date(bidTime || Date.now()).getTime()
+      });
+
       let newBidderCount = currentAuction.bidders || 0;
       if (isNewHighestBidder && !wasMyPendingBid) {
-        // Only increment if this is a new bidder AND we didn't already optimistically update
         newBidderCount += 1;
       }
 
-      // CRITICAL: Always update to the latest bid info from server
       updateAuction(auctionId, {
         currentBid: bidAmount,
         bidders: newBidderCount,
@@ -152,12 +154,10 @@ export const AuctionGrid = () => {
 
         if (wasMyBid) {
           if (!wasMyPendingBid) {
-            // Only show success toast if we didn't already show it optimistically
             toastTitle = "🎉 Bid Confirmed!";
             toastDescription = `Your bid of R${bidAmount.toLocaleString()} on "${currentAuction.title}" is confirmed`;
           }
         } else {
-          // Someone else placed a bid
           toastTitle = "🔥 New Bid Alert!";
           toastDescription = `R${bidAmount.toLocaleString()} bid placed on "${currentAuction.title}"`;
           
@@ -172,7 +172,6 @@ export const AuctionGrid = () => {
     }
   }, [updateAuction, toast, currentUserId, auctions]);
 
-  // Subscribe
   useEffect(() => {
     if (!wsServiceRef.current) return;
     const subscribe = () => {
@@ -194,7 +193,6 @@ export const AuctionGrid = () => {
     };
   }, [handleBidUpdate]);
 
-  // Place bid - FIXED: Better optimistic updates
   const handlePlaceBid = async (auctionId: string) => {
     if (isPlacingBid) {
       toast({ title: "⏳ Please Wait", description: "Previous bid still processing...", duration: 2000 });
@@ -229,11 +227,9 @@ export const AuctionGrid = () => {
         throw new Error(`Bid must be at least R${minBid.toLocaleString()}`);
       }
 
-      // Mark this bid as pending
       const pendingBidKey = `${auctionId}-${currentUserId}`;
       pendingBidsRef.current.add(pendingBidKey);
 
-      // Optimistic update - only increment bidders if I wasn't already the highest bidder
       const isNewBidder = auction.highestBidder !== currentUserId;
       updateAuction(auctionId, {
         currentBid: bidAmount,
@@ -241,14 +237,12 @@ export const AuctionGrid = () => {
         highestBidder: currentUserId
       });
 
-      // Show optimistic success toast
       toast({ 
         title: "🎉 Bid Placed!", 
         description: `Placing bid of R${bidAmount.toLocaleString()}...`, 
         duration: 3000 
       });
 
-      // Send bid to server
       if (wsServiceRef.current?.isConnected()) {
         await wsServiceRef.current.placeBid(auctionId, bidAmount, currentUserId);
       } else {
@@ -261,18 +255,14 @@ export const AuctionGrid = () => {
         if (!response.ok) {
           throw new Error(`Bid failed: ${response.status}`);
         }
-        
-        // Server confirmation will come through WebSocket, don't update again here
       }
 
     } catch (error: any) {
       console.error('Bid error:', error);
       
-      // Remove from pending on error
       const pendingBidKey = `${auctionId}-${currentUserId}`;
       pendingBidsRef.current.delete(pendingBidKey);
       
-      // Revert optimistic update by refetching
       await refetch();
       
       if (error.message !== "Bid cancelled by user") {
