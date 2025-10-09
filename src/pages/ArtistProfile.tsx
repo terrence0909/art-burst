@@ -98,7 +98,7 @@ const ArtistProfile = () => {
           artistId: id!,
           name: firstAuction.artistName || "Unknown Artist",
           email: "",
-          profileImage: "/placeholder-avatar.jpg",
+          profileImage: localStorage.getItem('userAvatar') || "/placeholder-avatar.jpg",
           bio: "A talented artist creating beautiful works. More information coming soon.",
           location: firstAuction.location || "Location not specified",
           createdAt: firstAuction.createdAt || new Date().toISOString(),
