@@ -10,11 +10,11 @@ interface AuctionCompletionProps {
   isHighestBidder: boolean;
   auctionTitle: string;
   startDate?: string;
-  status?: 'live' | 'upcoming' | 'ended';
+  status?: 'live' | 'upcoming' | 'ended' | 'closed';
 }
 
 interface UseAuctionCompletionReturn {
-  auctionStatus: 'live' | 'ended' | 'upcoming';
+  auctionStatus: 'live' | 'ended' | 'upcoming' | 'closed';
   timeUntilEnd: number;
   isAuctionActive: boolean;
   timeUntilStart: number;
@@ -32,7 +32,7 @@ export const useAuctionCompletion = ({
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const [auctionStatus, setAuctionStatus] = useState<'live' | 'ended' | 'upcoming'>(status);
+  const [auctionStatus, setAuctionStatus] = useState<'live' | 'ended' | 'upcoming' | 'closed'>(status);
   const [timeUntilEnd, setTimeUntilEnd] = useState(0);
   const [timeUntilStart, setTimeUntilStart] = useState(0);
   const hasNotifiedRef = useRef(false);
@@ -58,9 +58,11 @@ export const useAuctionCompletion = ({
     setTimeUntilEnd(timeUntilEnd);
     setTimeUntilStart(timeUntilStart);
 
-    let newStatus: 'live' | 'ended' | 'upcoming';
+    let newStatus: 'live' | 'ended' | 'upcoming' | 'closed';
     
-    if (timeUntilEnd <= 0) {
+    if (status === 'closed') {
+      newStatus = 'closed';
+    } else if (timeUntilEnd <= 0) {
       newStatus = 'ended';
     } else if (startTimeMs && timeUntilStart > 0) {
       newStatus = 'upcoming';
@@ -111,7 +113,7 @@ export const useAuctionCompletion = ({
         }, 500);
       }
     }
-  }, [endDate, startDate, auctionId, isHighestBidder, currentBid, auctionTitle, toast]);
+  }, [endDate, startDate, auctionId, isHighestBidder, currentBid, auctionTitle, toast, status]);
 
   useEffect(() => {
     const handleFirstClick = () => {

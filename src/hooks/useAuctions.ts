@@ -22,7 +22,8 @@ export const useAuctions = () => {
     status: ((auction.status || auction.auctionStatus || "upcoming").toLowerCase() as
       | "live"
       | "upcoming"
-      | "ended"),
+      | "ended"
+      | "closed"),
     location: auction.location ?? "",
     distance: auction.distance ?? "",
     bidders: auction.bidders ?? auction.bidCount ?? 0,

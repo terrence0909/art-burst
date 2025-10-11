@@ -27,7 +27,7 @@ interface AuctionCardProps {
   location: string;
   bidders?: number;
   image: string;
-  status: "live" | "upcoming" | "ended";
+  status: "live" | "upcoming" | "ended" | "closed";
   distance?: string;
   onPlaceBid?: (auctionId: string) => void;
   isBidding?: boolean;
@@ -431,6 +431,8 @@ export const AuctionCard = ({
           return <Badge className="bg-green-500 text-white"><Trophy className="w-3 h-3 mr-1" />WON</Badge>;
         }
         return <Badge className="status-ended">ENDED</Badge>;
+      case "closed":
+        return <Badge className="bg-purple-600 text-white">SOLD</Badge>;
       default:
         return <Badge className="status-upcoming">UNKNOWN</Badge>;
     }
@@ -521,6 +523,15 @@ export const AuctionCard = ({
         disabled: true,
         text: "Auction Ended",
         className: "w-full bg-gray-500 text-gray-300 cursor-not-allowed"
+      };
+    }
+
+    // Handle sold/closed auctions
+    if (actualStatus === "closed" || status === "closed") {
+      return {
+        disabled: true,
+        text: "Sold",
+        className: "w-full bg-purple-600 text-white cursor-not-allowed"
       };
     }
 
