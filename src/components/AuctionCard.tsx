@@ -498,28 +498,30 @@ export const AuctionCard = ({
       };
     }
 
-    if (actualStatus === "ended") {
-      if (isUserHighestBidder) {
-        return {
-          disabled: false,
-          text: (
-            <>
-              <Trophy className="w-4 h-4 mr-2" />
-              You Won! Pay Now
-            </>
-          ),
-          className: "w-full bg-green-600 hover:bg-green-700 text-white",
-          onClick: () => {
-            navigate(`/payment?auctionId=${id}&amount=${currentBid}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&image=${image}`);
-          }
-        };
-      } else {
-        return {
-          disabled: true,
-          text: "Auction Ended",
-          className: "w-full bg-gray-500 text-gray-300 cursor-not-allowed"
-        };
-      }
+    // 🎯 FIX: Always show "You Won! Pay Now" for winners, regardless of time status
+    if (isUserHighestBidder && (actualStatus === "ended" || status === "ended")) {
+      return {
+        disabled: false,
+        text: (
+          <>
+            <Trophy className="w-4 h-4 mr-2" />
+            You Won! Pay Now
+          </>
+        ),
+        className: "w-full bg-green-600 hover:bg-green-700 text-white",
+        onClick: () => {
+          navigate(`/payment?auctionId=${id}&amount=${currentBid}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&image=${image}`);
+        }
+      };
+    }
+
+    // For non-winners, show status-based buttons
+    if (actualStatus === "ended" || status === "ended") {
+      return {
+        disabled: true,
+        text: "Auction Ended",
+        className: "w-full bg-gray-500 text-gray-300 cursor-not-allowed"
+      };
     }
 
     if (actualStatus === "upcoming") {
@@ -560,7 +562,7 @@ export const AuctionCard = ({
       className: "w-full btn-primary",
       onClick: () => onPlaceBid?.(id)
     };
-  }, [isAuthenticated, authLoading, isBidding, actualStatus, isUserHighestBidder, id, currentBid, title, artist, image, onPlaceBid, canPlaceBid, navigate]);
+  }, [isAuthenticated, authLoading, isBidding, actualStatus, status, isUserHighestBidder, id, currentBid, title, artist, image, onPlaceBid, canPlaceBid, navigate]);
 
   const buttonState = getButtonState();
   const formattedBid = currentBid ? currentBid.toLocaleString() : '0';

@@ -12,7 +12,16 @@ export const AuctionGrid = () => {
   const { auctions, loading, error, refetch, updateAuction } = useAuctions();
   const [isPlacingBid, setIsPlacingBid] = useState(false);
   const [biddingAuctionId, setBiddingAuctionId] = useState<string | null>(null);
-  const [currentUserId] = useState(() => `user-${Math.random().toString(36).substring(2, 10)}`);
+  const [currentUserId] = useState(() => {
+    // Try to get existing user ID from localStorage
+    const storedUserId = localStorage.getItem('auction-user-id');
+    if (storedUserId) return storedUserId;
+    
+    // Create new user ID and store it
+    const newUserId = `user-${Math.random().toString(36).substring(2, 10)}`;
+    localStorage.setItem('auction-user-id', newUserId);
+    return newUserId;
+  });
   const [wsService, setWsService] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionAttempts, setConnectionAttempts] = useState(0);
