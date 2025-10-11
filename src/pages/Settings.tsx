@@ -56,7 +56,7 @@ export default function Settings() {
         location: attributes.address || "",   // Map from 'address' instead of 'location'
         website: attributes.website || "",
         instagram: attributes.website || "",  // Map from 'website' instead of 'instagram'
-        avatar_url: attributes.picture || attributes.avatar_url || "",
+        avatar_url: attributes.picture || attributes.avatar_url || localStorage.getItem('userAvatar') || "",
       });
 
       // Load preferences from localStorage
@@ -112,19 +112,8 @@ export default function Settings() {
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files || !event.target.files[0] || !user) return;
-
-    const file = event.target.files[0];
-    
-    // Validate file size (5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please select an image smaller than 5MB.",
-        variant: "destructive",
-      });
-      return;
-    }
+    const file = event.target.files?.[0];
+    if (!file) return;
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -136,17 +125,62 @@ export default function Settings() {
       return;
     }
 
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image smaller than 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setUploading(true);
     try {
-      // For now, use a placeholder since S3 upload might need configuration
-      const avatarUrl = URL.createObjectURL(file);
-      setProfile({ ...profile, avatar_url: avatarUrl });
-      localStorage.setItem('userAvatar', avatarUrl);
+      // Get current user for unique filename
+      const currentUser = await getCurrentUser();
+      const userId = currentUser.userId;
+      
+      // Create unique filename using same format as CreateAuction
+      const key = `profile-pictures/${userId}/${Date.now()}_${file.name}`;
+
+      // Upload to S3 using the same syntax as CreateAuction
+      await uploadData({
+        key: key,
+        data: file,
+        options: {
+          contentType: file.type
+        }
+      }).result;
+
+      // Get the S3 URL (same format as auctions)
+      const s3Url = `https://art-burst.s3.us-east-1.amazonaws.com/public/${key}`;
+      
+      // Update profile with permanent S3 URL
+      setProfile({ ...profile, avatar_url: s3Url });
+      
+      // Save to Cognito user attributes
+      await updateUserAttributes({
+        userAttributes: {
+          picture: s3Url,
+          // Also update other profile fields to maintain consistency
+          given_name: profile.given_name,
+          family_name: profile.family_name,
+          name: profile.name,
+          profile: profile.bio,
+          address: profile.location,
+          website: profile.instagram,
+        }
+      });
+
+      // Also save to localStorage for immediate access
+      localStorage.setItem('userAvatar', s3Url);
 
       toast({
         title: "Avatar uploaded",
         description: "Your profile picture has been updated successfully.",
       });
+
     } catch (error: any) {
       console.error("Error uploading avatar:", error);
       toast({
@@ -290,12 +324,12 @@ export default function Settings() {
 
                 <div className="space-y-2">
                   <Label htmlFor="name">Display Name</Label>
-                  <Input
-                    id="name"
-                    value={profile.name}
-                    onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                    placeholder="How you want to be displayed"
-                  />
+                    <Input
+                      id="name"
+                      value={profile.name}
+                      onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                      placeholder="How you want to be displayed"
+                    />
                 </div>
 
                 <div className="space-y-2">
