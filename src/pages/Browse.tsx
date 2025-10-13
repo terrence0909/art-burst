@@ -1,4 +1,11 @@
-import { useState, useEffect } from "react";
+// FIRST: Install Leaflet
+// npm install leaflet react-leaflet
+// npm install -D @types/leaflet
+
+// SECOND: Add to your index.html or main layout:
+// <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Search, Filter, MapPin, Grid, List, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +20,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/use-toast";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 
-// Update this to your API Gateway endpoint
 const API_BASE = "/api";
 
 interface Auction {
@@ -24,7 +30,7 @@ interface Auction {
   currentBid: number;
   timeRemaining: string;
   image: string;
-  status: "live" | "upcoming" | "ended";
+  status: "live" | "upcoming" | "ended" | "closed";
   location: string;
   distance: string;
   medium?: string;
@@ -33,9 +39,13 @@ interface Auction {
   startDate?: string;
   endDate?: string;
   highestBidder?: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+    province: string;
+  };
 }
 
-// Filter state interface
 interface Filters {
   category: string;
   priceRange: string;
@@ -43,6 +53,320 @@ interface Filters {
   status: string;
   sortBy: string;
 }
+
+// South Africa coordinates for major cities
+const SOUTH_AFRICA_CITIES = [
+  { name: "Johannesburg", coordinates: { lat: -26.2041, lng: 28.0473, province: "Gauteng" } },
+  { name: "Cape Town", coordinates: { lat: -33.9249, lng: 18.4241, province: "Western Cape" } },
+  { name: "Durban", coordinates: { lat: -29.8587, lng: 31.0218, province: "KwaZulu-Natal" } },
+  { name: "Pretoria", coordinates: { lat: -25.7479, lng: 28.2293, province: "Gauteng" } },
+  { name: "Port Elizabeth", coordinates: { lat: -33.9608, lng: 25.6022, province: "Eastern Cape" } },
+  { name: "Bloemfontein", coordinates: { lat: -29.0852, lng: 26.1596, province: "Free State" } },
+  { name: "Potchefstroom", coordinates: { lat: -26.7145, lng: 27.0970, province: "North West" } },
+  { name: "Emakhazeni", coordinates: { lat: -25.6419, lng: 30.4630, province: "Mpumalanga" } },
+  { name: "Stellenbosch", coordinates: { lat: -33.9321, lng: 18.8602, province: "Western Cape" } },
+  { name: "Polokwane", coordinates: { lat: -23.9045, lng: 29.4689, province: "Limpopo" } }
+];
+
+const generateCoordinates = (location: string) => {
+  const normalizedLocation = location.toLowerCase();
+  
+  for (const city of SOUTH_AFRICA_CITIES) {
+    if (normalizedLocation.includes(city.name.toLowerCase())) {
+      return {
+        lat: city.coordinates.lat + (Math.random() - 0.5) * 0.05,
+        lng: city.coordinates.lng + (Math.random() - 0.5) * 0.05,
+        province: city.coordinates.province
+      };
+    }
+  }
+  
+  const randomCity = SOUTH_AFRICA_CITIES[Math.floor(Math.random() * SOUTH_AFRICA_CITIES.length)];
+  return {
+    lat: randomCity.coordinates.lat + (Math.random() - 0.5) * 0.05,
+    lng: randomCity.coordinates.lng + (Math.random() - 0.5) * 0.05,
+    province: randomCity.coordinates.province
+  };
+};
+
+// Map Component with glassy style
+const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initMap = async () => {
+      try {
+        if (!document.querySelector('link[href*="leaflet"]')) {
+          const link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+          link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+          link.crossOrigin = '';
+          document.head.appendChild(link);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        const L = (await import('leaflet')).default;
+        
+        if (!mounted || !mapRef.current) return;
+
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.remove();
+          mapInstanceRef.current = null;
+        }
+
+        const map = L.map(mapRef.current, {
+          center: [-28.4793, 24.6727],
+          zoom: 6,
+          zoomControl: true,
+          scrollWheelZoom: false,
+          dragging: true,
+          tap: false,
+          doubleClickZoom: false,
+          boxZoom: false,
+          keyboard: false,
+          touchZoom: false,
+        });
+        
+        mapInstanceRef.current = map;
+
+        // Use a stylish map tile layer
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          maxZoom: 19,
+          subdomains: 'abcd',
+        }).addTo(map);
+
+        // Add a subtle gradient overlay for glass effect
+        const style = document.createElement('style');
+        style.innerHTML = `
+          .leaflet-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          }
+          .glass-marker {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+          }
+          .glass-popup .leaflet-popup-content-wrapper {
+            backdrop-filter: blur(16px) saturate(180%);
+            background: rgba(255, 255, 255, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+          }
+          .glass-popup .leaflet-popup-tip {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(16px);
+          }
+        `;
+        document.head.appendChild(style);
+        
+        const createCustomIcon = (status: string) => {
+          const colors = {
+            live: '#10b981',
+            closed: '#8b5cf6',
+            ended: '#ef4444',
+            upcoming: '#3b82f6'
+          };
+          
+          const color = colors[status as keyof typeof colors] || '#6b7280';
+          
+          return L.divIcon({
+            className: 'glass-marker',
+            html: `
+              <div style="position: relative;">
+                <div style="
+                  background: ${color};
+                  width: 32px;
+                  height: 32px;
+                  border-radius: 50%;
+                  border: 3px solid rgba(255, 255, 255, 0.8);
+                  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  backdrop-filter: blur(10px);
+                  ${status === 'live' ? 'animation: pulse-marker 2s infinite;' : ''}
+                ">
+                  <span style="font-size: 14px; color: white;">🎨</span>
+                </div>
+                ${status === 'live' ? `
+                  <div style="
+                    position: absolute;
+                    top: -2px;
+                    left: -2px;
+                    right: -2px;
+                    bottom: -2px;
+                    border-radius: 50%;
+                    background: ${color};
+                    opacity: 0.4;
+                    animation: ripple 2s infinite;
+                  "></div>
+                ` : ''}
+              </div>
+            `,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16],
+            popupAnchor: [0, -16]
+          });
+        };
+
+        if (!document.getElementById('marker-animations')) {
+          const style = document.createElement('style');
+          style.id = 'marker-animations';
+          style.innerHTML = `
+            @keyframes pulse-marker {
+              0%, 100% { transform: scale(1); opacity: 1; }
+              50% { transform: scale(1.1); opacity: 0.9; }
+            }
+            @keyframes ripple {
+              0% { transform: scale(1); opacity: 0.4; }
+              100% { transform: scale(1.5); opacity: 0; }
+            }
+          `;
+          document.head.appendChild(style);
+        }
+
+        const bounds = L.latLngBounds([]);
+        
+        auctions.forEach(auction => {
+          if (!auction.coordinates) return;
+
+          const marker = L.marker(
+            [auction.coordinates.lat, auction.coordinates.lng],
+            { icon: createCustomIcon(auction.status) }
+          ).addTo(map);
+
+          const popupContent = `
+            <div style="padding: 16px; min-width: 240px; font-family: system-ui, -apple-system, sans-serif;">
+              <img 
+                src="${auction.image}" 
+                alt="${auction.title}"
+                style="width: 100%; height: 140px; object-fit: cover; border-radius: 12px; margin-bottom: 12px; border: 1px solid rgba(255, 255, 255, 0.2);"
+                onerror="this.src='/placeholder-artwork.jpg'"
+              />
+              <h3 style="font-weight: 700; font-size: 18px; margin: 0 0 6px 0; color: #1f2937; background: linear-gradient(135deg, #1f2937, #4b5563); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                ${auction.title}
+              </h3>
+              <p style="font-size: 14px; color: #6b7280; margin: 0 0 10px 0; font-weight: 500;">
+                by ${auction.artist}
+              </p>
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 8px 12px; background: rgba(255, 255, 255, 0.5); border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.2);">
+                <span style="
+                  padding: 6px 12px;
+                  border-radius: 8px;
+                  font-size: 12px;
+                  font-weight: 700;
+                  text-transform: uppercase;
+                  background: ${auction.status === 'live' ? '#10b981' : auction.status === 'upcoming' ? '#3b82f6' : auction.status === 'ended' ? '#ef4444' : '#8b5cf6'};
+                  color: white;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                ">
+                  ${auction.status}
+                </span>
+                <span style="font-weight: 800; color: #10b981; font-size: 18px; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                  R${auction.currentBid.toLocaleString()}
+                </span>
+              </div>
+              <div style="font-size: 13px; color: #6b7280; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; font-weight: 500;">
+                <span style="background: rgba(59, 130, 246, 0.1); padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2);">
+                  📍 ${auction.location}
+                </span>
+              </div>
+              <button 
+                onclick="window.location.href='/auction/${auction.id}'"
+                style="
+                  width: 100%;
+                  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+                  color: white;
+                  border: none;
+                  padding: 12px 16px;
+                  border-radius: 10px;
+                  font-weight: 700;
+                  font-size: 14px;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+                  backdrop-filter: blur(10px);
+                "
+                onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 20px rgba(59, 130, 246, 0.4)'"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.3)'"
+              >
+                View Auction →
+              </button>
+            </div>
+          `;
+
+          marker.bindPopup(popupContent, {
+            maxWidth: 280,
+            className: 'glass-popup'
+          });
+
+          bounds.extend([auction.coordinates.lat, auction.coordinates.lng]);
+        });
+
+        if (auctions.length > 0 && bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+        }
+
+        if (mounted) {
+          setMapReady(true);
+          setMapError(null);
+        }
+
+      } catch (error) {
+        console.error('Map initialization error:', error);
+        if (mounted) {
+          setMapError('Failed to load map');
+        }
+      }
+    };
+
+    initMap();
+
+    return () => {
+      mounted = false;
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [auctions]);
+
+  if (mapError) {
+    return (
+      <div className="w-full h-[500px] rounded-2xl border border-white/20 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center backdrop-blur-sm">
+        <div className="text-center space-y-2">
+          <MapPin className="w-12 h-12 mx-auto text-blue-400" />
+          <p className="text-blue-600 font-medium">{mapError}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full h-[500px] rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-gradient-to-br from-blue-50 to-indigo-100 backdrop-blur-sm">
+      {!mapReady && (
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center z-10 backdrop-blur-sm">
+          <div className="text-center">
+            <div className="relative w-16 h-16 mx-auto mb-4">
+              <div className="absolute inset-0 border-4 border-blue-200 rounded-full animate-ping"></div>
+              <div className="relative w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <p className="text-blue-700 font-medium">Loading map...</p>
+          </div>
+        </div>
+      )}
+      <div ref={mapRef} className="w-full h-full rounded-2xl" />
+    </div>
+  );
+};
 
 const Browse = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -54,8 +378,9 @@ const Browse = () => {
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   
-  // Filter states
   const [filters, setFilters] = useState<Filters>({
     category: "all",
     priceRange: "all",
@@ -63,9 +388,19 @@ const Browse = () => {
     status: "all",
     sortBy: "ending-soon"
   });
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
-  // Sync with URL parameters when component loads
+  useEffect(() => {
+    const getUserId = async () => {
+      try {
+        const { username } = await getCurrentUser();
+        setCurrentUserId(username);
+      } catch (error) {
+        console.log('User not logged in');
+      }
+    };
+    getUserId();
+  }, []);
+
   useEffect(() => {
     if (urlQuery) {
       setSearchQuery(urlQuery);
@@ -88,43 +423,43 @@ const Browse = () => {
       }
       
       const data = await response.json();
-      
-      // Handle both Lambda proxy format and direct array response
       const auctionData = data.body ? JSON.parse(data.body) : data;
       
       if (!Array.isArray(auctionData)) {
         throw new Error('Invalid data format received from API');
       }
 
-      // Use EXACT same data as AuctionGrid - no recalculation
-      const transformedAuctions: Auction[] = auctionData.map((auction: any) => ({
-        id: auction.auctionId || auction.id,
-        title: auction.title || `Auction ${auction.auctionId}`,
-        artist: auction.artistName || auction.artist || "Unknown Artist",
-        artistId: auction.artistId,
-        currentBid: auction.currentBid || auction.startingBid || 0,
-        // Use the exact timeRemaining from API (same as grid)
-        timeRemaining: auction.timeRemaining || "",
-        image: auction.image || (auction.images && auction.images[0]) || '/placeholder-artwork.jpg',
-        // Use the exact status from API (same as grid)
-        status: auction.status || "upcoming",
-        location: auction.location || "Location not specified",
-        distance: auction.distance || "0 km",
-        medium: auction.medium,
-        year: auction.year,
-        bidders: auction.bidders || auction.bidCount || 0,
-        // Include additional fields that AuctionCard might need
-        startDate: auction.startDate,
-        endDate: auction.endDate,
-        highestBidder: auction.highestBidder
-      }));
+      const transformedAuctions: Auction[] = auctionData.map((auction: any) => {
+        const location = auction.location || "Johannesburg";
+        const coordinates = generateCoordinates(location);
+        
+        return {
+          id: auction.auctionId || auction.id,
+          title: auction.title || `Auction ${auction.auctionId}`,
+          artist: auction.artistName || auction.artist || "Unknown Artist",
+          artistId: auction.artistId,
+          currentBid: auction.currentBid || auction.startingBid || 0,
+          timeRemaining: auction.timeRemaining || "",
+          image: auction.image || (auction.images && auction.images[0]) || '/placeholder-artwork.jpg',
+          status: auction.status || "upcoming",
+          location: location,
+          distance: auction.distance || "0 km",
+          medium: auction.medium,
+          year: auction.year,
+          bidders: auction.bidders || auction.bidCount || 0,
+          startDate: auction.startDate,
+          endDate: auction.endDate,
+          highestBidder: auction.highestBidder,
+          coordinates
+        };
+      });
       
       setAuctions(transformedAuctions);
       
     } catch (err) {
       console.error('Error fetching auctions:', err);
       setError(err instanceof Error ? err.message : 'Failed to load auctions');
-      setAuctions([]); // Clear auctions on error
+      setAuctions([]);
     } finally {
       setLoading(false);
     }
@@ -132,7 +467,6 @@ const Browse = () => {
 
   const handlePlaceBid = async (auctionId: string) => {
     try {
-      // Get current user and authentication tokens
       const { username: userId } = await getCurrentUser();
       const { tokens } = await fetchAuthSession();
       
@@ -145,47 +479,28 @@ const Browse = () => {
         return;
       }
 
-      // Get the current auction to show minimum bid
       const auction = auctions.find(a => a.id === auctionId);
-      if (!auction) {
-        toast({
-          title: "Error",
-          description: "Auction not found",
-          variant: "destructive"
-        });
-        return;
-      }
+      if (!auction) return;
 
-      const minBid = auction.currentBid + 100; // Minimum increment of R100
-      
+      const minBid = auction.currentBid + 100;
       const bidAmount = Number(
         prompt(`Enter your bid amount (Minimum: R${minBid.toLocaleString()}):`)
       );
       
-      if (!bidAmount || isNaN(bidAmount)) {
+      if (!bidAmount || isNaN(bidAmount) || bidAmount < minBid) {
         toast({
           title: "Invalid bid",
-          description: "Please enter a valid number",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (bidAmount < minBid) {
-        toast({
-          title: "Bid too low",
           description: `Bid must be at least R${minBid.toLocaleString()}`,
           variant: "destructive"
         });
         return;
       }
 
-      // Call your existing placeBid API with Cognito authentication
       const response = await fetch(`${API_BASE}/auctions/bid`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${tokens.idToken.toString()}` // Cognito authentication
+          'Authorization': `Bearer ${tokens.idToken.toString()}`
         },
         body: JSON.stringify({
           auctionId,
@@ -195,106 +510,96 @@ const Browse = () => {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to place bid');
+        throw new Error('Failed to place bid');
       }
-      
-      const result = await response.json();
       
       toast({
         title: "Success!",
         description: "Your bid has been placed successfully",
       });
       
-      // Update local state immediately for better UX
-      setAuctions(prev => prev.map(auction => 
-        auction.id === auctionId 
-          ? { 
-              ...auction, 
-              currentBid: bidAmount,
-              bidders: (auction.bidders || 0) + 1
-            }
-          : auction
+      setAuctions(prev => prev.map(a => 
+        a.id === auctionId 
+          ? { ...a, currentBid: bidAmount, bidders: (a.bidders || 0) + 1 }
+          : a
       ));
       
     } catch (error) {
-      console.error('Error placing bid:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to place bid',
+        description: "Failed to place bid",
         variant: "destructive"
       });
     }
   };
 
-  // Enhanced filtering with all filters
   const filteredAuctions = auctions.filter(auction => {
     const searchTerm = searchQuery.toLowerCase();
     const locationTerm = urlLocation.toLowerCase();
     
-    // Query matching
     const matchesQuery = searchQuery ? 
       auction.title.toLowerCase().includes(searchTerm) ||
       auction.artist.toLowerCase().includes(searchTerm) ||
       auction.medium?.toLowerCase().includes(searchTerm)
       : true;
     
-    // Location matching
     const matchesLocation = urlLocation ?
       auction.location.toLowerCase().includes(locationTerm)
       : true;
 
-    // Category filter
     const matchesCategory = filters.category === "all" || 
-      (filters.category === "paintings" && auction.medium?.toLowerCase().includes("oil")) ||
-      (filters.category === "paintings" && auction.medium?.toLowerCase().includes("acrylic")) ||
-      (filters.category === "paintings" && auction.medium?.toLowerCase().includes("watercolor")) ||
-      (filters.category === "sculptures" && auction.medium?.toLowerCase().includes("sculpture")) ||
-      (filters.category === "photography" && auction.medium?.toLowerCase().includes("photo")) ||
-      (filters.category === "digital" && auction.medium?.toLowerCase().includes("digital"));
+      auction.medium?.toLowerCase().includes(filters.category.toLowerCase());
 
-    // Price range filter
     const matchesPrice = filters.priceRange === "all" ||
       (filters.priceRange === "under500" && auction.currentBid < 500) ||
       (filters.priceRange === "500-1000" && auction.currentBid >= 500 && auction.currentBid <= 1000) ||
       (filters.priceRange === "1000-2500" && auction.currentBid >= 1000 && auction.currentBid <= 2500) ||
       (filters.priceRange === "over2500" && auction.currentBid > 2500);
 
-    // Status filter
     const matchesStatus = filters.status === "all" || auction.status === filters.status;
 
-    // Distance filter (simplified - using numeric distance)
-    const auctionDistance = parseFloat(auction.distance.split(' ')[0]);
-    const matchesDistance = filters.distance === "all" ||
-      (filters.distance === "5" && auctionDistance <= 5) ||
-      (filters.distance === "10" && auctionDistance <= 10) ||
-      (filters.distance === "25" && auctionDistance <= 25) ||
-      (filters.distance === "50" && auctionDistance <= 50);
-
-    return matchesQuery && matchesLocation && matchesCategory && matchesPrice && matchesStatus && matchesDistance;
+    return matchesQuery && matchesLocation && matchesCategory && matchesPrice && matchesStatus;
   });
 
-  // Sorting function
-  const sortedAuctions = [...filteredAuctions].sort((a, b) => {
-    switch (filters.sortBy) {
-      case "ending-soon":
-        return a.timeRemaining.localeCompare(b.timeRemaining);
-      case "newest":
-        return b.id.localeCompare(a.id);
-      case "price-low":
-        return a.currentBid - b.currentBid;
-      case "price-high":
-        return b.currentBid - a.currentBid;
-      case "distance":
-        const aDist = parseFloat(a.distance.split(' ')[0]);
-        const bDist = parseFloat(b.distance.split(' ')[0]);
-        return aDist - bDist;
-      default:
-        return 0;
-    }
-  });
+  const sortedAuctions = useMemo(() => {
+    return [...filteredAuctions].sort((a, b) => {
+      switch (filters.sortBy) {
+        case "ending-soon":
+          return a.timeRemaining.localeCompare(b.timeRemaining);
+        case "newest":
+          return b.id.localeCompare(a.id);
+        case "price-low":
+          return a.currentBid - b.currentBid;
+        case "price-high":
+          return b.currentBid - a.currentBid;
+        default:
+          return 0;
+      }
+    });
+  }, [filteredAuctions, filters.sortBy]);
 
-  // Update URL when search changes
+  // Get top 3 featured auctions (mix of live auctions and recently created/upcoming)
+  const featuredAuctions = useMemo(() => {
+    return [...sortedAuctions]
+      .sort((a, b) => {
+        // Prioritize live auctions first
+        if (a.status === 'live' && b.status !== 'live') return -1;
+        if (a.status !== 'live' && b.status === 'live') return 1;
+        
+        // Then prioritize upcoming auctions
+        if (a.status === 'upcoming' && b.status !== 'upcoming') return -1;
+        if (a.status !== 'upcoming' && b.status === 'upcoming') return 1;
+        
+        // Then prioritize recently created (by ID or start date)
+        const aDate = a.startDate ? new Date(a.startDate).getTime() : parseInt(a.id);
+        const bDate = b.startDate ? new Date(b.startDate).getTime() : parseInt(b.id);
+        
+        // Sort by most recent first
+        return bDate - aDate;
+      })
+      .slice(0, 3);
+  }, [sortedAuctions]);
+
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
     if (value) {
@@ -305,7 +610,6 @@ const Browse = () => {
     setSearchParams(searchParams);
   };
 
-  // Clear all filters
   const clearAllFilters = () => {
     setSearchQuery('');
     setFilters({
@@ -318,19 +622,11 @@ const Browse = () => {
     setSearchParams({});
   };
 
-  // Check if any filters are active
   const hasActiveFilters = searchQuery || urlLocation || 
-    Object.values(filters).some(filter => filter !== "all");
+    Object.values(filters).some(filter => filter !== "all" && filter !== "ending-soon");
 
-  // Remove individual filter
   const removeFilter = (filterType: keyof Filters) => {
     setFilters(prev => ({ ...prev, [filterType]: "all" }));
-  };
-
-  // Simple distance calculation (same as grid might use)
-  const calculateDistance = (location: string): string => {
-    const distances = ["2.3 km", "5.1 km", "8.7 km", "12.4 km", "15.9 km"];
-    return distances[Math.floor(Math.random() * distances.length)];
   };
 
   if (loading) {
@@ -338,38 +634,18 @@ const Browse = () => {
       <div className="min-h-screen bg-background">
         <Header />
         <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {[...Array(8)].map((_, i) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
               <Card key={i} className="animate-pulse">
                 <CardContent className="p-0">
                   <Skeleton className="h-48 w-full rounded-t-lg" />
                   <div className="p-4 space-y-2">
                     <Skeleton className="h-4 w-3/4" />
                     <Skeleton className="h-3 w-1/2" />
-                    <Skeleton className="h-3 w-1/3" />
-                    <Skeleton className="h-6 w-1/4" />
                   </div>
                 </CardContent>
               </Card>
             ))}
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  if (error && auctions.length === 0) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="container mx-auto px-4 py-8 text-center">
-          <div className="bg-destructive/15 text-destructive p-4 rounded-md max-w-md mx-auto">
-            <h3 className="font-semibold">Error Loading Auctions</h3>
-            <p className="text-sm mt-1">{error}</p>
-            <Button onClick={fetchAuctions} className="mt-4">
-              Try Again
-            </Button>
           </div>
         </div>
         <Footer />
@@ -394,7 +670,7 @@ const Browse = () => {
                 onChange={(e) => handleSearchChange(e.target.value)}
               />
             </div>
-            <div className="flex space-x-2">
+            <div className="flex space-x-2 overflow-x-auto pb-2">
               <Select 
                 value={filters.category} 
                 onValueChange={(value) => setFilters(prev => ({ ...prev, category: value }))}
@@ -453,56 +729,38 @@ const Browse = () => {
             </div>
           </div>
 
-          {/* More Filters Dropdown */}
           {showMoreFilters && (
-            <div className="bg-muted/50 p-4 rounded-lg space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Auction Status</label>
-                  <Select 
-                    value={filters.status} 
-                    onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="live">Live Only</SelectItem>
-                      <SelectItem value="upcoming">Upcoming</SelectItem>
-                      <SelectItem value="ended">Ended</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="bg-muted/50 p-4 rounded-lg">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select 
+                  value={filters.status} 
+                  onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="live">Live Only</SelectItem>
+                    <SelectItem value="upcoming">Upcoming</SelectItem>
+                    <SelectItem value="ended">Ended</SelectItem>
+                  </SelectContent>
+                </Select>
                 
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Sort By</label>
-                  <Select 
-                    value={filters.sortBy} 
-                    onValueChange={(value) => setFilters(prev => ({ ...prev, sortBy: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ending-soon">Ending Soon</SelectItem>
-                      <SelectItem value="newest">Newest First</SelectItem>
-                      <SelectItem value="price-low">Price: Low to High</SelectItem>
-                      <SelectItem value="price-high">Price: High to Low</SelectItem>
-                      <SelectItem value="distance">Distance</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="flex items-end">
-                  <Button 
-                    variant="outline" 
-                    onClick={clearAllFilters}
-                    className="w-full"
-                  >
-                    Clear All Filters
-                  </Button>
-                </div>
+                <Select 
+                  value={filters.sortBy} 
+                  onValueChange={(value) => setFilters(prev => ({ ...prev, sortBy: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ending-soon">Ending Soon</SelectItem>
+                    <SelectItem value="newest">Newest First</SelectItem>
+                    <SelectItem value="price-low">Price: Low to High</SelectItem>
+                    <SelectItem value="price-high">Price: High to Low</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
@@ -513,58 +771,39 @@ const Browse = () => {
               <span className="text-sm text-muted-foreground">Active filters:</span>
               
               {urlLocation && (
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  <MapPin className="w-3 h-3" />
+                <Badge variant="secondary">
+                  <MapPin className="w-3 h-3 mr-1" />
                   {urlLocation}
-                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => setSearchParams(prev => {
-                    prev.delete('location');
-                    return prev;
-                  })} />
+                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => {
+                    searchParams.delete('location');
+                    setSearchParams(searchParams);
+                  }} />
                 </Badge>
               )}
               
               {searchQuery && (
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  <Search className="w-3 h-3" />
+                <Badge variant="secondary">
+                  <Search className="w-3 h-3 mr-1" />
                   "{searchQuery}"
                   <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => handleSearchChange('')} />
                 </Badge>
               )}
               
               {filters.category !== "all" && (
-                <Badge variant="secondary" className="flex items-center gap-1">
+                <Badge variant="secondary">
                   Category: {filters.category}
                   <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFilter('category')} />
                 </Badge>
               )}
               
-              {filters.priceRange !== "all" && (
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  Price: {filters.priceRange}
-                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFilter('priceRange')} />
-                </Badge>
-              )}
-              
-              {filters.distance !== "all" && (
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  Distance: {filters.distance}km
-                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFilter('distance')} />
-                </Badge>
-              )}
-              
               {filters.status !== "all" && (
-                <Badge variant="secondary" className="flex items-center gap-1">
+                <Badge variant="secondary">
                   Status: {filters.status}
                   <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFilter('status')} />
                 </Badge>
               )}
               
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={clearAllFilters}
-                className="text-xs"
-              >
+              <Button variant="ghost" size="sm" onClick={clearAllFilters}>
                 Clear all
               </Button>
             </div>
@@ -575,16 +814,27 @@ const Browse = () => {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="font-playfair text-2xl font-bold">
-              {urlLocation || searchQuery || hasActiveFilters ? "Search Results" : "Browse Auctions"}
+              {searchQuery || urlLocation ? "Search Results" : "Browse Auctions"}
             </h1>
-            <p className="text-muted-foreground">
-              {sortedAuctions.length} {sortedAuctions.length === 1 ? 'auction' : 'auctions'} found
-              {urlLocation && ` in ${urlLocation}`}
-              {searchQuery && ` for "${searchQuery}"`}
-            </p>
+            <p className="text-muted-foreground">{sortedAuctions.length} auctions found</p>
           </div>
           
           <div className="flex items-center space-x-2">
+            <Select 
+              value={filters.sortBy}
+              onValueChange={(value) => setFilters(prev => ({ ...prev, sortBy: value }))}
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ending-soon">Ending Soon</SelectItem>
+                <SelectItem value="newest">Newest First</SelectItem>
+                <SelectItem value="price-low">Price: Low to High</SelectItem>
+                <SelectItem value="price-high">Price: High to Low</SelectItem>
+              </SelectContent>
+            </Select>
+            
             <div className="flex border rounded-md">
               <Button
                 variant={viewMode === "grid" ? "default" : "ghost"}
@@ -606,82 +856,80 @@ const Browse = () => {
           </div>
         </div>
 
-        {/* Auction Grid/List */}
-        {sortedAuctions.length === 0 ? (
-          <div className="text-center py-16">
-            <Search className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">No auctions found</h3>
-            <p className="text-muted-foreground mb-6">
-              {searchQuery || urlLocation || hasActiveFilters ? 
-                "Try adjusting your search terms or filters" : 
-                "No auctions available at the moment"
-              }
-            </p>
-            <Button onClick={clearAllFilters}>
-              Browse All Auctions
-            </Button>
-          </div>
-        ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {sortedAuctions.map((auction) => (
-              <AuctionCard 
-                key={auction.id} 
-                {...auction} 
-                artistId={auction.artistId}
-                onPlaceBid={handlePlaceBid}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {sortedAuctions.map((auction) => (
-              <Card key={auction.id} className="hover:shadow-luxury transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex space-x-4">
-                    <img 
-                      src={auction.image} 
-                      alt={auction.title}
-                      className="w-24 h-24 object-cover rounded-md frame-luxury"
-                    />
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{auction.title}</h3>
-                      <p className="text-muted-foreground">by {auction.artist}</p>
-                      <div className="flex items-center mt-1 text-sm text-muted-foreground">
-                        <MapPin className="w-3 h-3 mr-1" />
-                        {auction.location} • {auction.distance}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {auction.medium} • {auction.year}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-muted-foreground">Current Bid</p>
-                      <p className="text-xl font-bold text-accent">R {auction.currentBid.toLocaleString()}</p>
-                      <p className="text-sm text-muted-foreground">{auction.timeRemaining} left</p>
-                      <Badge className="mt-2">
-                        {auction.status === "live" ? "Live" : auction.status === "ended" ? "Ended" : "Upcoming"}
-                      </Badge>
-                      <Button 
-                        className="mt-4 w-full"
-                        onClick={() => handlePlaceBid(auction.id)}
-                        disabled={auction.status !== "live"}
-                      >
-                        {auction.status === "live" ? "Place Bid" : "Auction Ended"}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+        {/* Featured Auctions Section - Only 3 cards */}
+        {featuredAuctions.length > 0 && (
+          <div className="mb-8">
+            <h2 className="font-playfair text-xl font-bold mb-4">Featured Auctions</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {featuredAuctions.map((auction) => (
+                <AuctionCard
+                  key={auction.id}
+                  id={auction.id}
+                  title={auction.title}
+                  artist={auction.artist}
+                  artistId={auction.artistId}
+                  currentBid={auction.currentBid}
+                  timeRemaining={auction.timeRemaining}
+                  location={auction.location}
+                  bidders={auction.bidders}
+                  image={auction.image}
+                  status={auction.status}
+                  distance={auction.distance}
+                  onPlaceBid={handlePlaceBid}
+                  endDate={auction.endDate}
+                  startDate={auction.startDate}
+                  currentUserId={currentUserId}
+                  highestBidder={auction.highestBidder}
+                />
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Refresh Button */}
-        {sortedAuctions.length > 0 && (
-          <div className="text-center mt-8">
-            <Button variant="outline" size="lg" onClick={fetchAuctions}>
-              Refresh Auctions
-            </Button>
+        {/* Map Section - Glassy style */}
+        <div className="mb-8">
+          <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-white/20 shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-white/20 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 backdrop-blur-sm">
+              <div className="flex items-center justify-center">
+                <h3 className="font-playfair text-xl font-bold text-gray-800 flex items-center">
+                  <MapPin className="w-5 h-5 mr-2 text-blue-600" />
+                  South Africa
+                </h3>
+              </div>
+            </div>
+
+            <div className="p-2 sm:p-4">
+              <AuctionMap auctions={sortedAuctions} />
+            </div>
+
+            <div className="p-3 sm:p-4 border-t border-white/20 bg-gray-50/80 backdrop-blur-sm">
+              <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-2 text-sm text-gray-600">
+                <div className="flex items-center justify-center xs:justify-start space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="w-4 h-4 text-blue-500" />
+                    <span>{sortedAuctions.length} auctions</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>{sortedAuctions.filter(a => a.status === 'live').length} live</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* No Results */}
+        {sortedAuctions.length === 0 && !loading && (
+          <div className="text-center py-12">
+            <div className="text-muted-foreground space-y-2">
+              <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <h3 className="font-semibold text-lg">No auctions found</h3>
+              <p>Try adjusting your search criteria or filters</p>
+              <Button onClick={clearAllFilters} className="mt-4">
+                Clear All Filters
+              </Button>
+            </div>
           </div>
         )}
       </div>
