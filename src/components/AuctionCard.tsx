@@ -36,6 +36,7 @@ interface AuctionCardProps {
   currentUserId?: string;
   highestBidder?: string;
   canPlaceBid?: boolean;
+  compact?: boolean; // Add compact prop
 }
 
 const BidHistoryTooltip = ({ 
@@ -317,7 +318,8 @@ export const AuctionCard = ({
   startDate,
   currentUserId,
   highestBidder,
-  canPlaceBid = true
+  canPlaceBid = true,
+  compact = false // Default to false
 }: AuctionCardProps) => {
   const navigate = useNavigate();
   const [showBidHistory, setShowBidHistory] = useState(false);
@@ -423,20 +425,20 @@ export const AuctionCard = ({
   const getStatusBadge = useCallback(() => {
     switch (actualStatus) {
       case "live":
-        return <Badge className="status-live">● LIVE</Badge>;
+        return <Badge className={`status-live ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}>● LIVE</Badge>;
       case "upcoming":
-        return <Badge className="status-upcoming">UPCOMING</Badge>;
+        return <Badge className={`status-upcoming ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}>UPCOMING</Badge>;
       case "ended":
         if (isUserHighestBidder) {
-          return <Badge className="bg-green-500 text-white"><Trophy className="w-3 h-3 mr-1" />WON</Badge>;
+          return <Badge className={`bg-green-500 text-white ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}><Trophy className="w-3 h-3 mr-1" />WON</Badge>;
         }
-        return <Badge className="status-ended">ENDED</Badge>;
+        return <Badge className={`status-ended ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}>ENDED</Badge>;
       case "closed":
-        return <Badge className="bg-purple-600 text-white">SOLD</Badge>;
+        return <Badge className={`bg-purple-600 text-white ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}>SOLD</Badge>;
       default:
-        return <Badge className="status-upcoming">UNKNOWN</Badge>;
+        return <Badge className={`status-upcoming ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}>UNKNOWN</Badge>;
     }
-  }, [actualStatus, isUserHighestBidder]);
+  }, [actualStatus, isUserHighestBidder, compact]);
 
   const formatTimeRemaining = useCallback(() => {
     if (actualStatus === 'ended') {
@@ -582,7 +584,7 @@ export const AuctionCard = ({
     <>
       <Card 
         ref={cardRef}
-        className={`auction-card group relative ${actualStatus === 'ended' ? 'opacity-90' : ''}`}
+        className={`auction-card group relative ${actualStatus === 'ended' ? 'opacity-90' : ''} ${compact ? 'md:h-full' : ''}`}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
@@ -616,8 +618,8 @@ export const AuctionCard = ({
               {getStatusBadge()}
             </div>
             <div className="absolute top-3 right-3 flex items-center space-x-2">
-              <Badge className="location-badge">
-                <MapPin className="w-3 h-3 mr-1" />
+              <Badge className={`location-badge ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}>
+                <MapPin className={`${compact ? 'md:w-3 md:h-3' : 'w-3 h-3'} mr-1`} />
                 {location}
               </Badge>
               {isMobile && (
@@ -633,11 +635,11 @@ export const AuctionCard = ({
           </div>
         </CardHeader>
         
-        <CardContent className="p-4">
-          <h3 className="font-playfair font-semibold text-lg mb-1 text-foreground">
+        <CardContent className={`${compact ? 'p-4 md:p-3' : 'p-4'}`}>
+          <h3 className={`font-playfair font-semibold ${compact ? 'text-lg md:text-base' : 'text-lg'} mb-1 text-foreground`}>
             {title}
           </h3>
-          <p className="text-muted-foreground text-sm mb-3">
+          <p className={`text-muted-foreground ${compact ? 'text-sm md:text-xs' : 'text-sm'} mb-3`}>
             by{" "}
             {artistId ? (
               <Link 
@@ -654,10 +656,10 @@ export const AuctionCard = ({
           
           <div className="flex justify-between items-center mb-3">
             <div>
-              <p className="text-xs text-muted-foreground">
+              <p className={`${compact ? 'text-xs md:text-xs' : 'text-xs'} text-muted-foreground`}>
                 {actualStatus === 'ended' ? 'Final Bid' : 'Current Bid'}
               </p>
-              <p className={`text-xl font-bold ${
+              <p className={`${compact ? 'text-xl md:text-lg' : 'text-xl'} font-bold ${
                 isUserHighestBidder && actualStatus === 'ended' 
                   ? 'text-green-600' 
                   : 'text-gradient'
@@ -666,21 +668,21 @@ export const AuctionCard = ({
               </p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">
+              <p className={`${compact ? 'text-xs md:text-xs' : 'text-xs'} text-muted-foreground`}>
                 {actualStatus === 'ended' ? 'Status' : actualStatus === 'upcoming' ? 'Starts In' : 'Time Left'}
               </p>
-              <p className={`text-sm font-medium flex items-center ${
+              <p className={`${compact ? 'text-sm md:text-xs' : 'text-sm'} font-medium flex items-center ${
                 actualStatus === 'ended' ? 'text-gray-600' : ''
               } ${timeUntilEnd < 300000 && actualStatus === 'live' ? 'text-red-500 animate-pulse' : ''}`}>
-                <Clock className="w-3 h-3 mr-1" />
+                <Clock className={`${compact ? 'md:w-3 md:h-3' : 'w-3 h-3'} mr-1`} />
                 {formatTimeRemaining()}
               </p>
             </div>
           </div>
           
-          <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
+          <div className={`flex items-center justify-between ${compact ? 'text-xs md:text-xs' : 'text-xs'} text-muted-foreground mb-4`}>
             <div className="flex items-center">
-              <Users className="w-3 h-3 mr-1" />
+              <Users className={`${compact ? 'md:w-3 md:h-3' : 'w-3 h-3'} mr-1`} />
               {bidders} bidder{bidders !== 1 ? 's' : ''}
             </div>
             {isMobile && (
@@ -701,7 +703,7 @@ export const AuctionCard = ({
           </div>
         </CardContent>
         
-        <CardFooter className="p-4 pt-0">
+        <CardFooter className={`${compact ? 'p-4 md:p-3 md:pt-0' : 'p-4 pt-0'}`}>
           <Button 
             className={buttonState.className}
             disabled={buttonState.disabled}

@@ -259,9 +259,9 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
               </p>
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 8px 12px; background: rgba(255, 255, 255, 0.5); border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.2);">
                 <span style="
-                  padding: 6px 12px;
-                  border-radius: 8px;
-                  font-size: 12px;
+                  padding: 4px 10px;
+                  border-radius: 6px;
+                  font-size: 10px;
                   font-weight: 700;
                   text-transform: uppercase;
                   background: ${auction.status === 'live' ? '#10b981' : auction.status === 'upcoming' ? '#3b82f6' : auction.status === 'ended' ? '#ef4444' : '#8b5cf6'};
@@ -274,8 +274,8 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
                   R${auction.currentBid.toLocaleString()}
                 </span>
               </div>
-              <div style="font-size: 13px; color: #6b7280; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; font-weight: 500;">
-                <span style="background: rgba(59, 130, 246, 0.1); padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2);">
+              <div style="font-size: 11px; color: #6b7280; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; font-weight: 500;">
+                <span style="background: rgba(59, 130, 246, 0.1); padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2);">
                   📍 ${auction.location}
                 </span>
               </div>
@@ -372,6 +372,40 @@ const Browse = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlQuery = searchParams.get('query') || '';
   const urlLocation = searchParams.get('location') || '';
+
+  // Add custom styles for browse page featured auctions
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.id = 'browse-featured-styles';
+    style.innerHTML = `
+      @media (min-width: 768px) {
+        .browse-featured-auctions .location-badge {
+          font-size: 0.7rem !important;
+          padding: 0.25rem 0.5rem !important;
+        }
+        .browse-featured-auctions .location-badge svg {
+          width: 0.75rem !important;
+          height: 0.75rem !important;
+        }
+        .browse-featured-auctions .status-live,
+        .browse-featured-auctions .status-upcoming,
+        .browse-featured-auctions .status-ended,
+        .browse-featured-auctions .bg-purple-600,
+        .browse-featured-auctions .bg-green-500 {
+          font-size: 0.7rem !important;
+          padding: 0.25rem 0.5rem !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      const existingStyle = document.getElementById('browse-featured-styles');
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+    };
+  }, []);
   
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState(urlQuery);
@@ -860,7 +894,7 @@ const Browse = () => {
         {featuredAuctions.length > 0 && (
           <div className="mb-8">
             <h2 className="font-playfair text-xl font-bold mb-4">Featured Auctions</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 browse-featured-auctions">
               {featuredAuctions.map((auction) => (
                 <AuctionCard
                   key={auction.id}
@@ -880,6 +914,7 @@ const Browse = () => {
                   startDate={auction.startDate}
                   currentUserId={currentUserId}
                   highestBidder={auction.highestBidder}
+                  compact={true}
                 />
               ))}
             </div>
