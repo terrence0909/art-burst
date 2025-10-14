@@ -5,7 +5,6 @@ import { Button } from "./ui/button";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuctionCompletion } from "../hooks/useAuctionCompletion";
-import { getCurrentUser } from 'aws-amplify/auth';
 import { bidHistoryManager } from "../services/bidHistoryManager";
 
 interface BidHistoryItem {
@@ -325,43 +324,14 @@ export const AuctionCard = ({
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
-
-    const checkAuth = async () => {
-      try {
-        setAuthLoading(true);
-        const user = await getCurrentUser();
-        if (mounted) {
-          setIsAuthenticated(true);
-          setAuthLoading(false);
-        }
-      } catch (error) {
-        if (mounted) {
-          setIsAuthenticated(false);
-          setAuthLoading(false);
-        }
-      }
-    };
-
-    checkAuth();
-    const interval = setInterval(checkAuth, 3000);
-
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
+    // Mock auth check - assume authenticated for now
+    setIsAuthenticated(true);
+    setAuthLoading(false);
   }, []);
-
-  const actualEndTime = useMemo(() => {
-    if (endDate && new Date(endDate).toString() !== 'Invalid Date') {
-      return endDate;
-    }
-    return null;
-  }, [endDate]);
 
   const { auctionStatus, timeUntilEnd, isAuctionActive, timeUntilStart } = useAuctionCompletion({
     auctionId: id,
-    endDate: actualEndTime || endDate || "",
+    endDate: endDate || "",
     startDate: startDate || "",
     currentBid,
     isHighestBidder: currentUserId === highestBidder,
@@ -435,7 +405,7 @@ export const AuctionCard = ({
   }, [actualStatus, isUserHighestBidder, compact]);
 
   const formatTimeRemaining = useCallback(() => {
-    if (actualStatus === 'ended') {
+    if (actualStatus === 'ended' || actualStatus === 'closed') {
       return 'Auction Ended';
     }
     
@@ -479,8 +449,8 @@ export const AuctionCard = ({
       }
     }
     
-    return timeRemaining;
-  }, [actualStatus, timeUntilStart, timeUntilEnd, timeRemaining]);
+    return 'Calculating...';
+  }, [actualStatus, timeUntilStart, timeUntilEnd]);
 
   const getButtonState = useCallback(() => {
     if (isBidding) {
@@ -523,8 +493,8 @@ export const AuctionCard = ({
     if (actualStatus === "closed" || status === "closed") {
       return {
         disabled: true,
-        text: <span className="text-gradient text-xl font-bold uppercase">SOLD</span>,
-        className: "w-full bg-transparent cursor-not-allowed border-0"
+        text: <span className="text-gradient text-2xl font-extrabold uppercase tracking-wide">SOLD</span>,
+        className: "w-full bg-transparent hover:bg-transparent cursor-not-allowed border-0 shadow-none"
       };
     }
 
@@ -662,9 +632,7 @@ export const AuctionCard = ({
               <p className={`${compact ? 'text-xs md:text-xs' : 'text-xs'} text-muted-foreground`}>
                 {actualStatus === 'ended' ? 'Status' : actualStatus === 'upcoming' ? 'Starts In' : 'Time Left'}
               </p>
-              <p className={`${compact ? 'text-sm md:text-xs' : 'text-sm'} font-medium flex items-center ${
-                actualStatus === 'ended' ? 'text-gray-600' : ''
-              } ${timeUntilEnd < 300000 && actualStatus === 'live' ? 'text-red-500 animate-pulse' : ''}`}>
+              <p className={`${compact ? 'text-sm md:text-xs' : 'text-sm'} font-medium flex items-center text-gray-600`}>
                 <Clock className={`${compact ? 'md:w-3 md:h-3' : 'w-3 h-3'} mr-1`} />
                 {formatTimeRemaining()}
               </p>
