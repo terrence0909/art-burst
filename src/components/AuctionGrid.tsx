@@ -6,6 +6,7 @@ import { createWebSocketService, WebSocketMessage } from "../services/websocket"
 import { useParams } from 'react-router-dom';
 import { bidHistoryManager } from "../services/bidHistoryManager";
 import { fetchUserAttributes } from "aws-amplify/auth";
+import { notificationService } from "../services/notificationService";
 
 export const AuctionGrid = () => {
   const { toast } = useToast();
@@ -161,6 +162,37 @@ export const AuctionGrid = () => {
       const wasMyBid = bidderId === currentUserId;
       const isNewHighestBidder = bidderId !== previousHighestBidder;
 
+      // 🔥 NOTIFICATION: Send outbid notification to previous highest bidder
+      if (previousHighestBidder && previousHighestBidder !== bidderId) {
+        notificationService.addNotification({
+          type: 'OUTBID',
+          title: "You've been outbid!",
+          message: `Someone placed a higher bid of R${bidAmount.toLocaleString()} on "${currentAuction.title}"`,
+          userId: previousHighestBidder,
+          relatedId: auctionId,
+          metadata: { 
+            auctionTitle: currentAuction.title, 
+            bidAmount,
+            newBidderId: bidderId 
+          }
+        });
+      }
+
+      // 🔥 NOTIFICATION: Send bid confirmation to the bidder
+      if (wasMyBid && !wasMyPendingBid) {
+        notificationService.addNotification({
+          type: 'BID_CONFIRMED',
+          title: "Bid Confirmed!",
+          message: `Your bid of R${bidAmount.toLocaleString()} on "${currentAuction.title}" is confirmed`,
+          userId: bidderId,
+          relatedId: auctionId,
+          metadata: { 
+            auctionTitle: currentAuction.title, 
+            bidAmount 
+          }
+        });
+      }
+
       // 🔥 GET REAL BIDDER NAME
       const bidderName = await getBidderDisplayName(bidderId, currentUserId);
 
@@ -275,6 +307,42 @@ export const AuctionGrid = () => {
       } 
     };
   }, [handleWebSocketMessage]);
+
+  // Step 5: Add auction ending notifications
+  const checkAuctionEnding = useCallback(() => {
+    auctions.forEach(auction => {
+      if (auction.endDate && auction.status === 'live') {
+        const endTime = new Date(auction.endDate).getTime();
+        const now = Date.now();
+        const timeRemaining = endTime - now;
+        
+        // Notify if auction ends in 5 minutes
+        if (timeRemaining > 0 && timeRemaining <= 5 * 60 * 1000) {
+          // Notify all bidders and watchers
+          // For now, just notify the current highest bidder
+          if (auction.highestBidder) {
+            notificationService.addNotification({
+              type: 'AUCTION_ENDING',
+              title: "Auction ending soon!",
+              message: `"${auction.title}" ends in ${Math.ceil(timeRemaining / 60000)} minutes`,
+              userId: auction.highestBidder,
+              relatedId: auction.auctionId,
+              metadata: { 
+                auctionTitle: auction.title, 
+                minutesRemaining: Math.ceil(timeRemaining / 60000) 
+              }
+            });
+          }
+        }
+      }
+    });
+  }, [auctions]);
+
+  // Add this useEffect to check every minute
+  useEffect(() => {
+    const interval = setInterval(checkAuctionEnding, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [checkAuctionEnding]);
 
   const handlePlaceBid = async (auctionId: string) => {
     if (isPlacingBid) {

@@ -2,8 +2,8 @@
 import { toast } from 'react-toastify';
 
 export interface WebSocketMessage {
-  action?: 'bidUpdate' | 'subscribe' | 'placeBid' | 'ping' | 'pong' | 'unsubscribe' | 'auctionEnded';
-  type?: 'NEW_BID' | 'AUCTION_UPDATE' | 'SUBSCRIPTION_CONFIRMED' | 'ERROR' | 'AUCTION_ENDED';
+  action?: 'bidUpdate' | 'subscribe' | 'placeBid' | 'ping' | 'pong' | 'unsubscribe' | 'auctionEnded' | 'notification';
+  type?: 'NEW_BID' | 'AUCTION_UPDATE' | 'SUBSCRIPTION_CONFIRMED' | 'ERROR' | 'AUCTION_ENDED' | 'NOTIFICATION';
   message?: string;
   auctionId?: string;
   bid?: {
@@ -18,6 +18,15 @@ export interface WebSocketMessage {
   timestamp?: string;
   connectionId?: string;
   requestId?: string;
+  // Add notification support
+  notification?: {
+    type: string;
+    title: string;
+    message: string;
+    userId: string;
+    relatedId?: string;
+    metadata?: any;
+  };
 }
 
 export class WebSocketAuctionService {

@@ -15,31 +15,61 @@ import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentCancelled from "./pages/PaymentCancelled";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
+import { NotificationsProvider } from "./context/NotificationsContext";
+import { getCurrentUser } from "aws-amplify/auth";
+import { useState, useEffect } from "react";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      {/* Removed BrowserRouter wrapper - it will be in main.tsx */}
-      <Routes>
-        <Route path="/" element={<Index />} />
-        <Route path="/auction/:id" element={<AuctionDetails />} />
-        <Route path="/browse" element={<Browse />} />
-        <Route path="/artist/:id" element={<ArtistProfile />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/auth" element={<AuthPage />} />
-        <Route path="/create" element={<CreateAuction />} />
-        <Route path="/payment" element={<PaymentPage />} /> {/* Add this line */}
-        <Route path="*" element={<NotFound />} />
-        <Route path="/payment-success" element={<PaymentSuccess />} />
-        <Route path="/payment-cancelled" element={<PaymentCancelled />} />
-        <Route path="/settings" element={<Settings />} />
-      </Routes>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+
+  useEffect(() => {
+    const getUserId = async () => {
+      try {
+        const user = await getCurrentUser();
+        setCurrentUserId(user.username);
+      } catch (error) {
+        console.log('User not logged in');
+        // Use a fallback for anonymous users
+        const storedUserId = localStorage.getItem('auction-user-id');
+        if (storedUserId) {
+          setCurrentUserId(storedUserId);
+        } else {
+          const newUserId = `user-${Math.random().toString(36).substring(2, 10)}`;
+          localStorage.setItem('auction-user-id', newUserId);
+          setCurrentUserId(newUserId);
+        }
+      }
+    };
+    getUserId();
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <NotificationsProvider userId={currentUserId}>
+          <Toaster />
+          <Sonner />
+          {/* Removed BrowserRouter wrapper - it will be in main.tsx */}
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auction/:id" element={<AuctionDetails />} />
+            <Route path="/browse" element={<Browse />} />
+            <Route path="/artist/:id" element={<ArtistProfile />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/create" element={<CreateAuction />} />
+            <Route path="/payment" element={<PaymentPage />} /> {/* Add this line */}
+            <Route path="*" element={<NotFound />} />
+            <Route path="/payment-success" element={<PaymentSuccess />} />
+            <Route path="/payment-cancelled" element={<PaymentCancelled />} />
+            <Route path="/settings" element={<Settings />} />
+          </Routes>
+        </NotificationsProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
