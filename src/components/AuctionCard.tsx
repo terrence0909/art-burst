@@ -36,7 +36,7 @@ interface AuctionCardProps {
   currentUserId?: string;
   highestBidder?: string;
   canPlaceBid?: boolean;
-  compact?: boolean; // Add compact prop
+  compact?: boolean;
 }
 
 const BidHistoryTooltip = ({ 
@@ -119,7 +119,6 @@ const BidHistoryTooltip = ({
     hasFetchedRef.current = true;
     
     try {
-      // Get real bids from the history manager
       const realBids = bidHistoryManager.getBidHistory(auctionId, 5);
       
       if (realBids.length > 0) {
@@ -133,14 +132,10 @@ const BidHistoryTooltip = ({
         }));
         
         setBidHistory(formattedBids);
-        console.log(`✅ Loaded ${formattedBids.length} real bids from history`);
       } else {
-        // No bids yet - show empty state
         setBidHistory([]);
-        console.log('📭 No bids in history yet');
       }
     } catch (error) {
-      console.error('Error loading bid history:', error);
       setBidHistory([]);
     } finally {
       setLoading(false);
@@ -151,7 +146,6 @@ const BidHistoryTooltip = ({
     if (isVisible && stableAuctionId) {
       fetchRealBidHistory();
       
-      // Refresh every 2 seconds while tooltip is visible
       const interval = setInterval(() => {
         hasFetchedRef.current = false;
         setLoading(false);
@@ -319,7 +313,7 @@ export const AuctionCard = ({
   currentUserId,
   highestBidder,
   canPlaceBid = true,
-  compact = false // Default to false
+  compact = false
 }: AuctionCardProps) => {
   const navigate = useNavigate();
   const [showBidHistory, setShowBidHistory] = useState(false);
@@ -502,7 +496,6 @@ export const AuctionCard = ({
       };
     }
 
-    // 🎯 FIX: Always show "You Won! Pay Now" for winners, regardless of time status
     if (isUserHighestBidder && (actualStatus === "ended" || status === "ended")) {
       return {
         disabled: false,
@@ -519,7 +512,6 @@ export const AuctionCard = ({
       };
     }
 
-    // For non-winners, show status-based buttons
     if (actualStatus === "ended" || status === "ended") {
       return {
         disabled: true,
@@ -528,7 +520,6 @@ export const AuctionCard = ({
       };
     }
 
-    // Handle sold/closed auctions
     if (actualStatus === "closed" || status === "closed") {
       return {
         disabled: true,

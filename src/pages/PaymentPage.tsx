@@ -52,15 +52,11 @@ const PaymentPage = () => {
     try {
       const totalAmount = (auction.currentBid * 1.05).toFixed(2);
       
-      // Convert auction ID to a number for custom_int1 (PayFast requirement)
-      const auctionIdNumber = parseInt(auction.id.replace(/[^0-9]/g, '').slice(0, 9)) || Date.now();
-      
       const paymentData = {
         amount: totalAmount,
         item_name: `Art: ${auction.title.substring(0, 50)}`,
         item_description: `Artwork by ${auction.artistName}`.substring(0, 255),
-        custom_int1: auctionIdNumber, // Must be a number for PayFast
-        custom_str1: auction.id, // Keep original ID as string
+        custom_str1: auction.id,
         name_first: "Test",
         name_last: "User", 
         email_address: "test@example.com"

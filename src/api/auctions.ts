@@ -81,14 +81,11 @@ const getImageUrl = (item: any): string => {
 
   for (const imageField of possibleImageFields) {
     if (typeof imageField === 'string' && imageField) {
-      console.log('🖼️ Processing image field:', imageField);
-      
       // If it's already a full URL, fix the path if needed
       if (imageField.startsWith('http')) {
         // Fix URLs that have wrong path (auctions/ instead of public/auctions/)
         if (imageField.includes('/auctions/') && !imageField.includes('/public/auctions/')) {
           const fixedUrl = imageField.replace('/auctions/', '/public/auctions/');
-          console.log('🔄 Fixed URL:', fixedUrl);
           return fixedUrl;
         }
         return imageField;
@@ -114,12 +111,14 @@ const getImageUrl = (item: any): string => {
 
 // Transform raw auction data into Auction type
 const transformAuction = (item: any): Auction => {
-  let status: "live" | "upcoming" | "ended";
+  let status: "live" | "upcoming" | "ended" | "closed";
 
-  if (item.status === "active") {
+  if (item.status === "active" || item.status === "live") {
     status = "live";
   } else if (item.status === "completed" || item.status === "cancelled") {
     status = "ended";
+  } else if (item.status === "closed") {
+    status = "closed";
   } else {
     status = "upcoming";
   }

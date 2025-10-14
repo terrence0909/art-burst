@@ -50,7 +50,7 @@ class PayFastService {
       merchant_key: this.config.merchantKey,
       return_url: `${window.location.origin}/payment-success`,
       cancel_url: `${window.location.origin}/payment-cancelled`,
-      notify_url: `${window.location.origin}/api/payfast/notify`,
+      notify_url: "https://jnjnpocvsosfj675lwd7pt6ksi0skrae.lambda-url.us-east-1.on.aws/", // ✅ FIXED: Use Lambda Function URL
       amount: paymentData.amount,
       item_name: paymentData.item_name,
       item_description: paymentData.item_description.substring(0, 255), // PayFast limit

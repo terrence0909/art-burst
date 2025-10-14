@@ -19,11 +19,7 @@ export const useAuctions = () => {
     startingBid: auction.startingBid ?? auction.currentBid ?? 0,
     timeRemaining: auction.timeRemaining ?? "",
     image: auction.image ?? "",
-    status: ((auction.status || auction.auctionStatus || "upcoming").toLowerCase() as
-      | "live"
-      | "upcoming"
-      | "ended"
-      | "closed"),
+    status: auction.status || "upcoming", // FIXED: Don't override API status
     location: auction.location ?? "",
     distance: auction.distance ?? "",
     bidders: auction.bidders ?? auction.bidCount ?? 0,
@@ -43,6 +39,12 @@ export const useAuctions = () => {
       setError(null);
       const data = await fetchAuctions();
       
+      // ADDED: Debug logging to see what's coming from API
+      console.log('🔍 API Response - Raw data:', data);
+      console.log('🔍 Looking for auction 840199022:', 
+        data.find(a => (a.auctionId || a.id) === '840199022')
+      );
+      
       // FIX: Sort auctions by createdAt date (newest first)
       const sortedAuctions = data
         .map(normalizeAuction)
@@ -51,6 +53,11 @@ export const useAuctions = () => {
           const dateB = new Date(b.createdAt || b.startDate || 0);
           return dateB.getTime() - dateA.getTime(); // Newest first
         });
+      
+      // ADDED: Debug logging to see after normalization
+      console.log('🔍 After normalization - auction 840199022:', 
+        sortedAuctions.find(a => a.auctionId === '840199022')
+      );
       
       setAuctions(sortedAuctions);
     } catch (err) {

@@ -35,6 +35,16 @@ export const AuctionGrid = () => {
 
   const { auctionId: routeAuctionId } = useParams();
 
+  // Add auto-refresh to check for status updates
+  useEffect(() => {
+    // Refresh auctions every 30 seconds to catch status changes
+    const interval = setInterval(() => {
+      refetch();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [refetch]);
+
   // Add this function to get real user names from Cognito
   const getBidderDisplayName = async (bidderId: string, currentUserId: string): Promise<string> => {
     if (bidderId === currentUserId) {
@@ -65,7 +75,6 @@ export const AuctionGrid = () => {
       localStorage.setItem('auction-auth-token', token);
     }
     setAuthToken(token);
-    console.log('🔐 Using auth token:', token.substring(0, 20) + '...');
   }, [currentUserId]);
 
   const connectWebSocket = useCallback(async () => {
@@ -88,8 +97,6 @@ export const AuctionGrid = () => {
       setConnectionAttempts(0);
       setIsConnected(true);
 
-      toast({ title: "🔌 Connected", description: "Real-time updates enabled", duration: 2000 });
-
     } catch (error: any) {
       setConnectionAttempts(prev => prev + 1);
       setIsConnected(false);
@@ -98,19 +105,15 @@ export const AuctionGrid = () => {
         const newToken = `auth-${currentUserId}-${Date.now()}`;
         localStorage.setItem('auction-auth-token', newToken);
         setAuthToken(newToken);
-        toast({ title: "🔐 Refreshing Authentication", description: "Updating credentials...", duration: 3000 });
         return;
       }
 
       const delay = Math.min(1000 * Math.pow(2, connectionAttempts), 30000);
       if (connectionAttempts < 10) {
-        toast({ title: "📡 Connection Failed", description: `Retrying in ${delay / 1000}s...`, variant: "destructive", duration: 3000 });
         reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
-      } else {
-        toast({ title: "❌ Connection Failed", description: "Please refresh the page", variant: "destructive", duration: 0 });
       }
     }
-  }, [authToken, currentUserId, connectionAttempts, toast]);
+  }, [authToken, currentUserId, connectionAttempts]);
 
   useEffect(() => {
     if (authToken) connectWebSocket();
@@ -195,7 +198,6 @@ export const AuctionGrid = () => {
           }
         } else {
           toastTitle = "🔥 New Bid Alert!";
-          // 🔥 FIX: Changed back to generic message like it was working before
           toastDescription = `R${bidAmount.toLocaleString()} bid placed on "${currentAuction.title}"`;
           
           toast({ 
@@ -209,14 +211,58 @@ export const AuctionGrid = () => {
     }
   }, [updateAuction, toast, currentUserId, auctions]);
 
+  // Add payment status update handler
+  const handlePaymentUpdate = useCallback(async (message: any) => {
+    if (message.action === 'paymentUpdate' && message.paymentStatus === 'completed') {
+      const { auctionId, winnerId } = message;
+      
+      // Update auction status to "ended" (which will show as SOLD in AuctionCard)
+      updateAuction(auctionId, {
+        status: 'ended',
+        highestBidder: winnerId
+      });
+      
+      // Force refresh to get latest data
+      await refetch();
+      
+      // Show success message if current user won
+      if (winnerId === currentUserId) {
+        toast({
+          title: "🎉 Payment Successful!",
+          description: "You've successfully purchased this artwork!",
+          duration: 5000
+        });
+      }
+    }
+  }, [updateAuction, refetch, currentUserId, toast]);
+
+  // Combined message handler for all WebSocket messages
+  const handleWebSocketMessage = useCallback(async (message: WebSocketMessage | any) => {
+    // Handle bid updates
+    if (message.action === 'bidUpdate' && message.bid && message.auctionId) {
+      await handleBidUpdate(message);
+    }
+    // Handle payment updates
+    else if (message.action === 'paymentUpdate' && message.paymentStatus === 'completed') {
+      await handlePaymentUpdate(message);
+    }
+    // Handle auction ended messages
+    else if (message.action === 'auctionEnded' && message.auctionId) {
+      updateAuction(message.auctionId, {
+        status: 'ended'
+      });
+      await refetch();
+    }
+  }, [handleBidUpdate, handlePaymentUpdate, updateAuction, refetch]);
+
   useEffect(() => {
     if (!wsServiceRef.current) return;
     const subscribe = () => {
       if (wsServiceRef.current.isConnected() && !hasSubscribedRef.current) {
-        const unsubscribe = wsServiceRef.current.subscribe('*', handleBidUpdate);
+        // Use the combined message handler
+        const unsubscribe = wsServiceRef.current.subscribe('*', handleWebSocketMessage);
         hasSubscribedRef.current = true;
         (window as any).__auctionUnsubscribe = unsubscribe;
-        console.log('🔔 Subscribed to auction updates');
       }
     };
     subscribe();
@@ -228,7 +274,7 @@ export const AuctionGrid = () => {
         hasSubscribedRef.current = false; 
       } 
     };
-  }, [handleBidUpdate]);
+  }, [handleWebSocketMessage]);
 
   const handlePlaceBid = async (auctionId: string) => {
     if (isPlacingBid) {
@@ -346,7 +392,15 @@ export const AuctionGrid = () => {
   return (
     <section className="py-16 bg-gradient-to-br from-gray-200 to-gray-400">
       <div className="container px-4">
-        <h2 className="text-4xl font-bold text-center mb-12 font-playfair">Current Auctions</h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-4xl font-bold text-center mb-12 font-playfair">Current Auctions</h2>
+          <button 
+            onClick={refetch} 
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+          >
+            🔄 Refresh
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {auctions.map(a => (
             <AuctionCard
