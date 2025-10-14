@@ -216,7 +216,7 @@ export default function Settings() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-300 to-gray-500">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -225,7 +225,7 @@ export default function Settings() {
   const displayName = `${profile.given_name} ${profile.family_name}`.trim() || profile.name || user?.username || "User";
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-gray-300 to-gray-500">
       <Header />
       
       <main className="container mx-auto px-4 py-8 max-w-4xl">
@@ -235,7 +235,7 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-3 backdrop-blur-xl bg-white/20 border border-white/30">
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <User className="h-4 w-4" />
               Profile
@@ -251,7 +251,7 @@ export default function Settings() {
           </TabsList>
 
           <TabsContent value="profile">
-            <Card>
+            <Card className="backdrop-blur-xl bg-white/20 border border-white/30">
               <CardHeader>
                 <CardTitle>Profile Information</CardTitle>
                 <CardDescription>
@@ -294,7 +294,7 @@ export default function Settings() {
                     type="email"
                     value={user?.signInDetails?.loginId || ""}
                     disabled
-                    className="bg-muted"
+                    className="backdrop-blur-xl bg-white/20 border border-white/30"
                   />
                   <p className="text-xs text-muted-foreground">
                     Your email cannot be changed here
@@ -309,6 +309,7 @@ export default function Settings() {
                       value={profile.given_name}
                       onChange={(e) => setProfile({ ...profile, given_name: e.target.value })}
                       placeholder="Enter your first name"
+                      className="backdrop-blur-xl bg-white/20 border border-white/30"
                     />
                   </div>
                   <div className="space-y-2">
@@ -318,6 +319,7 @@ export default function Settings() {
                       value={profile.family_name}
                       onChange={(e) => setProfile({ ...profile, family_name: e.target.value })}
                       placeholder="Enter your last name"
+                      className="backdrop-blur-xl bg-white/20 border border-white/30"
                     />
                   </div>
                 </div>
@@ -329,6 +331,7 @@ export default function Settings() {
                       value={profile.name}
                       onChange={(e) => setProfile({ ...profile, name: e.target.value })}
                       placeholder="How you want to be displayed"
+                      className="backdrop-blur-xl bg-white/20 border border-white/30"
                     />
                 </div>
 
@@ -340,6 +343,7 @@ export default function Settings() {
                     onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
                     placeholder="Tell us about yourself and your art"
                     rows={4}
+                    className="backdrop-blur-xl bg-white/20 border border-white/30"
                   />
                 </div>
 
@@ -350,6 +354,7 @@ export default function Settings() {
                     value={profile.location}
                     onChange={(e) => setProfile({ ...profile, location: e.target.value })}
                     placeholder="Your city or location"
+                    className="backdrop-blur-xl bg-white/20 border border-white/30"
                   />
                 </div>
 
@@ -360,10 +365,11 @@ export default function Settings() {
                     value={profile.instagram}
                     onChange={(e) => setProfile({ ...profile, instagram: e.target.value })}
                     placeholder="Your Instagram username"
+                    className="backdrop-blur-xl bg-white/20 border border-white/30"
                   />
                 </div>
 
-                <Button onClick={handleProfileUpdate} disabled={saving} className="w-full">
+                <Button onClick={handleProfileUpdate} disabled={saving} className="w-full backdrop-blur-xl bg-white/20 border border-white/30">
                   {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   Save Profile Changes
                 </Button>
@@ -372,7 +378,7 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="preferences">
-            <Card>
+            <Card className="backdrop-blur-xl bg-white/20 border border-white/30">
               <CardHeader>
                 <CardTitle>Account Preferences</CardTitle>
                 <CardDescription>
@@ -410,7 +416,7 @@ export default function Settings() {
                   />
                 </div>
 
-                <Button onClick={handlePreferencesUpdate} disabled={saving} className="w-full">
+                <Button onClick={handlePreferencesUpdate} disabled={saving} className="w-full backdrop-blur-xl bg-white/20 border border-white/30">
                   {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   Save Preferences
                 </Button>
@@ -419,7 +425,7 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="notifications">
-            <Card>
+            <Card className="backdrop-blur-xl bg-white/20 border border-white/30">
               <CardHeader>
                 <CardTitle>Notification Settings</CardTitle>
                 <CardDescription>

@@ -665,12 +665,12 @@ const Browse = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gradient-to-br from-gray-300 to-gray-500">
         <Header />
         <div className="container mx-auto px-4 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
-              <Card key={i} className="animate-pulse">
+              <Card key={i} className="animate-pulse backdrop-blur-xl bg-white/20 border border-white/30">
                 <CardContent className="p-0">
                   <Skeleton className="h-48 w-full rounded-t-lg" />
                   <div className="p-4 space-y-2">
@@ -688,7 +688,7 @@ const Browse = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-gray-300 to-gray-500">
       <Header />
       
       <div className="container mx-auto px-4 py-8">
@@ -699,7 +699,7 @@ const Browse = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input 
                 placeholder="Search artworks, artists, or styles..."
-                className="pl-10"
+                className="pl-10 backdrop-blur-xl bg-white/20 border border-white/30"
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
               />
@@ -709,10 +709,10 @@ const Browse = () => {
                 value={filters.category} 
                 onValueChange={(value) => setFilters(prev => ({ ...prev, category: value }))}
               >
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-40 backdrop-blur-xl bg-white/20 border border-white/30">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="backdrop-blur-xl bg-white/20 border border-white/30">
                   <SelectItem value="all">All Categories</SelectItem>
                   <SelectItem value="paintings">Paintings</SelectItem>
                   <SelectItem value="sculptures">Sculptures</SelectItem>
@@ -725,10 +725,10 @@ const Browse = () => {
                 value={filters.priceRange} 
                 onValueChange={(value) => setFilters(prev => ({ ...prev, priceRange: value }))}
               >
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-32 backdrop-blur-xl bg-white/20 border border-white/30">
                   <SelectValue placeholder="Price" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="backdrop-blur-xl bg-white/20 border border-white/30">
                   <SelectItem value="all">All Prices</SelectItem>
                   <SelectItem value="under500">Under R500</SelectItem>
                   <SelectItem value="500-1000">R500 - R1,000</SelectItem>
@@ -741,10 +741,10 @@ const Browse = () => {
                 value={filters.distance} 
                 onValueChange={(value) => setFilters(prev => ({ ...prev, distance: value }))}
               >
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-32 backdrop-blur-xl bg-white/20 border border-white/30">
                   <SelectValue placeholder="Distance" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="backdrop-blur-xl bg-white/20 border border-white/30">
                   <SelectItem value="all">Any Distance</SelectItem>
                   <SelectItem value="5">Within 5 km</SelectItem>
                   <SelectItem value="10">Within 10 km</SelectItem>
@@ -756,6 +756,7 @@ const Browse = () => {
               <Button 
                 variant="outline" 
                 onClick={() => setShowMoreFilters(!showMoreFilters)}
+                className="backdrop-blur-xl bg-white/20 border border-white/30"
               >
                 <Filter className="w-4 h-4 mr-2" />
                 More Filters
@@ -764,16 +765,16 @@ const Browse = () => {
           </div>
 
           {showMoreFilters && (
-            <div className="bg-muted/50 p-4 rounded-lg">
+            <div className="p-4 rounded-lg backdrop-blur-xl bg-white/20 border border-white/30">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select 
                   value={filters.status} 
                   onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="backdrop-blur-xl bg-white/20 border border-white/30">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="backdrop-blur-xl bg-white/20 border border-white/30">
                     <SelectItem value="all">All Statuses</SelectItem>
                     <SelectItem value="live">Live Only</SelectItem>
                     <SelectItem value="upcoming">Upcoming</SelectItem>
@@ -785,10 +786,10 @@ const Browse = () => {
                   value={filters.sortBy} 
                   onValueChange={(value) => setFilters(prev => ({ ...prev, sortBy: value }))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="backdrop-blur-xl bg-white/20 border border-white/30">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="backdrop-blur-xl bg-white/20 border border-white/30">
                     <SelectItem value="ending-soon">Ending Soon</SelectItem>
                     <SelectItem value="newest">Newest First</SelectItem>
                     <SelectItem value="price-low">Price: Low to High</SelectItem>
@@ -805,7 +806,7 @@ const Browse = () => {
               <span className="text-sm text-muted-foreground">Active filters:</span>
               
               {urlLocation && (
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="backdrop-blur-xl bg-white/20 border border-white/30">
                   <MapPin className="w-3 h-3 mr-1" />
                   {urlLocation}
                   <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => {
@@ -816,7 +817,7 @@ const Browse = () => {
               )}
               
               {searchQuery && (
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="backdrop-blur-xl bg-white/20 border border-white/30">
                   <Search className="w-3 h-3 mr-1" />
                   "{searchQuery}"
                   <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => handleSearchChange('')} />
@@ -824,20 +825,20 @@ const Browse = () => {
               )}
               
               {filters.category !== "all" && (
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="backdrop-blur-xl bg-white/20 border border-white/30">
                   Category: {filters.category}
                   <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFilter('category')} />
                 </Badge>
               )}
               
               {filters.status !== "all" && (
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="backdrop-blur-xl bg-white/20 border border-white/30">
                   Status: {filters.status}
                   <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFilter('status')} />
                 </Badge>
               )}
               
-              <Button variant="ghost" size="sm" onClick={clearAllFilters}>
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="backdrop-blur-xl bg-white/20 border border-white/30">
                 Clear all
               </Button>
             </div>
@@ -858,10 +859,10 @@ const Browse = () => {
               value={filters.sortBy}
               onValueChange={(value) => setFilters(prev => ({ ...prev, sortBy: value }))}
             >
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-40 backdrop-blur-xl bg-white/20 border border-white/30">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="backdrop-blur-xl bg-white/20 border border-white/30">
                 <SelectItem value="ending-soon">Ending Soon</SelectItem>
                 <SelectItem value="newest">Newest First</SelectItem>
                 <SelectItem value="price-low">Price: Low to High</SelectItem>
@@ -869,12 +870,12 @@ const Browse = () => {
               </SelectContent>
             </Select>
             
-            <div className="flex border rounded-md">
+            <div className="flex border rounded-md backdrop-blur-xl bg-white/20 border border-white/30">
               <Button
                 variant={viewMode === "grid" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("grid")}
-                className="rounded-r-none"
+                className="rounded-r-none backdrop-blur-xl bg-white/20 border border-white/30"
               >
                 <Grid className="w-4 h-4" />
               </Button>
@@ -882,7 +883,7 @@ const Browse = () => {
                 variant={viewMode === "list" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("list")}
-                className="rounded-l-none"
+                className="rounded-l-none backdrop-blur-xl bg-white/20 border border-white/30"
               >
                 <List className="w-4 h-4" />
               </Button>
@@ -923,7 +924,7 @@ const Browse = () => {
 
         {/* Map Section - Glassy style */}
         <div className="mb-8">
-          <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-white/20 shadow-2xl overflow-hidden">
+          <div className="rounded-2xl border border-white/20 shadow-2xl overflow-hidden backdrop-blur-xl bg-white/20 border border-white/30">
             <div className="p-4 border-b border-white/20 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 backdrop-blur-sm">
               <div className="flex items-center justify-center">
                 <h3 className="font-playfair text-xl font-bold text-gray-800 flex items-center">
@@ -961,7 +962,7 @@ const Browse = () => {
               <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <h3 className="font-semibold text-lg">No auctions found</h3>
               <p>Try adjusting your search criteria or filters</p>
-              <Button onClick={clearAllFilters} className="mt-4">
+              <Button onClick={clearAllFilters} className="mt-4 backdrop-blur-xl bg-white/20 border border-white/30">
                 Clear All Filters
               </Button>
             </div>

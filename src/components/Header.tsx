@@ -275,7 +275,7 @@ export const Header = () => {
 
   if (loading) {
     return (
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 w-full border-b backdrop-blur-xl bg-white/20 border border-white/30 supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-4">
           <Link to="/" className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gradient-luxury rounded-lg flex items-center justify-center">
@@ -290,7 +290,7 @@ export const Header = () => {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b backdrop-blur-xl bg-white/20 border border-white/30 supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4">
         {/* Logo - Always visible */}
         <Link to="/" className="flex items-center space-x-2 flex-shrink-0">
@@ -308,7 +308,7 @@ export const Header = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={`Search in ${currentLocation?.city || 'your area'}...`}
-              className="pl-10 bg-muted/50"
+              className="pl-10 backdrop-blur-xl bg-white/20 border border-white/30"
             />
           </form>
         </div>
@@ -321,12 +321,12 @@ export const Header = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden text-muted-foreground"
+                className="md:hidden text-muted-foreground backdrop-blur-xl bg-white/20 border border-white/30"
               >
                 <Search className="w-5 h-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="top" className="pt-16">
+            <SheetContent side="top" className="pt-16 backdrop-blur-xl bg-white/20 border border-white/30">
               <div className="space-y-4">
                 <form onSubmit={handleSearch} className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
@@ -334,7 +334,7 @@ export const Header = () => {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder={`Search in ${currentLocation?.city || 'your area'}...`}
-                    className="pl-12 h-12 text-base bg-muted/50"
+                    className="pl-12 h-12 text-base backdrop-blur-xl bg-white/20 border border-white/30"
                     autoFocus
                   />
                 </form>
@@ -346,7 +346,7 @@ export const Header = () => {
                     variant="ghost"
                     size="sm"
                     onClick={() => setLocationDialogOpen(true)}
-                    className="h-auto p-0 text-primary hover:bg-transparent"
+                    className="h-auto p-0 text-primary hover:bg-transparent backdrop-blur-xl bg-white/20 border border-white/30"
                   >
                     Change
                   </Button>
@@ -361,7 +361,7 @@ export const Header = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-muted-foreground hidden md:flex hover:bg-accent"
+                className="text-muted-foreground hidden md:flex hover:bg-accent backdrop-blur-xl bg-white/20 border border-white/30"
               >
                 {locationLoading ? (
                   <Loader2 className="w-4 h-4 mr-1 animate-spin" />
@@ -373,7 +373,7 @@ export const Header = () => {
                 </span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md backdrop-blur-xl bg-white/20 border border-white/30">
               <DialogHeader>
                 <DialogTitle>Set Your Location</DialogTitle>
                 <DialogDescription>
@@ -382,7 +382,7 @@ export const Header = () => {
               </DialogHeader>
               <div className="space-y-4">
                 {currentLocation && (
-                  <div className="p-3 bg-muted rounded-lg">
+                  <div className="p-3 rounded-lg backdrop-blur-xl bg-white/20 border border-white/30">
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-medium">{currentLocation.city}</div>
@@ -398,7 +398,7 @@ export const Header = () => {
                 <Button
                   onClick={getCurrentLocation}
                   disabled={locationLoading}
-                  className="w-full"
+                  className="w-full backdrop-blur-xl bg-white/20 border border-white/30"
                   variant="outline"
                 >
                   {locationLoading ? (
@@ -414,6 +414,7 @@ export const Header = () => {
                     value={customLocationSearch}
                     onChange={(e) => setCustomLocationSearch(e.target.value)}
                     placeholder="Search for a city..."
+                    className="backdrop-blur-xl bg-white/20 border border-white/30"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -424,7 +425,7 @@ export const Header = () => {
                   <Button
                     onClick={() => searchLocation(customLocationSearch)}
                     disabled={!customLocationSearch.trim() || locationLoading}
-                    className="w-full"
+                    className="w-full backdrop-blur-xl bg-white/20 border border-white/30"
                   >
                     {locationLoading ? (
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -436,7 +437,7 @@ export const Header = () => {
                 </div>
 
                 {locationError && (
-                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <div className="p-3 rounded-lg backdrop-blur-xl bg-white/20 border border-white/30">
                     <p className="text-sm text-destructive">{locationError}</p>
                   </div>
                 )}
@@ -448,7 +449,7 @@ export const Header = () => {
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground hidden sm:flex"
+            className="text-muted-foreground hidden sm:flex backdrop-blur-xl bg-white/20 border border-white/30"
             onClick={() => navigate('/notifications')}
           >
             <Bell className="w-4 h-4" />
@@ -456,7 +457,7 @@ export const Header = () => {
 
           {/* List Artwork - Hidden on mobile, shown on tablet+ */}
           <Link to="/create" className="hidden sm:block">
-            <Button className="btn-primary">
+            <Button className="btn-primary backdrop-blur-xl bg-white/20 border border-white/30">
               List Artwork
             </Button>
           </Link>
@@ -465,7 +466,7 @@ export const Header = () => {
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full p-0">
+                <Button variant="ghost" size="icon" className="rounded-full p-0 backdrop-blur-xl bg-white/20 border border-white/30">
                   <img
                     src={userProfileImage}
                     alt={userName}
@@ -473,7 +474,7 @@ export const Header = () => {
                   />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-48 backdrop-blur-xl bg-white/20 border border-white/30">
                 <div className="px-2 py-1.5 text-sm font-medium border-b">
                   {userName}
                 </div>
@@ -512,11 +513,11 @@ export const Header = () => {
             </DropdownMenu>
           ) : (
             <Link to="/auth">
-              <Button variant="outline" size="sm" className="hidden sm:flex">
+              <Button variant="outline" size="sm" className="hidden sm:flex backdrop-blur-xl bg-white/20 border border-white/30">
                 <User className="w-4 h-4 mr-1" />
                 Sign In
               </Button>
-              <Button size="icon" variant="outline" className="sm:hidden">
+              <Button size="icon" variant="outline" className="sm:hidden backdrop-blur-xl bg-white/20 border border-white/30">
                 <User className="w-4 h-4" />
               </Button>
             </Link>
@@ -528,12 +529,12 @@ export const Header = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden text-muted-foreground"
+                className="md:hidden text-muted-foreground backdrop-blur-xl bg-white/20 border border-white/30"
               >
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-64">
+            <SheetContent side="right" className="w-64 backdrop-blur-xl bg-white/20 border border-white/30">
               <div className="flex flex-col h-full">
                 {/* User Info */}
                 {isAuthenticated && (
@@ -556,7 +557,7 @@ export const Header = () => {
                 <nav className="flex-1 space-y-2 p-4">
                   <Button
                     variant="ghost"
-                    className="w-full justify-start"
+                    className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
                     onClick={() => {
                       navigate('/');
                       setMobileMenuOpen(false);
@@ -570,7 +571,7 @@ export const Header = () => {
                     <>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start"
+                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
                         onClick={() => {
                           navigate('/dashboard');
                           setMobileMenuOpen(false);
@@ -581,7 +582,7 @@ export const Header = () => {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start"
+                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
                         onClick={() => {
                           navigate('/auctions');
                           setMobileMenuOpen(false);
@@ -592,7 +593,7 @@ export const Header = () => {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start"
+                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
                         onClick={() => {
                           navigate('/settings');
                           setMobileMenuOpen(false);
@@ -603,7 +604,7 @@ export const Header = () => {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start"
+                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
                         onClick={() => {
                           navigate('/notifications');
                           setMobileMenuOpen(false);
@@ -620,7 +621,7 @@ export const Header = () => {
                 <div className="p-4 space-y-3 border-t">
                   {!isAuthenticated && (
                     <Button
-                      className="w-full"
+                      className="w-full backdrop-blur-xl bg-white/20 border border-white/30"
                       onClick={() => {
                         navigate('/auth');
                         setMobileMenuOpen(false);
@@ -632,7 +633,7 @@ export const Header = () => {
                   )}
                   
                   <Button
-                    className="w-full btn-primary"
+                    className="w-full btn-primary backdrop-blur-xl bg-white/20 border border-white/30"
                     onClick={() => {
                       navigate('/create');
                       setMobileMenuOpen(false);
@@ -645,7 +646,7 @@ export const Header = () => {
                   {isAuthenticated && (
                     <Button
                       variant="outline"
-                      className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                      className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 backdrop-blur-xl bg-white/20 border border-white/30"
                       onClick={() => {
                         handleSignOut();
                         setMobileMenuOpen(false);

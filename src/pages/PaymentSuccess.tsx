@@ -11,7 +11,7 @@ const PaymentSuccess = () => {
   const auctionId = searchParams.get('auctionId');
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-gray-300 to-gray-500">
       <Header />
       
       <div className="container mx-auto px-4 py-16">
@@ -20,12 +20,12 @@ const PaymentSuccess = () => {
           
           <h1 className="text-3xl font-bold mb-4">Payment Successful!</h1>
           
-          <Card className="mb-6">
+          <Card className="mb-6 backdrop-blur-xl bg-white/20 border border-white/30">
             <CardContent className="pt-6">
               <p className="text-muted-foreground mb-4">
                 Thank you for your purchase! Your payment has been processed successfully.
               </p>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="rounded-lg p-4 backdrop-blur-xl bg-white/20 border border-white/30">
                 <p className="text-sm text-green-800">
                   You will receive a confirmation email shortly with your purchase details.
                 </p>
@@ -36,7 +36,7 @@ const PaymentSuccess = () => {
           <div className="space-y-3">
             {auctionId && (
               <Button 
-                className="w-full" 
+                className="w-full backdrop-blur-xl bg-white/20 border border-white/30" 
                 onClick={() => navigate(`/auction/${auctionId}`)}
               >
                 View Auction
@@ -45,7 +45,7 @@ const PaymentSuccess = () => {
             
             <Button 
               variant="outline" 
-              className="w-full" 
+              className="w-full backdrop-blur-xl bg-white/20 border border-white/30" 
               onClick={() => navigate('/')}
             >
               <Home className="w-4 h-4 mr-2" />
@@ -54,7 +54,7 @@ const PaymentSuccess = () => {
             
             <Button 
               variant="ghost" 
-              className="w-full" 
+              className="w-full backdrop-blur-xl bg-white/20 border border-white/30" 
               onClick={() => navigate(-1)}
             >
               <ArrowLeft className="w-4 h-4 mr-2" />

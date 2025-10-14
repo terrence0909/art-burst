@@ -171,10 +171,10 @@ const ArtistProfile = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gradient-to-br from-gray-300 to-gray-500">
         <Header />
         <div className="container mx-auto px-4 py-8 max-w-7xl">
-          <div className="bg-gradient-to-r from-accent/10 via-accent/5 to-transparent rounded-2xl p-6 md:p-8 mb-8">
+          <div className="rounded-2xl p-6 md:p-8 mb-8 backdrop-blur-xl bg-white/20 border border-white/30">
             <div className="flex flex-col md:flex-row gap-6">
               <Skeleton className="w-32 h-32 rounded-2xl mx-auto md:mx-0 flex-shrink-0" />
               <div className="flex-1 space-y-4">
@@ -186,7 +186,7 @@ const ArtistProfile = () => {
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-24 rounded-xl" />
+              <Skeleton key={i} className="h-24 rounded-xl backdrop-blur-xl bg-white/20 border border-white/30" />
             ))}
           </div>
         </div>
@@ -197,13 +197,13 @@ const ArtistProfile = () => {
 
   if (error || !artist) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gradient-to-br from-gray-300 to-gray-500">
         <Header />
         <div className="container mx-auto px-4 py-16 text-center max-w-2xl">
-          <div className="bg-gradient-to-br from-destructive/10 to-destructive/5 border border-destructive/20 text-destructive p-8 rounded-2xl">
+          <div className="text-destructive p-8 rounded-2xl backdrop-blur-xl bg-white/20 border border-white/30">
             <h3 className="text-2xl font-bold mb-2">Artist Not Found</h3>
             <p className="text-sm opacity-80 mb-6">{error || "This artist profile doesn't exist."}</p>
-            <Button onClick={() => window.history.back()} size="lg" className="btn-primary">
+            <Button onClick={() => window.history.back()} size="lg" className="btn-primary backdrop-blur-xl bg-white/20 border border-white/30">
               Go Back
             </Button>
           </div>
@@ -221,12 +221,12 @@ const ArtistProfile = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-gray-300 to-gray-500">
       <Header />
       
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10 max-w-7xl">
         {/* Hero Header Section with Gradient Background */}
-        <div className="bg-gradient-to-br from-accent/10 via-accent/5 to-transparent rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 mb-8 shadow-lg border border-accent/10">
+        <div className="rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 mb-8 shadow-lg backdrop-blur-xl bg-white/20 border border-white/30">
           <div className="flex flex-col md:flex-row gap-6 md:gap-8">
             {/* Enhanced Profile Image with Glow Effect */}
             <div className="flex-shrink-0 mx-auto md:mx-0">
@@ -263,7 +263,7 @@ const ArtistProfile = () => {
                   {artist.specialties && artist.specialties.length > 0 && (
                     <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                       {artist.specialties.map((specialty) => (
-                        <Badge key={specialty} variant="secondary" className="text-xs px-3 py-1">
+                        <Badge key={specialty} variant="secondary" className="text-xs px-3 py-1 backdrop-blur-xl bg-white/20 border border-white/30">
                           {specialty}
                         </Badge>
                       ))}
@@ -276,7 +276,7 @@ const ArtistProfile = () => {
                   <Button 
                     variant={isFollowing ? "default" : "outline"} 
                     size="lg" 
-                    className="gap-2"
+                    className="gap-2 backdrop-blur-xl bg-white/20 border border-white/30"
                     onClick={handleFollow}
                   >
                     <Heart className={`w-4 h-4 ${isFollowing ? 'fill-current' : ''}`} />
@@ -287,7 +287,7 @@ const ArtistProfile = () => {
                     artistId={artist.artistId} 
                     artistName={artist.name} 
                   />
-                  <Button className="btn-primary gap-2" size="lg" onClick={handleMessage}>
+                  <Button className="btn-primary gap-2 backdrop-blur-xl bg-white/20 border border-white/30" size="lg" onClick={handleMessage}>
                     Message
                   </Button>
                 </div>
@@ -310,7 +310,7 @@ const ArtistProfile = () => {
             { label: 'Avg. Sale Price', value: stats.avgSalePrice, prefix: 'R' },
             { label: 'Followers', value: stats.followers, prefix: '' }
           ].map((stat, index) => (
-            <Card key={index} className="group hover:shadow-2xl hover:scale-105 transition-all duration-300 border-accent/10">
+            <Card key={index} className="group hover:shadow-2xl hover:scale-105 transition-all duration-300 backdrop-blur-xl bg-white/20 border border-white/30">
               <CardContent className="p-4 md:p-6 text-center">
                 <div className="text-2xl md:text-3xl lg:text-4xl font-bold text-accent mb-1 group-hover:scale-110 transition-transform">
                   {stat.prefix}{stat.value.toLocaleString()}
@@ -325,7 +325,7 @@ const ArtistProfile = () => {
 
         {/* Enhanced Tabs */}
         <Tabs defaultValue="auctions" className="space-y-8">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto p-1 bg-muted/50 backdrop-blur">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto p-1 backdrop-blur-xl bg-white/20 border border-white/30">
             <TabsTrigger value="auctions" className="text-sm md:text-base py-3 md:py-4 data-[state=active]:bg-accent data-[state=active]:text-white">
               Active Auctions
             </TabsTrigger>
@@ -343,7 +343,7 @@ const ArtistProfile = () => {
           <TabsContent value="auctions" className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="font-playfair text-2xl md:text-3xl font-bold text-foreground">Active Auctions</h2>
-              <Badge variant="secondary" className="text-sm px-3 py-1">{activeAuctions.length} Active</Badge>
+              <Badge variant="secondary" className="text-sm px-3 py-1 backdrop-blur-xl bg-white/20 border border-white/30">{activeAuctions.length} Active</Badge>
             </div>
             
             {activeAuctions.length > 0 ? (
@@ -366,14 +366,14 @@ const ArtistProfile = () => {
                 ))}
               </div>
             ) : (
-              <Card className="border-dashed border-2">
+              <Card className="border-dashed border-2 backdrop-blur-xl bg-white/20 border border-white/30">
                 <CardContent className="p-12 text-center">
                   <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Users className="w-8 h-8 text-accent" />
                   </div>
                   <h3 className="text-xl font-semibold mb-2">No Active Auctions</h3>
                   <p className="text-muted-foreground mb-6">This artist doesn't have any active auctions at the moment.</p>
-                  <Button onClick={handleFollow} size="lg" className="btn-primary">
+                  <Button onClick={handleFollow} size="lg" className="btn-primary backdrop-blur-xl bg-white/20 border border-white/30">
                     <Heart className="w-4 h-4 mr-2" />
                     Follow for Updates
                   </Button>
@@ -385,13 +385,13 @@ const ArtistProfile = () => {
           <TabsContent value="portfolio" className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="font-playfair text-2xl md:text-3xl font-bold text-foreground">Portfolio</h2>
-              <Badge variant="secondary" className="text-sm px-3 py-1">{availableWorks.length} Works</Badge>
+              <Badge variant="secondary" className="text-sm px-3 py-1 backdrop-blur-xl bg-white/20 border border-white/30">{availableWorks.length} Works</Badge>
             </div>
             
             {availableWorks.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {availableWorks.map((artwork) => (
-                  <Card key={artwork.id} className="group overflow-hidden hover:shadow-2xl transition-all duration-300 border-accent/10">
+                  <Card key={artwork.id} className="group overflow-hidden hover:shadow-2xl transition-all duration-300 backdrop-blur-xl bg-white/20 border border-white/30">
                     <div className="relative aspect-square overflow-hidden bg-muted">
                       <img 
                         src={artwork.image} 
@@ -410,7 +410,7 @@ const ArtistProfile = () => {
                           <p className="text-xl md:text-2xl font-bold text-accent">
                             R{artwork.price.toLocaleString()}
                           </p>
-                          <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-xl bg-white/20 border border-white/30">
                             View
                           </Button>
                         </div>
@@ -420,7 +420,7 @@ const ArtistProfile = () => {
                 ))}
               </div>
             ) : (
-              <Card className="border-dashed border-2">
+              <Card className="border-dashed border-2 backdrop-blur-xl bg-white/20 border border-white/30">
                 <CardContent className="p-12 text-center">
                   <p className="text-muted-foreground text-lg">No available works in portfolio.</p>
                 </CardContent>
@@ -431,20 +431,20 @@ const ArtistProfile = () => {
           <TabsContent value="sold" className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="font-playfair text-2xl md:text-3xl font-bold text-foreground">Sold Works</h2>
-              <Badge variant="secondary" className="text-sm px-3 py-1">{soldWorks.length} Sold</Badge>
+              <Badge variant="secondary" className="text-sm px-3 py-1 backdrop-blur-xl bg-white/20 border border-white/30">{soldWorks.length} Sold</Badge>
             </div>
             
             {soldWorks.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {soldWorks.map((artwork) => (
-                  <Card key={artwork.id} className="group overflow-hidden hover:shadow-2xl transition-all duration-300 border-accent/10">
+                  <Card key={artwork.id} className="group overflow-hidden hover:shadow-2xl transition-all duration-300 backdrop-blur-xl bg-white/20 border border-white/30">
                     <div className="relative aspect-square overflow-hidden bg-muted">
                       <img 
                         src={artwork.image} 
                         alt={artwork.title}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       />
-                      <Badge className="absolute top-3 right-3 bg-red-500 text-white border-0 shadow-lg">
+                      <Badge className="absolute top-3 right-3 bg-red-500 text-white border-0 shadow-lg backdrop-blur-xl bg-white/20 border border-white/30">
                         Sold
                       </Badge>
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -464,7 +464,7 @@ const ArtistProfile = () => {
                 ))}
               </div>
             ) : (
-              <Card className="border-dashed border-2">
+              <Card className="border-dashed border-2 backdrop-blur-xl bg-white/20 border border-white/30">
                 <CardContent className="p-12 text-center">
                   <p className="text-muted-foreground text-lg">No sold works yet.</p>
                 </CardContent>
@@ -477,7 +477,7 @@ const ArtistProfile = () => {
             
             <div className="grid md:grid-cols-2 gap-6">
               {artist.bio && (
-                <Card className="md:col-span-2 border-accent/10">
+                <Card className="md:col-span-2 backdrop-blur-xl bg-white/20 border border-white/30">
                   <CardContent className="p-6 md:p-8">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
@@ -491,7 +491,7 @@ const ArtistProfile = () => {
               )}
               
               {artist.achievements && artist.achievements.length > 0 && (
-                <Card className="border-accent/10">
+                <Card className="backdrop-blur-xl bg-white/20 border border-white/30">
                   <CardContent className="p-6 md:p-8">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
@@ -511,7 +511,7 @@ const ArtistProfile = () => {
                 </Card>
               )}
               
-              <Card className="border-accent/10">
+              <Card className="backdrop-blur-xl bg-white/20 border border-white/30">
                 <CardContent className="p-6 md:p-8">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
