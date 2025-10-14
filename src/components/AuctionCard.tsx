@@ -428,7 +428,7 @@ export const AuctionCard = ({
         }
         return <Badge className={`status-ended ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}>ENDED</Badge>;
       case "closed":
-        return <Badge className={`bg-purple-600 text-white ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}>SOLD</Badge>;
+        return <Badge className={`bg-transparent text-gradient border-0 font-bold uppercase ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}>SOLD</Badge>;
       default:
         return <Badge className={`status-upcoming ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}>UNKNOWN</Badge>;
     }
@@ -523,8 +523,8 @@ export const AuctionCard = ({
     if (actualStatus === "closed" || status === "closed") {
       return {
         disabled: true,
-        text: "Sold",
-        className: "w-full bg-purple-600 text-white cursor-not-allowed"
+        text: <span className="text-gradient text-xl font-bold uppercase">SOLD</span>,
+        className: "w-full bg-transparent cursor-not-allowed border-0"
       };
     }
 
