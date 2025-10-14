@@ -545,7 +545,7 @@ export const AuctionCard = ({
     <>
       <Card 
         ref={cardRef}
-        className={`auction-card group relative ${actualStatus === 'ended' ? 'opacity-90' : ''} ${compact ? 'md:h-full' : ''}`}
+        className={`auction-card group relative backdrop-blur-xl bg-white/10 dark:bg-black/20 border border-white/20 dark:border-gray-700/30 rounded-xl shadow-2xl overflow-hidden transition-all duration-300 hover:bg-white/15 hover:border-white/30 ${actualStatus === 'ended' ? 'opacity-90' : ''} ${compact ? 'md:h-full' : ''}`}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
@@ -579,7 +579,7 @@ export const AuctionCard = ({
               {getStatusBadge()}
             </div>
             <div className="absolute top-3 right-3 flex items-center space-x-2">
-              <Badge className={`location-badge ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}>
+              <Badge className={`location-badge backdrop-blur-sm bg-white/20 border border-white/30 ${compact ? 'md:px-2 md:py-0.5 md:text-xs' : ''}`}>
                 <MapPin className={`${compact ? 'md:w-3 md:h-3' : 'w-3 h-3'} mr-1`} />
                 {location}
               </Badge>

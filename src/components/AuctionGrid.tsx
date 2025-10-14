@@ -392,7 +392,7 @@ export const AuctionGrid = () => {
   return (
     <section className="py-16 bg-gradient-to-br from-gray-200 to-gray-400">
       <div className="container px-4">
-        <h2 className="text-4xl font-bold text-center mb-12 font-playfair">Current Auctions</h2>
+        <h2 className="text-4xl font-bold text-center mb-12 font-playfair text-gradient">Current Auctions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {auctions.map(a => (
             <AuctionCard
