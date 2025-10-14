@@ -172,19 +172,8 @@ const CreateAuction = () => {
     return currentUser?.username || "Artist";
   };
 
-  // Function to get user's current location
+  // Function to get user's current location - FIXED: Removed HTTPS check for mobile
   const getUserLocation = () => {
-    // Check if we're on HTTPS or localhost (which allows geolocation)
-    const isSecure = window.location.protocol === 'https:' || 
-                     window.location.hostname === 'localhost' || 
-                     window.location.hostname === '127.0.0.1';
-    
-    if (!isSecure) {
-      console.log('Geolocation not available on HTTP, using IP-based location');
-      getLocationFromIP();
-      return;
-    }
-
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
@@ -526,17 +515,22 @@ const CreateAuction = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    // FIXED: Added the exact same gradient background as FeatureSection
+    <div className="min-h-screen bg-gradient-to-br from-gray-300 to-gray-500">
       <Header />
       
       <div className="container mx-auto px-4 py-8 max-w-4xl">
+        {/* FIXED: Added glass effect header matching FeatureSection */}
         <div className="mb-8">
-          <h1 className="font-playfair text-3xl font-bold mb-2">List Your Artwork</h1>
-          <p className="text-muted-foreground">Share your art with local collectors and art enthusiasts</p>
+          <div className="group hover:shadow-2xl transition-all duration-300 backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl shadow-xl p-8">
+            <h1 className="font-playfair text-3xl font-bold mb-2">List Your Artwork</h1>
+            <p className="text-gray-800">Share your art with local collectors and art enthusiasts</p>
+          </div>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          // FIXED: Glass effect error message
+          <div className="mb-6 backdrop-blur-xl bg-red-50/80 border border-red-200/30 rounded-xl shadow-xl p-4">
             <p className="text-red-700">{error}</p>
           </div>
         )}
@@ -546,7 +540,8 @@ const CreateAuction = () => {
             {/* Main Form */}
             <div className="lg:col-span-2 space-y-6">
               {/* Artwork Images */}
-              <Card>
+              {/* FIXED: Glass effect card matching FeatureSection */}
+              <Card className="group hover:shadow-2xl transition-all duration-300 backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <ImageIcon className="w-5 h-5 mr-2" />
@@ -578,9 +573,9 @@ const CreateAuction = () => {
                     ))}
                     
                     {images.length < 8 && (
-                      <label className="w-full h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-accent transition-colors">
-                        <Upload className="w-8 h-8 text-muted-foreground mb-2" />
-                        <span className="text-sm text-muted-foreground">Add Image</span>
+                      <label className="w-full h-32 border-2 border-dashed border-white/40 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-accent transition-colors backdrop-blur-sm bg-white/10">
+                        <Upload className="w-8 h-8 text-gray-700 mb-2" />
+                        <span className="text-sm text-gray-700">Add Image</span>
                         <input 
                           type="file" 
                           accept="image/*" 
@@ -591,14 +586,15 @@ const CreateAuction = () => {
                       </label>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-gray-700">
                     Upload up to 8 high-quality images. The first image will be your primary image.
                   </p>
                 </CardContent>
               </Card>
 
               {/* Basic Information */}
-              <Card>
+              {/* FIXED: Glass effect card */}
+              <Card className="group hover:shadow-2xl transition-all duration-300 backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl shadow-xl">
                 <CardHeader>
                   <CardTitle>Basic Information</CardTitle>
                 </CardHeader>
@@ -611,6 +607,7 @@ const CreateAuction = () => {
                       value={formData.title}
                       onChange={(e) => handleInputChange('title', e.target.value)}
                       required
+                      className="backdrop-blur-sm bg-white/20 border-white/30"
                     />
                   </div>
                   
@@ -623,6 +620,7 @@ const CreateAuction = () => {
                       value={formData.description}
                       onChange={(e) => handleInputChange('description', e.target.value)}
                       required
+                      className="backdrop-blur-sm bg-white/20 border-white/30"
                     />
                   </div>
                   
@@ -633,7 +631,7 @@ const CreateAuction = () => {
                         value={formData.medium} 
                         onValueChange={(value) => handleInputChange('medium', value)}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="backdrop-blur-sm bg-white/20 border-white/30">
                           <SelectValue placeholder="Select medium" />
                         </SelectTrigger>
                         <SelectContent>
@@ -659,6 +657,7 @@ const CreateAuction = () => {
                         max="2030"
                         value={formData.year}
                         onChange={(e) => handleInputChange('year', e.target.value)}
+                        className="backdrop-blur-sm bg-white/20 border-white/30"
                       />
                     </div>
                   </div>
@@ -666,12 +665,12 @@ const CreateAuction = () => {
                   <div className="space-y-2">
                     <Label>Dimensions</Label>
                     <div className="flex items-center gap-2 mb-2">
-                      <Ruler className="w-4 h-4 text-muted-foreground" />
+                      <Ruler className="w-4 h-4 text-gray-700" />
                       <Select 
                         value={formData.dimensionUnit} 
                         onValueChange={(value) => handleInputChange('dimensionUnit', value)}
                       >
-                        <SelectTrigger className="w-32">
+                        <SelectTrigger className="w-32 backdrop-blur-sm bg-white/20 border-white/30">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -690,6 +689,7 @@ const CreateAuction = () => {
                           placeholder="60"
                           value={formData.dimensions.width}
                           onChange={(e) => handleDimensionChange('width', e.target.value)}
+                          className="backdrop-blur-sm bg-white/20 border-white/30"
                         />
                       </div>
                       <div className="space-y-2">
@@ -700,6 +700,7 @@ const CreateAuction = () => {
                           placeholder="80"
                           value={formData.dimensions.height}
                           onChange={(e) => handleDimensionChange('height', e.target.value)}
+                          className="backdrop-blur-sm bg-white/20 border-white/30"
                         />
                       </div>
                       <div className="space-y-2">
@@ -710,6 +711,7 @@ const CreateAuction = () => {
                           placeholder="2"
                           value={formData.dimensions.depth}
                           onChange={(e) => handleDimensionChange('depth', e.target.value)}
+                          className="backdrop-blur-sm bg-white/20 border-white/30"
                         />
                       </div>
                     </div>
@@ -718,7 +720,8 @@ const CreateAuction = () => {
               </Card>
 
               {/* Auction Details */}
-              <Card>
+              {/* FIXED: Glass effect card */}
+              <Card className="group hover:shadow-2xl transition-all duration-300 backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <Calendar className="w-5 h-5 mr-2" />
@@ -737,6 +740,7 @@ const CreateAuction = () => {
                         value={formData.startingBid}
                         onChange={(e) => handleInputChange('startingBid', e.target.value)}
                         required
+                        className="backdrop-blur-sm bg-white/20 border-white/30"
                       />
                     </div>
                     <div className="space-y-2">
@@ -747,12 +751,14 @@ const CreateAuction = () => {
                         placeholder="1000"
                         value={formData.reservePrice}
                         onChange={(e) => handleInputChange('reservePrice', e.target.value)}
+                        className="backdrop-blur-sm bg-white/20 border-white/30"
                       />
-                      <p className="text-xs text-muted-foreground">Minimum price you'll accept (optional)</p>
+                      <p className="text-xs text-gray-700">Minimum price you'll accept (optional)</p>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* FIXED: Date inputs with proper mobile sizing */}
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="startDate">Auction Start *</Label>
                       <Input 
@@ -761,6 +767,7 @@ const CreateAuction = () => {
                         value={formData.startDate}
                         onChange={(e) => handleInputChange('startDate', e.target.value)}
                         required
+                        className="backdrop-blur-sm bg-white/20 border-white/30 text-sm sm:text-base"
                       />
                     </div>
                     <div className="space-y-2">
@@ -771,6 +778,7 @@ const CreateAuction = () => {
                         value={formData.endDate}
                         onChange={(e) => handleInputChange('endDate', e.target.value)}
                         required
+                        className="backdrop-blur-sm bg-white/20 border-white/30 text-sm sm:text-base"
                       />
                     </div>
                   </div>
@@ -781,7 +789,7 @@ const CreateAuction = () => {
                       value={formData.bidIncrement} 
                       onValueChange={(value) => handleInputChange('bidIncrement', value)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="backdrop-blur-sm bg-white/20 border-white/30">
                         <SelectValue placeholder="Select bid increment" />
                       </SelectTrigger>
                       <SelectContent>
@@ -796,7 +804,8 @@ const CreateAuction = () => {
               </Card>
 
               {/* Location & Shipping */}
-              <Card>
+              {/* FIXED: Glass effect card */}
+              <Card className="group hover:shadow-2xl transition-all duration-300 backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <MapPin className="w-5 h-5 mr-2" />
@@ -812,6 +821,7 @@ const CreateAuction = () => {
                         placeholder="Bloemfontein, SA"
                         value={formData.location}
                         onChange={(e) => handleInputChange('location', e.target.value)}
+                        className="backdrop-blur-sm bg-white/20 border-white/30"
                       />
                       {userLocation && (
                         <Button 
@@ -820,17 +830,18 @@ const CreateAuction = () => {
                           size="icon"
                           onClick={useDetectedLocation}
                           title="Use my current location"
+                          className="backdrop-blur-sm bg-white/20 border-white/30"
                         >
                           <MapPin className="w-4 h-4" />
                         </Button>
                       )}
                     </div>
                     {userLocation && (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-gray-700">
                         Detected location: {userLocation}
                       </p>
                     )}
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-gray-700">
                       This helps local buyers find your artwork
                     </p>
                   </div>
@@ -841,20 +852,20 @@ const CreateAuction = () => {
                       <label className="flex items-center space-x-2">
                         <input 
                           type="checkbox" 
-                          className="rounded" 
+                          className="rounded backdrop-blur-sm bg-white/20 border-white/30" 
                           checked={formData.shippingOptions.localPickup}
                           onChange={(e) => handleShippingOptionChange('localPickup', e.target.checked)}
                         />
-                        <span className="text-sm">Local pickup available</span>
+                        <span className="text-sm text-gray-800">Local pickup available</span>
                       </label>
                       <label className="flex items-center space-x-2">
                         <input 
                           type="checkbox" 
-                          className="rounded" 
+                          className="rounded backdrop-blur-sm bg-white/20 border-white/30" 
                           checked={formData.shippingOptions.shippingAvailable}
                           onChange={(e) => handleShippingOptionChange('shippingAvailable', e.target.checked)}
                         />
-                        <span className="text-sm">Shipping available</span>
+                        <span className="text-sm text-gray-800">Shipping available</span>
                       </label>
                     </div>
                   </div>
@@ -868,6 +879,7 @@ const CreateAuction = () => {
                         placeholder="50"
                         value={formData.shippingCost}
                         onChange={(e) => handleInputChange('shippingCost', e.target.value)}
+                        className="backdrop-blur-sm bg-white/20 border-white/30"
                       />
                     </div>
                   )}
@@ -877,7 +889,8 @@ const CreateAuction = () => {
 
             {/* Preview & Summary */}
             <div className="space-y-6">
-              <Card>
+              {/* FIXED: Glass effect card */}
+              <Card className="group hover:shadow-2xl transition-all duration-300 backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl shadow-xl">
                 <CardHeader>
                   <CardTitle>Preview</CardTitle>
                 </CardHeader>
@@ -886,16 +899,16 @@ const CreateAuction = () => {
                     <img 
                       src={images[0]} 
                       alt="Artwork preview"
-                      className="w-full h-48 object-cover rounded-lg frame-luxury"
+                      className="w-full h-48 object-cover rounded-lg"
                     />
                   ) : (
-                    <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center">
-                      <ImageIcon className="w-12 h-12 text-muted-foreground" />
+                    <div className="w-full h-48 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur-sm">
+                      <ImageIcon className="w-12 h-12 text-gray-700" />
                     </div>
                   )}
                   <div className="mt-4 space-y-2">
-                    <h3 className="font-semibold">{formData.title || "Artwork Title"}</h3>
-                    <p className="text-sm text-muted-foreground">
+                    <h3 className="font-semibold text-gray-800">{formData.title || "Artwork Title"}</h3>
+                    <p className="text-sm text-gray-700">
                       by {getUserDisplayName()}
                     </p>
                     <p className="text-lg font-bold text-accent">
@@ -905,26 +918,27 @@ const CreateAuction = () => {
                 </CardContent>
               </Card>
 
-              <Card>
+              {/* FIXED: Glass effect card */}
+              <Card className="group hover:shadow-2xl transition-all duration-300 backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl shadow-xl">
                 <CardHeader>
                   <CardTitle>Listing Summary</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm text-gray-800">
                     <span>Platform Fee</span>
                     <span>5% of final price</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm text-gray-800">
                     <span>Payment Processing</span>
                     <span>2.9% + R2</span>
                   </div>
-                  <div className="border-t pt-2">
-                    <div className="flex justify-between font-semibold">
+                  <div className="border-t border-white/30 pt-2">
+                    <div className="flex justify-between font-semibold text-gray-800">
                       <span>You'll receive</span>
                       <span>~92% of final price</span>
                     </div>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-2">
+                  <div className="text-xs text-gray-700 mt-2">
                     <p>Example for R1,000 sale:</p>
                     <p>• Platform fee: R50</p>
                     <p>• Payment processing: R31</p>
@@ -936,7 +950,7 @@ const CreateAuction = () => {
               <div className="space-y-3">
                 <Button 
                   type="submit" 
-                  className="w-full btn-primary"
+                  className="w-full btn-primary backdrop-blur-sm bg-white/20 border-white/30 hover:shadow-2xl transition-all duration-300"
                   disabled={loading}
                 >
                   {loading ? "Publishing..." : "Publish Auction"}
@@ -944,7 +958,7 @@ const CreateAuction = () => {
                 <Button 
                   type="button" 
                   variant="outline" 
-                  className="w-full"
+                  className="w-full backdrop-blur-sm bg-white/20 border-white/30 hover:shadow-2xl transition-all duration-300"
                   onClick={handleSaveDraft}
                   disabled={loading}
                 >
@@ -952,10 +966,11 @@ const CreateAuction = () => {
                 </Button>
               </div>
 
-              <Card>
+              {/* FIXED: Glass effect card */}
+              <Card className="group hover:shadow-2xl transition-all duration-300 backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl shadow-xl">
                 <CardContent className="p-4">
-                  <h4 className="font-semibold mb-2">Tips for Success</h4>
-                  <ul className="text-sm text-muted-foreground space-y-1">
+                  <h4 className="font-semibold mb-2 text-gray-800">Tips for Success</h4>
+                  <ul className="text-sm text-gray-700 space-y-1">
                     <li>• Use high-quality, well-lit photos</li>
                     <li>• Write detailed descriptions</li>
                     <li>• Set competitive starting prices</li>

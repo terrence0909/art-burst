@@ -36,13 +36,13 @@ const features = [
 
 export const FeatureSection = () => {
   return (
-    <section className="py-20 bg-background">
+    <section className="py-20 bg-gradient-to-br from-gray-300 to-gray-500">
       <div className="container px-4">
         <div className="text-center mb-16">
-          <h2 className="font-playfair text-4xl font-bold mb-4">
+          <h2 className="font-playfair text-4xl font-bold mb-4 text-gradient">
             Why Choose ArtBurst?
           </h2>
-          <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+          <p className="text-lg text-gray-800 max-w-3xl mx-auto">
             We're revolutionizing how art lovers discover and collect local artwork. 
             Our platform brings together the excitement of auctions with the convenience 
             of modern technology.
@@ -51,15 +51,18 @@ export const FeatureSection = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((feature, index) => (
-            <Card key={index} className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-background to-muted/30">
+            <Card 
+              key={index} 
+              className="group hover:shadow-2xl transition-all duration-300 backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl shadow-xl"
+            >
               <CardContent className="p-8">
-                <div className="w-12 h-12 bg-gradient-luxury rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                  <feature.icon className="w-6 h-6 text-luxury-foreground" />
+                <div className="w-12 h-12 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 border border-white/20">
+                  <feature.icon className="w-6 h-6 text-gradient" />
                 </div>
-                <h3 className="font-playfair text-xl font-semibold mb-3">
+                <h3 className="font-playfair text-xl font-semibold mb-3 text-gray-800">
                   {feature.title}
                 </h3>
-                <p className="text-muted-foreground leading-relaxed">
+                <p className="text-gray-700 leading-relaxed">
                   {feature.description}
                 </p>
               </CardContent>

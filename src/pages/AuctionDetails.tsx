@@ -180,12 +180,12 @@ const AuctionDetails = () => {
   const displayTimeRemaining = timeRemaining || auction.timeRemaining;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-gray-300 to-gray-500">
       <Header />
 
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10 max-w-7xl">
         {/* Back Button */}
-        <Button variant="ghost" size="lg" className="mb-6 hover:bg-accent/10" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="lg" className="mb-6 hover:bg-accent/10 backdrop-blur-xl bg-white/20 border border-white/30" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Auctions
         </Button>
@@ -208,18 +208,18 @@ const AuctionDetails = () => {
                 onLoad={() => console.log('✅ Image loaded successfully in AuctionDetails:', auction.image)}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none" />
-              <Badge className="absolute top-4 left-4 bg-accent text-white border-0 shadow-lg px-3 py-1.5">
+              <Badge className="absolute top-4 left-4 bg-accent text-white border-0 shadow-lg px-3 py-1.5 backdrop-blur-xl bg-white/20 border border-white/30">
                 {auction.status === "live" ? "🔴 Live Auction" : "📅 Upcoming"}
               </Badge>
             </div>
 
             <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
-              <Button variant="outline" size="lg" className="gap-2">
+              <Button variant="outline" size="lg" className="gap-2 backdrop-blur-xl bg-white/20 border border-white/30">
                 <Heart className="w-4 h-4" />
                 <span>Watch</span>
                 <Badge variant="secondary" className="ml-1">{auction.watchers}</Badge>
               </Button>
-              <Button variant="outline" size="lg" className="gap-2">
+              <Button variant="outline" size="lg" className="gap-2 backdrop-blur-xl bg-white/20 border border-white/30">
                 <Share2 className="w-4 h-4" />
                 Share
               </Button>
@@ -243,7 +243,7 @@ const AuctionDetails = () => {
             </div>
 
             {/* Current Bid */}
-            <Card className="border-accent/20 shadow-xl bg-gradient-to-br from-accent/5 to-transparent">
+            <Card className="border-accent/20 shadow-xl bg-gradient-to-br from-accent/5 to-transparent backdrop-blur-xl bg-white/20 border border-white/30">
               <CardContent className="p-6 md:p-8">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
                   <div className="text-center sm:text-left">
@@ -265,9 +265,9 @@ const AuctionDetails = () => {
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Input
                       placeholder={`Min bid: R${nextMinBid.toLocaleString()}`}
-                      className="flex-1 h-12 text-lg"
+                      className="flex-1 h-12 text-lg backdrop-blur-xl bg-white/20 border border-white/30"
                     />
-                    <Button className="btn-primary h-12 px-8 text-lg font-semibold" onClick={handlePlaceBid}>
+                    <Button className="btn-primary h-12 px-8 text-lg font-semibold backdrop-blur-xl bg-white/20 border border-white/30" onClick={handlePlaceBid}>
                       Place Bid
                     </Button>
                   </div>
@@ -283,7 +283,7 @@ const AuctionDetails = () => {
             </Card>
 
             {/* Artwork Details */}
-            <Card className="border-accent/10">
+            <Card className="border-accent/10 backdrop-blur-xl bg-white/20 border border-white/30">
               <CardContent className="p-6 md:p-8">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
@@ -319,7 +319,7 @@ const AuctionDetails = () => {
             </Card>
 
             {/* Bid History */}
-            <Card className="border-accent/10">
+            <Card className="border-accent/10 backdrop-blur-xl bg-white/20 border border-white/30">
               <CardContent className="p-6 md:p-8">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
@@ -329,7 +329,7 @@ const AuctionDetails = () => {
                 </div>
                 <div className="space-y-4">
                   {auction.bidHistory?.map((bid, index) => (
-                    <div key={index} className="flex justify-between items-center p-3 rounded-lg hover:bg-accent/5 transition-colors">
+                    <div key={index} className="flex justify-between items-center p-3 rounded-lg hover:bg-accent/5 transition-colors backdrop-blur-xl bg-white/10 border border-white/20">
                       <div>
                         <p className="font-bold text-lg text-accent">R{bid.amount.toLocaleString()}</p>
                         <p className="text-sm text-muted-foreground">{bid.bidder}</p>

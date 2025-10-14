@@ -79,7 +79,7 @@ const PaymentPage = () => {
   // Show loading state if auction data isn't available yet
   if (!auction) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gradient-to-br from-gray-300 to-gray-500">
         <Header />
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-4xl mx-auto">
@@ -97,7 +97,7 @@ const PaymentPage = () => {
   const totalAmount = auction.currentBid * 1.05;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-gray-300 to-gray-500">
       <Header />
       
       <div className="container mx-auto px-4 py-8">
@@ -107,7 +107,7 @@ const PaymentPage = () => {
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Payment Methods */}
-            <Card>
+            <Card className="backdrop-blur-xl bg-white/20 border border-white/30">
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Zap className="w-5 h-5 mr-2" />
@@ -119,30 +119,30 @@ const PaymentPage = () => {
                   {/* PayFast Instant EFT */}
                   <div 
                     onClick={() => setPaymentMethod('payfast')}
-                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all backdrop-blur-xl bg-white/20 border border-white/30 ${
                       paymentMethod === 'payfast' 
                         ? 'border-green-600 bg-green-50 ring-2 ring-green-200' 
                         : 'border-gray-200 hover:border-green-300'
                     }`}
                   >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
+                    <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
+                      <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center flex-shrink-0 mx-auto sm:mx-0">
                         <Zap className="w-6 h-6 text-white" />
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 text-center sm:text-left">
                         <div className="font-semibold text-gray-900">Instant EFT & Cards</div>
-                        <div className="text-sm text-gray-600">Pay instantly with your bank or card</div>
-                        <div className="flex space-x-1 mt-1">
-                          <Badge variant="secondary" className="text-xs">FNB</Badge>
-                          <Badge variant="secondary" className="text-xs">Absa</Badge>
-                          <Badge variant="secondary" className="text-xs">Standard</Badge>
-                          <Badge variant="secondary" className="text-xs">Nedbank</Badge>
-                          <Badge variant="secondary" className="text-xs">Visa</Badge>
-                          <Badge variant="secondary" className="text-xs">Mastercard</Badge>
+                        <div className="text-sm text-gray-600 mb-2">Pay instantly with your bank or card</div>
+                        <div className="flex flex-wrap justify-center sm:justify-start gap-1">
+                          <Badge variant="secondary" className="text-xs backdrop-blur-xl bg-white/20 border border-white/30">FNB</Badge>
+                          <Badge variant="secondary" className="text-xs backdrop-blur-xl bg-white/20 border border-white/30">Absa</Badge>
+                          <Badge variant="secondary" className="text-xs backdrop-blur-xl bg-white/20 border border-white/30">Standard</Badge>
+                          <Badge variant="secondary" className="text-xs backdrop-blur-xl bg-white/20 border border-white/30">Nedbank</Badge>
+                          <Badge variant="secondary" className="text-xs backdrop-blur-xl bg-white/20 border border-white/30">Visa</Badge>
+                          <Badge variant="secondary" className="text-xs backdrop-blur-xl bg-white/20 border border-white/30">Mastercard</Badge>
                         </div>
                       </div>
                       {paymentMethod === 'payfast' && (
-                        <CheckCircle2 className="w-6 h-6 text-green-600" />
+                        <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0 mx-auto sm:mx-0" />
                       )}
                     </div>
                   </div>
@@ -150,17 +150,17 @@ const PaymentPage = () => {
                   {/* Credit Card Option (Manual) */}
                   <div 
                     onClick={() => setPaymentMethod('card')}
-                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all backdrop-blur-xl bg-white/20 border border-white/30 ${
                       paymentMethod === 'card' 
                         ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-200' 
                         : 'border-gray-200 hover:border-blue-300'
                     }`}
                   >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
+                    <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
+                      <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mx-auto sm:mx-0">
                         <CreditCard className="w-6 h-6 text-white" />
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 text-center sm:text-left">
                         <div className="font-semibold text-gray-900">Manual Processing</div>
                         <div className="text-sm text-gray-600">For testing without PayFast</div>
                         <div className="text-xs text-orange-600 mt-1">
@@ -168,7 +168,7 @@ const PaymentPage = () => {
                         </div>
                       </div>
                       {paymentMethod === 'card' && (
-                        <CheckCircle2 className="w-6 h-6 text-blue-600" />
+                        <CheckCircle2 className="w-6 h-6 text-blue-600 flex-shrink-0 mx-auto sm:mx-0" />
                       )}
                     </div>
                   </div>
@@ -177,7 +177,7 @@ const PaymentPage = () => {
                   {paymentMethod === 'payfast' && (
                     <Button 
                       onClick={handlePayFastPayment}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white"
+                      className="w-full bg-green-600 hover:bg-green-700 text-white backdrop-blur-xl bg-white/20 border border-white/30"
                       disabled={processing}
                       size="lg"
                     >
@@ -202,7 +202,7 @@ const PaymentPage = () => {
                           navigate(`/payment-success?auctionId=${auction.id}`);
                         }, 2000);
                       }}
-                      className="w-full bg-blue-600 hover:bg-blue-700"
+                      className="w-full bg-blue-600 hover:bg-blue-700 backdrop-blur-xl bg-white/20 border border-white/30"
                       disabled={processing}
                       size="lg"
                     >
@@ -217,15 +217,15 @@ const PaymentPage = () => {
 
                   {/* Trust Badges */}
                   <div className="grid grid-cols-3 gap-2 pt-4">
-                    <div className="text-center p-2 bg-gray-50 rounded-lg">
+                    <div className="text-center p-2 rounded-lg backdrop-blur-xl bg-white/20 border border-white/30">
                       <Shield className="w-6 h-6 text-green-600 mx-auto mb-1" />
                       <div className="text-xs text-gray-600">Secure</div>
                     </div>
-                    <div className="text-center p-2 bg-gray-50 rounded-lg">
+                    <div className="text-center p-2 rounded-lg backdrop-blur-xl bg-white/20 border border-white/30">
                       <Zap className="w-6 h-6 text-green-600 mx-auto mb-1" />
                       <div className="text-xs text-gray-600">Instant</div>
                     </div>
-                    <div className="text-center p-2 bg-gray-50 rounded-lg">
+                    <div className="text-center p-2 rounded-lg backdrop-blur-xl bg-white/20 border border-white/30">
                       <CreditCard className="w-6 h-6 text-green-600 mx-auto mb-1" />
                       <div className="text-xs text-gray-600">All Banks</div>
                     </div>
@@ -235,25 +235,25 @@ const PaymentPage = () => {
             </Card>
 
             {/* Order Summary */}
-            <Card>
+            <Card className="backdrop-blur-xl bg-white/20 border border-white/30">
               <CardHeader>
                 <CardTitle>Order Summary</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  <div className="flex items-center space-x-4 p-4 bg-muted/30 rounded-lg">
+                  <div className="flex items-center space-x-4 p-4 rounded-lg backdrop-blur-xl bg-white/20 border border-white/30">
                     <img
                       src={auction.image}
                       alt={auction.title}
-                      className="w-16 h-16 object-cover rounded-lg"
+                      className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
                       onError={(e) => {
                         e.currentTarget.src = '/api/placeholder/400/300';
                       }}
                     />
-                    <div className="flex-1">
-                      <h3 className="font-semibold">{auction.title}</h3>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold truncate">{auction.title}</h3>
                       <p className="text-sm text-muted-foreground">by {auction.artistName}</p>
-                      <Badge variant="secondary" className="mt-1">
+                      <Badge variant="secondary" className="mt-1 backdrop-blur-xl bg-white/20 border border-white/30">
                         Winning Bid
                       </Badge>
                     </div>
@@ -275,7 +275,7 @@ const PaymentPage = () => {
                   </div>
 
                   {/* PayFast Benefits */}
-                  <div className="bg-green-50 rounded-lg p-4 space-y-2">
+                  <div className="rounded-lg p-4 space-y-2 backdrop-blur-xl bg-white/20 border border-white/30">
                     <h4 className="font-semibold text-green-800 flex items-center">
                       <Zap className="w-4 h-4 mr-2" />
                       Why PayFast?
