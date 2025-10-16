@@ -22,23 +22,50 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const loadNotifications = async () => {
+      try {
+        console.log('🔍 STEP 1: Loading notification service...');
+        
+        const module = await import('@/services/notificationService');
+        const service = module.notificationService;
+        
+        console.log('✅ Service instance:', service);
+        console.log('📋 Service methods:', Object.keys(service));
+        
+        const userId = localStorage.getItem('auction-user-id');
+        console.log('👤 User ID:', userId);
+        
+        if (userId) {
+          // Check service internal state
+          console.log('📊 Service user IDs:', service.getUserIds());
+          
+          // Get notifications directly from service
+          const userNotifications = service.getUserNotifications(userId);
+          console.log('📬 Notifications from service:', userNotifications);
+          console.log('🔢 Number of notifications:', userNotifications.length);
+          
+          // Check if it's an array and has the right structure
+          console.log('📐 Is array?', Array.isArray(userNotifications));
+          if (userNotifications.length > 0) {
+            console.log('📄 First notification structure:', userNotifications[0]);
+          }
+          
+          setNotifications(userNotifications);
+          
+          // Force a re-render to see if React state is the issue
+          setTimeout(() => {
+            console.log('🔄 After setNotifications - state should be updated');
+          }, 100);
+        }
+      } catch (error) {
+        console.error('💥 Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadNotifications();
   }, []);
-
-  const loadNotifications = async () => {
-    try {
-      const service = await import('@/services/notificationService').then(m => m.notificationService);
-      const userId = localStorage.getItem('auction-user-id');
-      if (userId) {
-        const userNotifications = service.getUserNotifications(userId);
-        setNotifications(userNotifications);
-      }
-    } catch (error) {
-      console.error('Error loading notifications:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const markAsRead = async (notificationId: string) => {
     try {
@@ -80,7 +107,12 @@ export default function Notifications() {
     }
   };
 
+  // Add debug logging for rendering
+  console.log('🔄 Component rendering with notifications:', notifications.length);
+  console.log('📝 Notifications data:', notifications);
+
   const unreadCount = notifications.filter(n => !n.read).length;
+  console.log('🔢 Unread count:', unreadCount);
 
   if (loading) {
     return (

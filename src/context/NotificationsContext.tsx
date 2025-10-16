@@ -1,55 +1,59 @@
 // src/context/NotificationsContext.tsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Notification, notificationService } from '@/services/notificationService';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { notificationService, Notification } from '../services/notificationService';
 
 interface NotificationsContextType {
   notifications: Notification[];
   unreadCount: number;
-  markAsRead: (id: string) => void;
+  markAsRead: (notificationId: string) => void;
   markAllAsRead: () => void;
-  loading: boolean;
+  refreshNotifications: () => void;
 }
 
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
 
-export const NotificationsProvider: React.FC<{ children: React.ReactNode; userId: string }> = ({ 
+interface NotificationsProviderProps {
+  children: ReactNode;
+  userId: string;
+}
+
+export const NotificationsProvider: React.FC<NotificationsProviderProps> = ({ 
   children, 
   userId 
 }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const refreshNotifications = () => {
+    const userNotifications = notificationService.getUserNotifications(userId);
+    setNotifications(userNotifications);
+    setUnreadCount(userNotifications.filter(n => !n.read).length);
+  };
 
-  const markAsRead = (id: string) => {
-    notificationService.markAsRead(id, userId);
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
+  useEffect(() => {
+    if (userId) {
+      refreshNotifications();
+
+      // 🔥 FIX: Use the new subscribe method with userId
+      const unsubscribe = notificationService.subscribe(userId, (newNotification: Notification) => {
+        // Add new notification to the list in real-time
+        setNotifications(prev => [newNotification, ...prev]);
+        setUnreadCount(prev => prev + 1);
+      });
+
+      return () => unsubscribe();
+    }
+  }, [userId]);
+
+  const markAsRead = (notificationId: string) => {
+    notificationService.markAsRead(notificationId, userId);
+    refreshNotifications(); // Refresh to get updated read status
   };
 
   const markAllAsRead = () => {
     notificationService.markAllAsRead(userId);
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    refreshNotifications(); // Refresh to get updated read status
   };
-
-  useEffect(() => {
-    if (!userId) return;
-
-    // Load initial notifications
-    const userNotifications = notificationService.getUserNotifications(userId);
-    setNotifications(userNotifications);
-    setLoading(false);
-
-    // Subscribe to new notifications
-    const unsubscribe = notificationService.subscribe((newNotification) => {
-      if (newNotification.userId === userId) {
-        setNotifications(prev => [newNotification, ...prev]);
-      }
-    });
-
-    return unsubscribe;
-  }, [userId]);
 
   return (
     <NotificationsContext.Provider value={{
@@ -57,7 +61,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode; userId
       unreadCount,
       markAsRead,
       markAllAsRead,
-      loading
+      refreshNotifications
     }}>
       {children}
     </NotificationsContext.Provider>

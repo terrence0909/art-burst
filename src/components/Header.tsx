@@ -1,4 +1,4 @@
-import { MapPin, User, Search, Bell, LogOut, Home, Gavel, Menu, Plus, Loader2, Settings } from "lucide-react";
+import { MapPin, User, Search, Bell, LogOut, Home, Gavel, Menu, Plus, Loader2, Settings, CheckCircle, XCircle, AlertCircle, Trophy, CreditCard } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Link, useNavigate, useLocation } from "react-router-dom";
@@ -37,6 +37,18 @@ interface LocationData {
   };
 }
 
+interface Notification {
+  id: string;
+  type: 'OUTBID' | 'AUCTION_ENDING' | 'AUCTION_WON' | 'NEW_BID' | 'BID_CONFIRMED' | 'PAYMENT_REMINDER';
+  title: string;
+  message: string;
+  userId: string;
+  relatedId?: string;
+  read: boolean;
+  createdAt: string;
+  metadata?: any;
+}
+
 export const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -58,6 +70,7 @@ export const Header = () => {
 
   // Notification state
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   useEffect(() => {
     checkAuthStatus();
@@ -78,6 +91,7 @@ export const Header = () => {
             const unsubscribe = service.subscribe(userId, (newNotification) => {
               // Update badge count in real-time when new notification arrives
               setUnreadCount(prev => prev + 1);
+              setNotifications(prev => [newNotification, ...prev]);
             });
             
             return unsubscribe;
@@ -124,12 +138,55 @@ export const Header = () => {
       const service = await import('@/services/notificationService').then(m => m.notificationService);
       const userId = localStorage.getItem('auction-user-id');
       if (userId) {
-        const notifications = service.getUserNotifications(userId);
-        const unread = notifications.filter(n => !n.read).length;
+        const userNotifications = service.getUserNotifications(userId);
+        const unread = userNotifications.filter(n => !n.read).length;
         setUnreadCount(unread);
+        setNotifications(userNotifications.slice(0, 10)); // Show latest 10 in dropdown
       }
     } catch (error) {
       console.error('Error checking notifications:', error);
+    }
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'OUTBID': return <XCircle className="w-4 h-4 text-destructive" />;
+      case 'AUCTION_ENDING': return <AlertCircle className="w-4 h-4 text-yellow-500" />;
+      case 'AUCTION_WON': return <Trophy className="w-4 h-4 text-green-500" />;
+      case 'NEW_BID': return <Bell className="w-4 h-4 text-blue-500" />;
+      case 'BID_CONFIRMED': return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'PAYMENT_REMINDER': return <CreditCard className="w-4 h-4 text-orange-500" />;
+      default: return <Bell className="w-4 h-4 text-primary" />;
+    }
+  };
+
+  const markAsRead = async (notificationId: string) => {
+    try {
+      const service = await import('@/services/notificationService').then(m => m.notificationService);
+      const userId = localStorage.getItem('auction-user-id');
+      if (userId) {
+        service.markAsRead(notificationId, userId);
+        setUnreadCount(prev => Math.max(0, prev - 1));
+        setNotifications(prev => prev.map(n => 
+          n.id === notificationId ? { ...n, read: true } : n
+        ));
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const service = await import('@/services/notificationService').then(m => m.notificationService);
+      const userId = localStorage.getItem('auction-user-id');
+      if (userId) {
+        service.markAllAsRead(userId);
+        setUnreadCount(0);
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      }
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
     }
   };
 
@@ -492,20 +549,96 @@ export const Header = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Notifications - Hidden on mobile, shown on tablet+ */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hidden sm:flex backdrop-blur-xl bg-white/20 border border-white/30 relative"
-            onClick={() => navigate('/notifications')}
-          >
-            <Bell className="w-4 h-4" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {unreadCount}
-              </span>
-            )}
-          </Button>
+          {/* Notifications Dropdown - Hidden on mobile, shown on tablet+ */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hidden sm:flex backdrop-blur-xl bg-white/20 border border-white/30 relative"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto backdrop-blur-xl bg-white/20 border border-white/30">
+              <div className="px-2 py-1.5 text-sm font-medium border-b flex items-center justify-between">
+                <span>Notifications</span>
+                {unreadCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-primary hover:bg-transparent"
+                    onClick={markAllAsRead}
+                  >
+                    Mark all read
+                  </Button>
+                )}
+              </div>
+              
+              {notifications.length === 0 ? (
+                <div className="px-2 py-4 text-center text-muted-foreground">
+                  <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No notifications yet</p>
+                </div>
+              ) : (
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      className={`px-2 py-3 border-b last:border-b-0 ${
+                        !notification.read ? 'bg-primary/5' : ''
+                      }`}
+                    >
+                      <div className="flex items-start space-x-2">
+                        <div className="mt-0.5">
+                          {getNotificationIcon(notification.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <p className="text-sm font-medium text-foreground">
+                              {notification.title}
+                            </p>
+                            {!notification.read && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-primary/10"
+                                onClick={() => markAsRead(notification.id)}
+                              >
+                                <CheckCircle className="w-3 h-3" />
+                              </Button>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-1">
+                            {notification.message}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(notification.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <div className="p-2 border-t">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-center text-xs"
+                  onClick={() => navigate('/notifications')}
+                >
+                  View all notifications
+                </Button>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* List Artwork - Hidden on mobile, shown on tablet+ */}
           <Link to="/create" className="hidden sm:block">
