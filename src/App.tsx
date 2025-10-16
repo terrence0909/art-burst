@@ -15,6 +15,7 @@ import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentCancelled from "./pages/PaymentCancelled";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
+import Notifications from "./pages/Notifications";
 import { NotificationsProvider } from "./context/NotificationsContext";
 import { getCurrentUser } from "aws-amplify/auth";
 import { useState, useEffect } from "react";
@@ -23,27 +24,37 @@ const queryClient = new QueryClient();
 
 const App = () => {
   const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const getUserId = async () => {
       try {
         const user = await getCurrentUser();
         setCurrentUserId(user.username);
+        console.log('🔑 App - User ID set:', user.username);
       } catch (error) {
         console.log('User not logged in');
         // Use a fallback for anonymous users
         const storedUserId = localStorage.getItem('auction-user-id');
         if (storedUserId) {
           setCurrentUserId(storedUserId);
+          console.log('🔑 App - Using stored user ID:', storedUserId);
         } else {
           const newUserId = `user-${Math.random().toString(36).substring(2, 10)}`;
           localStorage.setItem('auction-user-id', newUserId);
           setCurrentUserId(newUserId);
+          console.log('🔑 App - Created new user ID:', newUserId);
         }
+      } finally {
+        setIsLoading(false);
       }
     };
     getUserId();
   }, []);
+
+  if (isLoading) {
+    return <div>Loading...</div>; // Or your loading component
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -60,7 +71,8 @@ const App = () => {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/create" element={<CreateAuction />} />
-            <Route path="/payment" element={<PaymentPage />} /> {/* Add this line */}
+            <Route path="/payment" element={<PaymentPage />} />
+            <Route path="/notifications" element={<Notifications />} />
             <Route path="*" element={<NotFound />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/payment-cancelled" element={<PaymentCancelled />} />

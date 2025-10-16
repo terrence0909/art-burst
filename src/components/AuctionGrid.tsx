@@ -144,8 +144,8 @@ export const AuctionGrid = () => {
       const messageId = `${auctionId}-${bidAmount}-${bidTime}`;
       if (processedBidsRef.current.has(messageId)) return;
       processedBidsRef.current.add(messageId);
-      if (processedBidsRef.current.size > 100) {
-        processedBidsRef.current = new Set(Array.from(processedBidsRef.current).slice(-50));
+      if (processedBidsRef.current.size > 50) {
+        processedBidsRef.current = new Set(Array.from(processedBidsRef.current).slice(-25));
       }
 
       const currentAuction = auctions.find(a => a.auctionId === auctionId);
@@ -162,51 +162,7 @@ export const AuctionGrid = () => {
       const wasMyBid = bidderId === currentUserId;
       const isNewHighestBidder = bidderId !== previousHighestBidder;
 
-      // 🔥 NOTIFICATION: Send outbid notification to previous highest bidder
-      if (previousHighestBidder && previousHighestBidder !== bidderId) {
-        notificationService.addNotification({
-          type: 'OUTBID',
-          title: "You've been outbid!",
-          message: `Someone placed a higher bid of R${bidAmount.toLocaleString()} on "${currentAuction.title}"`,
-          userId: previousHighestBidder,
-          relatedId: auctionId,
-          metadata: { 
-            auctionTitle: currentAuction.title, 
-            bidAmount,
-            newBidderId: bidderId 
-          }
-        });
-      }
-
-      // 🔥 NOTIFICATION: Send bid confirmation to the bidder
-      if (wasMyBid && !wasMyPendingBid) {
-        notificationService.addNotification({
-          type: 'BID_CONFIRMED',
-          title: "Bid Confirmed!",
-          message: `Your bid of R${bidAmount.toLocaleString()} on "${currentAuction.title}" is confirmed`,
-          userId: bidderId,
-          relatedId: auctionId,
-          metadata: { 
-            auctionTitle: currentAuction.title, 
-            bidAmount 
-          }
-        });
-      }
-
-      // 🔥 GET REAL BIDDER NAME
-      const bidderName = await getBidderDisplayName(bidderId, currentUserId);
-
-      // *** ADD BID TO HISTORY MANAGER ***
-      bidHistoryManager.addBid(auctionId, {
-        bidId: bidId || `bid-${Date.now()}`,
-        auctionId,
-        bidAmount,
-        bidderId,
-        bidderName: bidderName,
-        bidTime: bidTime || new Date().toISOString(),
-        timestamp: new Date(bidTime || Date.now()).getTime()
-      });
-
+      // ✅ IMMEDIATE: Update UI FIRST (priority #1)
       let newBidderCount = currentAuction.bidders || 0;
       if (isNewHighestBidder && !wasMyPendingBid) {
         newBidderCount += 1;
@@ -218,6 +174,7 @@ export const AuctionGrid = () => {
         highestBidder: bidderId
       });
 
+      // ✅ IMMEDIATE: Show toast SECOND (priority #2)
       const now = Date.now();
       if (now - lastToastTimeRef.current > 1000) {
         let toastTitle = "";
@@ -240,6 +197,53 @@ export const AuctionGrid = () => {
           lastToastTimeRef.current = now;
         }
       }
+
+      // ✅ DELAYED: Process notifications and non-critical operations LAST
+      setTimeout(() => {
+        // Outbid notification
+        if (previousHighestBidder && previousHighestBidder !== bidderId) {
+          notificationService.addNotification({
+            type: 'OUTBID',
+            title: "You've been outbid!",
+            message: `Someone placed a higher bid of R${bidAmount.toLocaleString()} on "${currentAuction.title}"`,
+            userId: previousHighestBidder,
+            relatedId: auctionId,
+            metadata: { 
+              auctionTitle: currentAuction.title, 
+              bidAmount,
+              newBidderId: bidderId 
+            }
+          });
+        }
+
+        // Bid confirmation notification
+        if (wasMyBid && !wasMyPendingBid) {
+          notificationService.addNotification({
+            type: 'BID_CONFIRMED',
+            title: "Bid Confirmed!",
+            message: `Your bid of R${bidAmount.toLocaleString()} on "${currentAuction.title}" is confirmed`,
+            userId: bidderId,
+            relatedId: auctionId,
+            metadata: { 
+              auctionTitle: currentAuction.title, 
+              bidAmount 
+            }
+          });
+        }
+
+        // Non-critical: Get bidder name and update history
+        getBidderDisplayName(bidderId, currentUserId).then(bidderName => {
+          bidHistoryManager.addBid(auctionId, {
+            bidId: bidId || `bid-${Date.now()}`,
+            auctionId,
+            bidAmount,
+            bidderId,
+            bidderName: bidderName,
+            bidTime: bidTime || new Date().toISOString(),
+            timestamp: new Date(bidTime || Date.now()).getTime()
+          });
+        });
+      }, 0);
     }
   }, [updateAuction, toast, currentUserId, auctions]);
 

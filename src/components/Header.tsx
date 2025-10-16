@@ -56,10 +56,43 @@ export const Header = () => {
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Notification state
+  const [unreadCount, setUnreadCount] = useState(0);
+
   useEffect(() => {
     checkAuthStatus();
     loadSavedLocation();
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      checkUnreadNotifications();
+      
+      // Set up real-time notification subscription
+      const setupRealTimeNotifications = async () => {
+        try {
+          const service = await import('@/services/notificationService').then(m => m.notificationService);
+          const userId = localStorage.getItem('auction-user-id');
+          if (userId) {
+            // Subscribe to real-time notifications for this user
+            const unsubscribe = service.subscribe(userId, (newNotification) => {
+              // Update badge count in real-time when new notification arrives
+              setUnreadCount(prev => prev + 1);
+            });
+            
+            return unsubscribe;
+          }
+        } catch (error) {
+          console.error('Error setting up real-time notifications:', error);
+        }
+      };
+
+      const cleanup = setupRealTimeNotifications();
+      return () => {
+        cleanup.then(unsubscribe => unsubscribe && unsubscribe());
+      };
+    }
+  }, [isAuthenticated]);
 
   const checkAuthStatus = async () => {
     try {
@@ -83,6 +116,20 @@ export const Header = () => {
       setIsAuthenticated(false);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkUnreadNotifications = async () => {
+    try {
+      const service = await import('@/services/notificationService').then(m => m.notificationService);
+      const userId = localStorage.getItem('auction-user-id');
+      if (userId) {
+        const notifications = service.getUserNotifications(userId);
+        const unread = notifications.filter(n => !n.read).length;
+        setUnreadCount(unread);
+      }
+    } catch (error) {
+      console.error('Error checking notifications:', error);
     }
   };
 
@@ -449,10 +496,15 @@ export const Header = () => {
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground hidden sm:flex backdrop-blur-xl bg-white/20 border border-white/30"
+            className="text-muted-foreground hidden sm:flex backdrop-blur-xl bg-white/20 border border-white/30 relative"
             onClick={() => navigate('/notifications')}
           >
             <Bell className="w-4 h-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
           </Button>
 
           {/* List Artwork - Hidden on mobile, shown on tablet+ */}
@@ -612,6 +664,11 @@ export const Header = () => {
                       >
                         <Bell className="w-4 h-4 mr-3" />
                         Notifications
+                        {unreadCount > 0 && (
+                          <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                            {unreadCount}
+                          </span>
+                        )}
                       </Button>
                     </>
                   )}
