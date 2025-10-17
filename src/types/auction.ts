@@ -39,6 +39,7 @@ export interface Auction {
   endDate?: string;
   startTime?: string;
   startDate?: string;
+  creatorId?: string;
 }
 
 export type CreateAuctionData = Omit<Auction, 'id' | 'createdAt' | 'updatedAt'>;

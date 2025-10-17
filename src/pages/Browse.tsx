@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/use-toast";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 
-const API_BASE = "/api";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://wckv09j9eg.execute-api.us-east-1.amazonaws.com/prod";
 
 interface Auction {
   id: string;

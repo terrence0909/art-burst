@@ -1,7 +1,7 @@
 // src/services/notificationService.ts
 export interface Notification {
   id: string;
-  type: 'OUTBID' | 'AUCTION_ENDING' | 'AUCTION_WON' | 'NEW_BID' | 'BID_CONFIRMED' | 'PAYMENT_REMINDER';
+  type: 'OUTBID' | 'AUCTION_ENDING' | 'AUCTION_WON' | 'NEW_BID' | 'BID_CONFIRMED' | 'PAYMENT_REMINDER' | 'AUCTION_SOLD';
   title: string;
   message: string;
   userId: string;

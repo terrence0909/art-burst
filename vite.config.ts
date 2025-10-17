@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 
 export default defineConfig({
   root: ".",
-  base: "/",
+  base: "./", 
   server: {
     host: "0.0.0.0",
     port: 8080,

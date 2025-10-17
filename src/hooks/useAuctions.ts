@@ -31,6 +31,9 @@ export const useAuctions = () => {
     startDate: auction.startDate,
     endTime: auction.endTime,
     startTime: auction.startTime,
+    
+    // 🔥 ADD THIS: Handle creatorId from various possible field names
+    creatorId: auction.creatorId || auction.userId || auction.ownerId || auction.createdBy,
   }), []);
 
   const loadAuctions = useCallback(async () => {

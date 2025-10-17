@@ -73,10 +73,10 @@ const App = () => {
             <Route path="/create" element={<CreateAuction />} />
             <Route path="/payment" element={<PaymentPage />} />
             <Route path="/notifications" element={<Notifications />} />
-            <Route path="*" element={<NotFound />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/payment-cancelled" element={<PaymentCancelled />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </NotificationsProvider>
       </TooltipProvider>

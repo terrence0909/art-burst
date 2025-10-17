@@ -2,7 +2,8 @@
 import { fetchAuthSession } from "aws-amplify/auth";
 import { Auction } from '@/types/auction';
 
-const API_BASE_URL = "/api";
+// 🔥 FIX: Use the environment variable
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Enhanced fetch handler with authentication
 const handleFetch = async (url: string, options: RequestInit = {}) => {
@@ -153,14 +154,21 @@ const transformAuction = (item: any): Auction => {
     endTime: item.endTime || item.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     endDate: item.endDate || item.endTime || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     startTime: item.startTime || item.startDate || item.createdAt || new Date().toISOString(),
-    startDate: item.startDate || item.startTime || item.createdAt || new Date().toISOString()
+    startDate: item.startDate || item.startTime || item.createdAt || new Date().toISOString(),
+    // 🔥 ADD THIS: Handle creatorId from various possible field names
+    creatorId: item.creatorId || item.userId || item.ownerId || item.createdBy,
   };
 };
 
 // Fetch auctions with proper transformation to match Auction type
 export const fetchAuctions = async (): Promise<Auction[]> => {
   try {
-    const data = await handleFetch(`${API_BASE_URL}/auctions`);
+    const url = `${API_BASE_URL}/auctions`;
+    console.log('🔍 Fetching auctions from:', url);
+    console.log('🔍 Full API Base URL:', import.meta.env.VITE_API_BASE_URL);
+    
+    const data = await handleFetch(url);
+    console.log('🔍 API response received:', data);
     return data.map(transformAuction);
   } catch (error) {
     console.error("Error fetching auctions:", error);

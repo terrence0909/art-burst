@@ -46,6 +46,53 @@ export const AuctionGrid = () => {
     return () => clearInterval(interval);
   }, [refetch]);
 
+  // Add this function to notify auction creators
+  const notifyAuctionCreator = useCallback(async (auctionId: string, action: string, data?: any) => {
+    const auction = auctions.find(a => a.auctionId === auctionId);
+    if (!auction) return;
+
+    // 🔥 IMPORTANT: You need to add creatorId to your auction data structure
+    // For now, I'll assume there's a creatorId field - you'll need to add this
+    const creatorId = auction.creatorId;
+    if (!creatorId) {
+      console.warn('No creatorId found for auction:', auctionId);
+      return;
+    }
+
+    switch (action) {
+      case 'AUCTION_SOLD':
+        notificationService.addNotification({
+          userId: creatorId,
+          type: 'AUCTION_WON',
+          title: '🎉 Auction Sold!',
+          message: `Your artwork "${auction.title}" sold for R${data?.finalPrice?.toLocaleString() || auction.currentBid?.toLocaleString()}`,
+          relatedId: auctionId,
+          metadata: {
+            auctionTitle: auction.title,
+            finalPrice: data?.finalPrice || auction.currentBid,
+            winnerId: data?.winnerId,
+            action: 'view_sale'
+          }
+        });
+        break;
+
+      case 'AUCTION_CREATED':
+        notificationService.addNotification({
+          userId: creatorId,
+          type: 'BID_CONFIRMED',
+          title: 'Auction Created Successfully',
+          message: `Your auction "${auction.title}" has been created and will go live as scheduled.`,
+          relatedId: auctionId,
+          metadata: {
+            auctionTitle: auction.title,
+            status: 'created',
+            startDate: auction.startDate
+          }
+        });
+        break;
+    }
+  }, [auctions]);
+
   // Add this function to get real user names from Cognito
   const getBidderDisplayName = async (bidderId: string, currentUserId: string): Promise<string> => {
     if (bidderId === currentUserId) {
@@ -282,14 +329,63 @@ export const AuctionGrid = () => {
     else if (message.action === 'paymentUpdate' && message.paymentStatus === 'completed') {
       await handlePaymentUpdate(message);
     }
-    // Handle auction ended messages
+    // Handle auction ended messages with winner information
+    else if (message.action === 'auctionEnded' && message.auctionId && message.winnerId) {
+      const currentAuction = auctions.find(a => a.auctionId === message.auctionId);
+      
+      if (currentAuction) {
+        // Update auction status to ended
+        updateAuction(message.auctionId, {
+          status: 'ended',
+          highestBidder: message.winnerId
+        });
+
+        // 🎉 NOTIFY THE WINNER
+        if (message.winnerId) {
+          notificationService.addNotification({
+            type: 'AUCTION_WON',
+            title: "🎉 You Won the Auction!",
+            message: `Congratulations! You won "${currentAuction.title}" for R${currentAuction.currentBid?.toLocaleString()}. Complete your payment to claim your artwork.`,
+            userId: message.winnerId,
+            relatedId: message.auctionId,
+            metadata: {
+              auctionTitle: currentAuction.title,
+              winningBid: currentAuction.currentBid,
+              artworkImage: currentAuction.image,
+              artistName: currentAuction.artistName
+            }
+          });
+
+          // 🔥 ADDED: Notify the auction creator
+          notifyAuctionCreator(message.auctionId, 'AUCTION_SOLD', {
+            finalPrice: currentAuction.currentBid,
+            winnerId: message.winnerId
+          });
+
+          // Show toast to winner if it's the current user
+          if (message.winnerId === currentUserId) {
+            toast({
+              title: "🎉 Congratulations! You Won!",
+              description: `You won "${currentAuction.title}" for R${currentAuction.currentBid?.toLocaleString()}`,
+              duration: 8000
+            });
+          }
+        }
+
+        // 🎨 TODO: Add artist notification when artistId is available in auction data
+        // Currently removed because artistId doesn't exist on Auction type
+      }
+
+      await refetch();
+    }
+    // Handle simple auction ended messages (backward compatibility)
     else if (message.action === 'auctionEnded' && message.auctionId) {
       updateAuction(message.auctionId, {
         status: 'ended'
       });
       await refetch();
     }
-  }, [handleBidUpdate, handlePaymentUpdate, updateAuction, refetch]);
+  }, [handleBidUpdate, handlePaymentUpdate, updateAuction, refetch, auctions, currentUserId, toast, notifyAuctionCreator]);
 
   useEffect(() => {
     if (!wsServiceRef.current) return;

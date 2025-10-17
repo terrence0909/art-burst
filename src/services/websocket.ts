@@ -2,7 +2,7 @@
 import { toast } from 'react-toastify';
 
 export interface WebSocketMessage {
-  action?: 'bidUpdate' | 'subscribe' | 'placeBid' | 'ping' | 'pong' | 'unsubscribe' | 'auctionEnded' | 'notification';
+  action?: 'bidUpdate' | 'subscribe' | 'placeBid' | 'ping' | 'pong' | 'unsubscribe' | 'auctionEnded' | 'notification' | 'createNotification';
   type?: 'NEW_BID' | 'AUCTION_UPDATE' | 'SUBSCRIPTION_CONFIRMED' | 'ERROR' | 'AUCTION_ENDED' | 'NOTIFICATION';
   message?: string;
   auctionId?: string;
@@ -218,8 +218,13 @@ export class WebSocketAuctionService {
     const oldSubs = Array.from(this.subscriptions);
     this.subscriptions.clear();
     for (const auctionId of oldSubs) {
-      await this.sendMessage({ action: 'subscribe', auctionId });
+      await this.sendMessage({ action: 'subscribe', auctionId, userId: this.getUserIdFromUrl() });
     }
+  }
+
+  private getUserIdFromUrl(): string {
+    const urlParams = new URLSearchParams(this.wsUrl.split('?')[1]);
+    return urlParams.get('userId') || '';
   }
 
   private flushPendingMessages() {
@@ -239,6 +244,11 @@ export class WebSocketAuctionService {
 
   private async sendMessageInternal(message: any) {
     try {
+      // Ensure userId is included in subscribe messages
+      if (message.action === 'subscribe' && !message.userId) {
+        message.userId = this.getUserIdFromUrl();
+      }
+      
       this.ws!.send(JSON.stringify(message));
       this.lastMessageTime = Date.now();
     } catch (err) {
@@ -253,7 +263,13 @@ export class WebSocketAuctionService {
 
     if (!this.subscriptions.has(auctionId)) {
       this.subscriptions.add(auctionId);
-      if (this.isConnected()) this.sendMessage({ action: 'subscribe', auctionId }).catch(console.error);
+      if (this.isConnected()) {
+        this.sendMessage({ 
+          action: 'subscribe', 
+          auctionId, 
+          userId: this.getUserIdFromUrl() 
+        }).catch(console.error);
+      }
     }
 
     return () => this.unsubscribe(auctionId, callback);
@@ -272,6 +288,19 @@ export class WebSocketAuctionService {
   }
 
   private handleMessage(message: WebSocketMessage) {
+    // Handle createNotification action
+    if (message.action === 'createNotification' && message.notification) {
+      console.log('📢 Received createNotification:', message.notification);
+      // Import and use notification service to create the notification
+      import('@/services/notificationService').then(module => {
+        // Type assertion to fix the type mismatch
+        const notificationData = message.notification as any;
+        module.notificationService.addNotification(notificationData);
+      }).catch(error => {
+        console.error('❌ Error handling createNotification:', error);
+      });
+    }
+    
     // Forward to subscribers
     if (message.auctionId) {
       const auctionSubs = this.subscribers.get(message.auctionId);
@@ -328,7 +357,7 @@ export const wsService = {
     throw new Error('wsService singleton is deprecated. Use createWebSocketService(auctionId, userId) instead.');
   },
   disconnect: () => {
-    throw new Error('wsService singleton is deprecated. Use createWebSocketService(auctionId, userId) instead.');
+    throw new Error('wsService singleton is deprecated. Use createWebocketService(auctionId, userId) instead.');
   },
   isConnected: () => {
     throw new Error('wsService singleton is deprecated. Use createWebSocketService(auctionId, userId) instead.');

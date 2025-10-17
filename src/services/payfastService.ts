@@ -48,8 +48,8 @@ class PayFastService {
     const params: Record<string, string> = {
       merchant_id: this.config.merchantId,
       merchant_key: this.config.merchantKey,
-      return_url: `${window.location.origin}/payment-success`,
-      cancel_url: `${window.location.origin}/payment-cancelled`,
+      return_url: "https://terrence0909.github.io/art-burst/#/payment-success",
+      cancel_url: "https://terrence0909.github.io/art-burst/#/payment-cancelled",
       notify_url: "https://jnjnpocvsosfj675lwd7pt6ksi0skrae.lambda-url.us-east-1.on.aws/", // ✅ FIXED: Use Lambda Function URL
       amount: paymentData.amount,
       item_name: paymentData.item_name,

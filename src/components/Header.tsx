@@ -72,6 +72,14 @@ export const Header = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
+  // Logo state
+  const [logoError, setLogoError] = useState(false);
+
+  const handleLogoError = () => {
+    console.error('Logo failed to load');
+    setLogoError(true);
+  };
+
   useEffect(() => {
     checkAuthStatus();
     loadSavedLocation();
@@ -396,11 +404,20 @@ export const Header = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b backdrop-blur-xl bg-white/20 border border-white/30 supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4">
-        {/* Logo - Always visible */}
+        {/* Logo - Always visible with fallback */}
         <Link to="/" className="flex items-center space-x-2 flex-shrink-0">
-          <div className="w-8 h-8 bg-gradient-luxury rounded-lg flex items-center justify-center">
-            <span className="text-luxury-foreground font-bold text-sm">A</span>
-          </div>
+          {logoError ? (
+            <div className="w-8 h-8 bg-gradient-luxury rounded-lg flex items-center justify-center">
+              <span className="text-luxury-foreground font-bold text-sm">A</span>
+            </div>
+          ) : (
+            <img 
+              src="/LOGO.png" 
+              alt="ArtBurst" 
+              className="h-[140px] w-auto object-contain -my-5"
+              onError={handleLogoError}
+            />
+          )}
           <span className="font-playfair font-bold text-xl hidden sm:block">ArtBurst</span>
         </Link>
 

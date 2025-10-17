@@ -172,6 +172,18 @@ const CreateAuction = () => {
     return currentUser?.username || "Artist";
   };
 
+  // 🔥 ADD THIS: Get the same user ID used in AuctionGrid
+  const getAuctionGridUserId = () => {
+    // Use the same logic as AuctionGrid
+    const storedUserId = localStorage.getItem('auction-user-id');
+    if (storedUserId) return storedUserId;
+    
+    // Create new user ID and store it (same as AuctionGrid)
+    const newUserId = `user-${Math.random().toString(36).substring(2, 10)}`;
+    localStorage.setItem('auction-user-id', newUserId);
+    return newUserId;
+  };
+
   // Function to get user's current location - FIXED: Removed HTTPS check for mobile
   const getUserLocation = () => {
     if (navigator.geolocation) {
@@ -375,6 +387,9 @@ const CreateAuction = () => {
       const session = await fetchAuthSession();
       const idToken = session.tokens?.idToken?.toString();
       
+      // 🔥 FIX: Get the same user ID used in AuctionGrid
+      const auctionGridUserId = getAuctionGridUserId();
+      
       // Prepare auction data
       const auctionData = {
         title: formData.title,
@@ -425,6 +440,22 @@ const CreateAuction = () => {
       const result = await response.json();
       console.log("Auction created successfully:", result);
 
+      // 🔥 FIXED: Use the same user ID as AuctionGrid
+      import('../services/notificationService').then(({ notificationService }) => {
+        notificationService.addNotification({
+          userId: auctionGridUserId, // Use the same ID as AuctionGrid
+          type: 'BID_CONFIRMED',
+          title: 'Auction Created Successfully',
+          message: `Your auction "${formData.title}" has been created and will go live as scheduled.`,
+          relatedId: result.id || result.auctionId,
+          metadata: {
+            auctionTitle: formData.title,
+            status: 'created',
+            startDate: formData.startDate
+          }
+        });
+      });
+
       // FIXED: Redirect to the new auction details page instead of dashboard
       if (result.id) {
         navigate(`/auction/${result.id}`); // Redirect to auction details
@@ -451,6 +482,9 @@ const CreateAuction = () => {
       const user = await getCurrentUser();
       const session = await fetchAuthSession();
       const idToken = session.tokens?.idToken?.toString();
+      
+      // 🔥 FIX: Get the same user ID used in AuctionGrid
+      const auctionGridUserId = getAuctionGridUserId();
       
       const auctionData = {
         title: formData.title,
@@ -497,6 +531,21 @@ const CreateAuction = () => {
 
       const result = await response.json();
       console.log("Draft saved successfully:", result);
+
+      // 🔥 FIXED: Use the same user ID as AuctionGrid
+      import('../services/notificationService').then(({ notificationService }) => {
+        notificationService.addNotification({
+          userId: auctionGridUserId, // Use the same ID as AuctionGrid
+          type: 'BID_CONFIRMED',
+          title: 'Draft Saved',
+          message: `Your auction draft "${formData.title}" has been saved.`,
+          relatedId: result.id || result.auctionId,
+          metadata: {
+            auctionTitle: formData.title,
+            status: 'draft'
+          }
+        });
+      });
 
       // FIXED: Redirect to the draft auction or dashboard
       if (result.id) {

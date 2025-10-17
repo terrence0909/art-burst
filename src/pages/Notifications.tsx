@@ -5,18 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/Header";
 import { useNavigate } from "react-router-dom";
-
-interface Notification {
-  id: string;
-  type: 'OUTBID' | 'AUCTION_ENDING' | 'AUCTION_WON' | 'NEW_BID' | 'BID_CONFIRMED' | 'PAYMENT_REMINDER';
-  title: string;
-  message: string;
-  userId: string;
-  relatedId?: string;
-  read: boolean;
-  createdAt: string;
-  metadata?: any;
-}
+import { Notification } from "@/services/notificationService";
 
 export default function Notifications() {
   const navigate = useNavigate();
@@ -62,6 +51,7 @@ export default function Notifications() {
       case 'NEW_BID': return <Bell className="w-4 h-4 text-blue-500" />;
       case 'BID_CONFIRMED': return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'PAYMENT_REMINDER': return <CreditCard className="w-4 h-4 text-orange-500" />;
+      case 'AUCTION_SOLD': return <Trophy className="w-4 h-4 text-purple-500" />;
       default: return <Info className="w-4 h-4 text-slate-500" />;
     }
   };
@@ -74,6 +64,7 @@ export default function Notifications() {
       case 'BID_CONFIRMED': return 'bg-green-50 dark:bg-green-950/20 border-l-green-500';
       case 'PAYMENT_REMINDER': return 'bg-orange-50 dark:bg-orange-950/20 border-l-orange-500';
       case 'NEW_BID': return 'bg-blue-50 dark:bg-blue-950/20 border-l-blue-500';
+      case 'AUCTION_SOLD': return 'bg-purple-50 dark:bg-purple-950/20 border-l-purple-500';
       default: return 'bg-slate-50 dark:bg-slate-950/20 border-l-slate-500';
     }
   };
