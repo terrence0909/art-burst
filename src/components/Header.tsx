@@ -39,7 +39,7 @@ interface LocationData {
 
 interface Notification {
   id: string;
-  type: 'OUTBID' | 'AUCTION_ENDING' | 'AUCTION_WON' | 'NEW_BID' | 'BID_CONFIRMED' | 'PAYMENT_REMINDER';
+  type: 'OUTBID' | 'AUCTION_ENDING' | 'AUCTION_WON' | 'NEW_BID' | 'BID_CONFIRMED' | 'PAYMENT_REMINDER' | 'AUCTION_SOLD';
   title: string;
   message: string;
   userId: string;
@@ -164,6 +164,7 @@ export const Header = () => {
       case 'NEW_BID': return <Bell className="w-4 h-4 text-blue-500" />;
       case 'BID_CONFIRMED': return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'PAYMENT_REMINDER': return <CreditCard className="w-4 h-4 text-orange-500" />;
+      case 'AUCTION_SOLD': return <Trophy className="w-4 h-4 text-green-500" />;
       default: return <Bell className="w-4 h-4 text-primary" />;
     }
   };
