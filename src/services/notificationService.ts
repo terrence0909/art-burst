@@ -119,14 +119,23 @@ export class NotificationService {
     if (userNotifications) {
       const index = userNotifications.findIndex(n => n.id === notificationId);
       if (index > -1) {
+        const deletedNotification = userNotifications[index];
         userNotifications.splice(index, 1);
         this.saveToStorage();
+        this.notifyUser(userId, { ...deletedNotification, read: true });
       }
     }
   }
 
   // Delete all notifications for a user
   deleteAllNotifications(userId: string): void {
+    const userNotifications = this.notifications.get(userId);
+    if (userNotifications) {
+      userNotifications.forEach(notification => {
+        this.notifyUser(userId, { ...notification, read: true });
+      });
+    }
+    
     this.notifications.delete(userId);
     this.saveToStorage();
   }
