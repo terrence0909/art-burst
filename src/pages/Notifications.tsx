@@ -85,7 +85,16 @@ export default function Notifications() {
   };
 
   const deleteNotification = async (notificationId: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    try {
+      const service = await import('@/services/notificationService').then(m => m.notificationService);
+      const userId = localStorage.getItem('auction-user-id');
+      if (userId) {
+        service.deleteNotification(notificationId, userId);
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
   };
 
   const markAllAsRead = async () => {
