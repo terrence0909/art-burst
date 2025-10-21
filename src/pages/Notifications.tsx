@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/Header";
 import { useNavigate } from "react-router-dom";
-import { Notification } from "@/services/notificationService";
+import { Notification, notificationService } from "@/services/notificationService";
 
 export default function Notifications() {
   const navigate = useNavigate();
@@ -13,34 +13,35 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
-  // Load real notifications
+  // Load real notifications - FIXED VERSION
   useEffect(() => {
-    const loadNotifications = async () => {
-      try {
-        const service = await import('@/services/notificationService').then(m => m.notificationService);
-        const userId = localStorage.getItem('auction-user-id');
-        if (userId) {
-          const userNotifications = service.getUserNotifications(userId);
-          setNotifications(userNotifications);
-          
-          // Subscribe to real-time notifications
-          const unsubscribe = service.subscribe(userId, (newNotification) => {
-            setNotifications(prev => [newNotification, ...prev]);
-          });
-          
-          return unsubscribe;
-        }
-      } catch (error) {
-        console.error('Error loading notifications:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const userId = localStorage.getItem('auction-user-id');
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
 
-    const cleanup = loadNotifications();
-    return () => {
-      cleanup.then(unsubscribe => unsubscribe && unsubscribe());
-    };
+    // Load initial notifications
+    const userNotifications = notificationService.getUserNotifications(userId);
+    setNotifications(userNotifications);
+    setLoading(false);
+
+    // Subscribe to real-time notifications
+    const unsubscribe = notificationService.subscribe(userId, (newNotification) => {
+      setNotifications(prev => {
+        // Check if this notification already exists to avoid duplicates
+        const exists = prev.find(n => n.id === newNotification.id);
+        if (exists) {
+          // Update existing notification
+          return prev.map(n => n.id === newNotification.id ? newNotification : n);
+        } else {
+          // Add new notification at the top
+          return [newNotification, ...prev];
+        }
+      });
+    });
+
+    return unsubscribe;
   }, []);
 
   const getNotificationIcon = (type: string) => {
@@ -71,13 +72,10 @@ export default function Notifications() {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const service = await import('@/services/notificationService').then(m => m.notificationService);
       const userId = localStorage.getItem('auction-user-id');
       if (userId) {
-        service.markAsRead(notificationId, userId);
-        setNotifications(prev => prev.map(n => 
-          n.id === notificationId ? { ...n, read: true } : n
-        ));
+        notificationService.markAsRead(notificationId, userId);
+        // The subscription will handle the state update
       }
     } catch (error) {
       console.error('Error marking notification as read:', error);
@@ -86,11 +84,10 @@ export default function Notifications() {
 
   const deleteNotification = async (notificationId: string) => {
     try {
-      const service = await import('@/services/notificationService').then(m => m.notificationService);
       const userId = localStorage.getItem('auction-user-id');
       if (userId) {
-        service.deleteNotification(notificationId, userId);
-        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+        notificationService.deleteNotification(notificationId, userId);
+        // The subscription will handle the state update
       }
     } catch (error) {
       console.error('Error deleting notification:', error);
@@ -99,11 +96,10 @@ export default function Notifications() {
 
   const markAllAsRead = async () => {
     try {
-      const service = await import('@/services/notificationService').then(m => m.notificationService);
       const userId = localStorage.getItem('auction-user-id');
       if (userId) {
-        service.markAllAsRead(userId);
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        notificationService.markAllAsRead(userId);
+        // The subscription will handle the state update
       }
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
