@@ -13,7 +13,7 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
-  // Load real notifications - FIXED VERSION
+  // Load real notifications
   useEffect(() => {
     const userId = localStorage.getItem('auction-user-id');
     if (!userId) {
@@ -29,13 +29,10 @@ export default function Notifications() {
     // Subscribe to real-time notifications
     const unsubscribe = notificationService.subscribe(userId, (newNotification) => {
       setNotifications(prev => {
-        // Check if this notification already exists to avoid duplicates
         const exists = prev.find(n => n.id === newNotification.id);
         if (exists) {
-          // Update existing notification
           return prev.map(n => n.id === newNotification.id ? newNotification : n);
         } else {
-          // Add new notification at the top
           return [newNotification, ...prev];
         }
       });
@@ -75,7 +72,6 @@ export default function Notifications() {
       const userId = localStorage.getItem('auction-user-id');
       if (userId) {
         notificationService.markAsRead(notificationId, userId);
-        // The subscription will handle the state update
       }
     } catch (error) {
       console.error('Error marking notification as read:', error);
@@ -87,7 +83,6 @@ export default function Notifications() {
       const userId = localStorage.getItem('auction-user-id');
       if (userId) {
         notificationService.deleteNotification(notificationId, userId);
-        // The subscription will handle the state update
       }
     } catch (error) {
       console.error('Error deleting notification:', error);
@@ -99,7 +94,6 @@ export default function Notifications() {
       const userId = localStorage.getItem('auction-user-id');
       if (userId) {
         notificationService.markAllAsRead(userId);
-        // The subscription will handle the state update
       }
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
