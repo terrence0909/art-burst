@@ -66,7 +66,7 @@ export class NotificationService {
     // Save to localStorage for persistence
     this.saveToStorage();
 
-    // 🔥 NOTIFY THE SPECIFIC USER in real-time
+    // Notify the specific user in real-time
     this.notifyUser(notification.userId, fullNotification);
 
     console.log('📢 Notification created:', fullNotification);
@@ -92,8 +92,8 @@ export class NotificationService {
       const notification = userNotifications.find(n => n.id === notificationId);
       if (notification) {
         notification.read = true;
-        this.saveToStorage(); // Save changes
-        this.notifyUser(userId, notification); // Notify of update
+        this.saveToStorage();
+        this.notifyUser(userId, notification);
       }
     }
   }
@@ -105,13 +105,30 @@ export class NotificationService {
       userNotifications.forEach(notification => {
         notification.read = true;
       });
-      this.saveToStorage(); // Save changes
+      this.saveToStorage();
       
-      // Notify that all notifications were updated
       userNotifications.forEach(notification => {
         this.notifyUser(userId, notification);
       });
     }
+  }
+
+  // Delete a notification
+  deleteNotification(notificationId: string, userId: string): void {
+    const userNotifications = this.notifications.get(userId);
+    if (userNotifications) {
+      const index = userNotifications.findIndex(n => n.id === notificationId);
+      if (index > -1) {
+        userNotifications.splice(index, 1);
+        this.saveToStorage();
+      }
+    }
+  }
+
+  // Delete all notifications for a user
+  deleteAllNotifications(userId: string): void {
+    this.notifications.delete(userId);
+    this.saveToStorage();
   }
 
   // Get unread count
@@ -120,7 +137,7 @@ export class NotificationService {
     return userNotifications.filter(n => !n.read).length;
   }
 
-  // 🔥 NEW: Subscribe to notifications for a specific user
+  // Subscribe to notifications for a specific user
   subscribe(userId: string, listener: (notification: Notification) => void): () => void {
     if (!this.listeners.has(userId)) {
       this.listeners.set(userId, new Set());
@@ -138,12 +155,12 @@ export class NotificationService {
     };
   }
 
-  // 🔥 NEW: Get all user IDs (for debugging)
+  // Get all user IDs (for debugging)
   getUserIds(): string[] {
     return Array.from(this.notifications.keys());
   }
 
-  // 🔥 NEW: Clear all notifications (for testing)
+  // Clear all notifications (for testing)
   clearAll(): void {
     this.notifications.clear();
     this.listeners.clear();
