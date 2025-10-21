@@ -413,6 +413,7 @@ const CreateAuction = () => {
         images: uploadedImageKeys,
         artistId: user.userId,
         artistName: getUserDisplayName(),
+        creatorWebSocketId: auctionGridUserId,
         // FIX: Calculate status based on start time
         status: new Date(formData.startDate) > new Date() ? "upcoming" : "active",
         createdAt: new Date().toISOString(),
@@ -507,6 +508,7 @@ const CreateAuction = () => {
         shippingCost: formData.shippingCost ? parseFloat(formData.shippingCost) : undefined,
         images: uploadedImageKeys,
         artistId: user.userId,
+        creatorWebSocketId: auctionGridUserId,
         status: "draft" as const,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
