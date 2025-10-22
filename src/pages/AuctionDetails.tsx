@@ -185,9 +185,9 @@ const AuctionDetails = () => {
 
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10 max-w-7xl">
         {/* Back Button */}
-        <Button variant="ghost" size="lg" className="mb-6 hover:bg-accent/10 backdrop-blur-xl bg-white/20 border border-white/30" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="lg" className="mb-6 hover:bg-accent/10 backdrop-blur-xl bg-white/20 border border-white/30" onClick={() => navigate('/')}>
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Auctions
+          Home
         </Button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
