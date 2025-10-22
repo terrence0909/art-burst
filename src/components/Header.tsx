@@ -413,7 +413,7 @@ export const Header = () => {
             </div>
           ) : (
             <img 
-              src="/LOGO.png" 
+              src="/FULL-LOGO.png" 
               alt="ArtBurst" 
               className="h-[140px] w-auto object-contain -my-5"
               onError={handleLogoError}
