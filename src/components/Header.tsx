@@ -396,7 +396,7 @@ export const Header = () => {
             <img 
               src={FULL_LOGO} 
               alt="ArtBurst" 
-              className="h-12 w-auto object-contain"
+              className="h-[130px] w-auto object-contain -my-5"
               onError={handleLogoError}
             />
           </Link>
@@ -409,7 +409,7 @@ export const Header = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b backdrop-blur-xl bg-white/20 border border-white/30 supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4">
-        {/* Logo - Moved to left corner with text removed and smaller size */}
+        {/* Logo - Moved to left corner with text removed */}
         <Link to="/" className="flex items-center flex-shrink-0">
           {logoError ? (
             <div className="w-8 h-8 bg-gradient-luxury rounded-lg flex items-center justify-center">
@@ -419,7 +419,7 @@ export const Header = () => {
             <img 
               src={FULL_LOGO} 
               alt="ArtBurst" 
-              className="h-12 w-auto object-contain"
+              className="h-[130px] w-auto object-contain -my-5"
               onError={handleLogoError}
             />
           )}
