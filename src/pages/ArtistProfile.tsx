@@ -11,8 +11,7 @@ import { AuctionCard } from "@/components/AuctionCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/use-toast";
 import { ShareProfileButton } from "@/components/ShareProfileButton";
-
-const API_BASE = "/api";
+import { fetchAuctions } from "@/api/auctions";
 
 interface Artist {
   artistId: string;
@@ -63,21 +62,14 @@ const ArtistProfile = () => {
       setLoading(true);
       setError("");
       
-      const response = await fetch(`${API_BASE}/auctions`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch auctions: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      const auctionData = data.body ? JSON.parse(data.body) : data;
+      const auctionData = await fetchAuctions();
       
       if (!Array.isArray(auctionData)) {
         throw new Error('Invalid data format received from API');
       }
 
       const artistAuctions = auctionData.filter((auction: any) => 
-        auction.artistId === id
+        auction.creatorId === id
       );
       
       if (artistAuctions.length > 0) {
@@ -85,7 +77,7 @@ const ArtistProfile = () => {
         
         const totalAuctions = artistAuctions.length;
         const soldAuctions = artistAuctions.filter((a: any) => 
-          a.status === "ended" || a.status === "sold"
+          a.status === "ended" || a.status === "closed"
         );
         const totalSales = soldAuctions.reduce((sum: number, auction: any) => 
           sum + (auction.currentBid || auction.startingBid || 0), 0
@@ -98,7 +90,7 @@ const ArtistProfile = () => {
           artistId: id!,
           name: firstAuction.artistName || "Unknown Artist",
           email: "",
-          profileImage: localStorage.getItem('userAvatar') || "/placeholder-avatar.jpg",
+          profileImage: "/placeholder-avatar.jpg",
           bio: "A talented artist creating beautiful works. More information coming soon.",
           location: firstAuction.location || "Location not specified",
           createdAt: firstAuction.createdAt || new Date().toISOString(),
@@ -115,7 +107,26 @@ const ArtistProfile = () => {
         setArtist(artistData);
         setArtistAuctions(artistAuctions);
       } else {
-        throw new Error("No auctions found for this artist");
+        const artistData: Artist = {
+          artistId: id!,
+          name: "Unknown Artist",
+          email: "",
+          profileImage: "/placeholder-avatar.jpg",
+          bio: "This artist hasn't created any auctions yet.",
+          location: "Location not specified",
+          createdAt: new Date().toISOString(),
+          specialties: ["Various Art Forms"],
+          achievements: ["Featured Artist on ArtBurst"],
+          stats: {
+            totalAuctions: 0,
+            totalSales: 0,
+            avgSalePrice: 0,
+            followers: Math.floor(Math.random() * 100) + 50
+          }
+        };
+        
+        setArtist(artistData);
+        setArtistAuctions([]);
       }
       
     } catch (err) {
@@ -158,7 +169,7 @@ const ArtistProfile = () => {
     image: auction.image || (auction.images && auction.images[0]) || '/placeholder-artwork.jpg',
     year: auction.year,
     medium: auction.medium,
-    sold: auction.status === "ended" || auction.status === "sold",
+    sold: auction.status === "ended" || auction.status === "closed",
     price: auction.currentBid || auction.startingBid
   }));
 
