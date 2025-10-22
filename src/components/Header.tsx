@@ -406,8 +406,8 @@ export const Header = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b backdrop-blur-xl bg-white/20 border border-white/30 supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4">
-        {/* Logo - Always visible with fallback */}
-        <Link to="/" className="flex items-center space-x-2 flex-shrink-0">
+        {/* Logo - Moved to left corner with text removed */}
+        <Link to="/" className="flex items-center flex-shrink-0">
           {logoError ? (
             <div className="w-8 h-8 bg-gradient-luxury rounded-lg flex items-center justify-center">
               <span className="text-luxury-foreground font-bold text-sm">A</span>
@@ -420,7 +420,6 @@ export const Header = () => {
               onError={handleLogoError}
             />
           )}
-          <span className="font-playfair font-bold text-xl hidden sm:block">ArtBurst</span>
         </Link>
 
         {/* Search - Hidden on mobile, shown on tablet+ */}
