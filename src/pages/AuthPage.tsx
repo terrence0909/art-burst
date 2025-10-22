@@ -1,4 +1,3 @@
-// src/AuthPage.tsx
 import React, { useState, useEffect } from 'react';
 import { signIn, signUp, confirmSignUp, getCurrentUser } from 'aws-amplify/auth';
 import { Link, useNavigate } from 'react-router-dom';
@@ -142,19 +141,19 @@ const AuthPage: React.FC = () => {
   // Confirmation UI
   if (needsConfirmation) {
     return (
-      <div className="flex min-h-svh flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-purple-100 p-6 md:p-10">
+      <div className="flex min-h-svh flex-col items-center justify-center bg-gradient-to-br from-gray-300 to-gray-500 p-6 md:p-10">
         <div className="w-full max-w-md">
-          <Card className="shadow-lg">
+          <Card className="shadow-2xl backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl">
             <CardHeader className="text-center space-y-2">
-              <CardTitle className="text-2xl">Confirm Your Account</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-2xl text-gray-800">Confirm Your Account</CardTitle>
+              <CardDescription className="text-gray-700">
                 Enter the confirmation code sent to your email
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleConfirmation} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="confirmationCode">Confirmation Code</Label>
+                  <Label htmlFor="confirmationCode" className="text-gray-800">Confirmation Code</Label>
                   <Input
                     id="confirmationCode"
                     type="text"
@@ -163,27 +162,27 @@ const AuthPage: React.FC = () => {
                     onChange={(e) => setConfirmationCode(e.target.value)}
                     required
                     disabled={isLoading}
-                    className="h-11"
+                    className="h-11 backdrop-blur-sm bg-white/20 border-white/30"
                   />
                 </div>
                 {error && (
-                  <div className="p-3 text-sm font-medium text-destructive bg-destructive/15 rounded-md">
+                  <div className="p-3 text-sm font-medium text-red-700 bg-red-50/80 border border-red-200/30 rounded-md">
                     {error}
                   </div>
                 )}
                 <Button 
                   type="submit" 
-                  className="w-full h-11" 
+                  className="w-full h-11 backdrop-blur-sm bg-white/20 border-white/30 hover:shadow-2xl transition-all duration-300"
                   disabled={isLoading}
                 >
                   {isLoading ? 'Confirming...' : 'Confirm Account'}
                 </Button>
               </form>
-              <div className="mt-4 text-center text-sm text-muted-foreground">
+              <div className="mt-4 text-center text-sm text-gray-700">
                 Didn't receive a code?{' '}
                 <button 
                   type="button" 
-                  className="text-primary underline-offset-4 hover:underline font-medium"
+                  className="text-gray-800 underline-offset-4 hover:underline font-medium"
                   onClick={() => setNeedsConfirmation(false)}
                 >
                   Go back
@@ -198,12 +197,12 @@ const AuthPage: React.FC = () => {
 
   // Main Auth UI
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-purple-100 p-6 md:p-10">
+    <div className="flex min-h-svh flex-col items-center justify-center bg-gradient-to-br from-gray-300 to-gray-500 p-6 md:p-10">
       <div className="w-full max-w-md">
-        <Card className="shadow-lg">
+        <Card className="shadow-2xl backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl">
           <CardHeader className="text-center space-y-2">
-            <CardTitle className="text-2xl">Welcome to ArtBurst</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-2xl text-gray-800">Welcome to ArtBurst</CardTitle>
+            <CardDescription className="text-gray-700">
               {activeTab === 'signin' 
                 ? 'Sign in to your account' 
                 : 'Create a new account'
@@ -212,15 +211,15 @@ const AuthPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid grid-cols-2 mb-6">
-                <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              <TabsList className="grid grid-cols-2 mb-6 backdrop-blur-sm bg-white/20 border border-white/30">
+                <TabsTrigger value="signin" className="data-[state=active]:bg-white/30">Sign In</TabsTrigger>
+                <TabsTrigger value="signup" className="data-[state=active]:bg-white/30">Sign Up</TabsTrigger>
               </TabsList>
               
               <TabsContent value="signin">
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signin-email">Email</Label>
+                    <Label htmlFor="signin-email" className="text-gray-800">Email</Label>
                     <Input
                       id="signin-email"
                       type="email"
@@ -229,15 +228,15 @@ const AuthPage: React.FC = () => {
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       disabled={isLoading}
-                      className="h-11"
+                      className="h-11 backdrop-blur-sm bg-white/20 border-white/30"
                     />
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="signin-password">Password</Label>
+                      <Label htmlFor="signin-password" className="text-gray-800">Password</Label>
                       <Link
                         to="/forgot-password"
-                        className="text-xs text-muted-foreground hover:underline"
+                        className="text-xs text-gray-700 hover:underline"
                       >
                         Forgot password?
                       </Link>
@@ -250,27 +249,27 @@ const AuthPage: React.FC = () => {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       disabled={isLoading}
-                      className="h-11"
+                      className="h-11 backdrop-blur-sm bg-white/20 border-white/30"
                     />
                   </div>
                   {error && (
-                    <div className="p-3 text-sm font-medium text-destructive bg-destructive/15 rounded-md">
+                    <div className="p-3 text-sm font-medium text-red-700 bg-red-50/80 border border-red-200/30 rounded-md">
                       {error}
                     </div>
                   )}
                   <Button 
                     type="submit" 
-                    className="w-full h-11" 
+                    className="w-full h-11 backdrop-blur-sm bg-white/20 border-white/30 hover:shadow-2xl transition-all duration-300"
                     disabled={isLoading}
                   >
                     {isLoading ? 'Signing in...' : 'Sign in'}
                   </Button>
                 </form>
-                <div className="mt-4 text-center text-sm text-muted-foreground">
+                <div className="mt-4 text-center text-sm text-gray-700">
                   Don't have an account?{' '}
                   <button 
                     type="button" 
-                    className="text-primary underline-offset-4 hover:underline font-medium"
+                    className="text-gray-800 underline-offset-4 hover:underline font-medium"
                     onClick={() => setActiveTab('signup')}
                   >
                     Sign up
@@ -282,7 +281,7 @@ const AuthPage: React.FC = () => {
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="givenName">First Name</Label>
+                      <Label htmlFor="givenName" className="text-gray-800">First Name</Label>
                       <Input
                         id="givenName"
                         type="text"
@@ -291,11 +290,11 @@ const AuthPage: React.FC = () => {
                         onChange={(e) => setGivenName(e.target.value)}
                         required
                         disabled={isLoading}
-                        className="h-11"
+                        className="h-11 backdrop-blur-sm bg-white/20 border-white/30"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="familyName">Last Name</Label>
+                      <Label htmlFor="familyName" className="text-gray-800">Last Name</Label>
                       <Input
                         id="familyName"
                         type="text"
@@ -304,12 +303,12 @@ const AuthPage: React.FC = () => {
                         onChange={(e) => setFamilyName(e.target.value)}
                         required
                         disabled={isLoading}
-                        className="h-11"
+                        className="h-11 backdrop-blur-sm bg-white/20 border-white/30"
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
+                    <Label htmlFor="signup-email" className="text-gray-800">Email</Label>
                     <Input
                       id="signup-email"
                       type="email"
@@ -318,11 +317,11 @@ const AuthPage: React.FC = () => {
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       disabled={isLoading}
-                      className="h-11"
+                      className="h-11 backdrop-blur-sm bg-white/20 border-white/30"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
+                    <Label htmlFor="signup-password" className="text-gray-800">Password</Label>
                     <Input
                       id="signup-password"
                       type="password"
@@ -331,11 +330,11 @@ const AuthPage: React.FC = () => {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       disabled={isLoading}
-                      className="h-11"
+                      className="h-11 backdrop-blur-sm bg-white/20 border-white/30"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                    <Label htmlFor="signup-confirm-password" className="text-gray-800">Confirm Password</Label>
                     <Input
                       id="signup-confirm-password"
                       type="password"
@@ -344,27 +343,27 @@ const AuthPage: React.FC = () => {
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
                       disabled={isLoading}
-                      className="h-11"
+                      className="h-11 backdrop-blur-sm bg-white/20 border-white/30"
                     />
                   </div>
                   {error && (
-                    <div className="p-3 text-sm font-medium text-destructive bg-destructive/15 rounded-md">
+                    <div className="p-3 text-sm font-medium text-red-700 bg-red-50/80 border border-red-200/30 rounded-md">
                       {error}
                     </div>
                   )}
                   <Button 
                     type="submit" 
-                    className="w-full h-11" 
+                    className="w-full h-11 backdrop-blur-sm bg-white/20 border-white/30 hover:shadow-2xl transition-all duration-300"
                     disabled={isLoading}
                   >
                     {isLoading ? 'Creating account...' : 'Sign up'}
                   </Button>
                 </form>
-                <div className="mt-4 text-center text-sm text-muted-foreground">
+                <div className="mt-4 text-center text-sm text-gray-700">
                   Already have an account?{' '}
                   <button 
                     type="button" 
-                    className="text-primary underline-offset-4 hover:underline font-medium"
+                    className="text-gray-800 underline-offset-4 hover:underline font-medium"
                     onClick={() => setActiveTab('signin')}
                   >
                     Sign in
