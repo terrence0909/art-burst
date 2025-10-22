@@ -23,6 +23,7 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import FULL_LOGO from '@/assets/FULL-LOGO.png';
 
 // Add your OpenCage API key here
 const OPENCAGE_API_KEY = import.meta.env.VITE_OPENCAGE_API_KEY;
@@ -413,7 +414,7 @@ export const Header = () => {
             </div>
           ) : (
             <img 
-              src="/FULL-LOGO.png" 
+              src={FULL_LOGO} 
               alt="ArtBurst" 
               className="h-[140px] w-auto object-contain -my-5"
               onError={handleLogoError}
