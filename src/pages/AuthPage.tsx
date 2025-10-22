@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/use-toast';
+import FULL_LOGO from '@/assets/FULL-LOGO.png';
 
 const AuthPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('signin');
@@ -145,6 +146,13 @@ const AuthPage: React.FC = () => {
         <div className="w-full max-w-md">
           <Card className="shadow-2xl backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl">
             <CardHeader className="text-center space-y-2">
+              <div className="flex justify-center mb-4">
+                <img 
+                  src={FULL_LOGO} 
+                  alt="ArtBurst" 
+                  className="h-24 w-auto object-contain"
+                />
+              </div>
               <CardTitle className="text-2xl text-gray-800">Confirm Your Account</CardTitle>
               <CardDescription className="text-gray-700">
                 Enter the confirmation code sent to your email
@@ -201,7 +209,13 @@ const AuthPage: React.FC = () => {
       <div className="w-full max-w-md">
         <Card className="shadow-2xl backdrop-blur-xl bg-white/20 border border-white/30 rounded-xl">
           <CardHeader className="text-center space-y-2">
-            <CardTitle className="text-2xl text-gray-800">Welcome to ArtBurst</CardTitle>
+            <div className="flex justify-center mb-4">
+              <img 
+                src={FULL_LOGO} 
+                alt="ArtBurst" 
+                className="h-24 w-auto object-contain"
+              />
+            </div>
             <CardDescription className="text-gray-700">
               {activeTab === 'signin' 
                 ? 'Sign in to your account' 
