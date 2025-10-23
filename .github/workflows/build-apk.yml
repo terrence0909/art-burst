@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK with Custom Logo
 on: [push]
 
 jobs:
@@ -7,21 +7,60 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup Android
+    - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       
-    - name: Build APK
+    - name: Create APK with ArtBurst Logo
       run: |
         npm install -g cordova
-        cordova create myapp com.artburst.app ArtBurst
-        cd myapp
+        cordova create ArtBurst-APK com.artburst.app ArtBurst
+        cd ArtBurst-APK
+        
+        # Create the main HTML file
+        cat > www/index.html << 'HTMLFILE'
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArtBurst</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; }
+        iframe { border: 0; width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+    <iframe src="https://terrence0909.github.io/art-burst/"></iframe>
+    <script>
+        setTimeout(function() {
+            window.location.href = "https://terrence0909.github.io/art-burst/";
+        }, 3000);
+    </script>
+</body>
+</html>
+HTMLFILE
+
+        # Copy your specific FULL-LOGO.png to Cordova resources
+        echo "Using ArtBurst logo: src/assets/FULL-LOGO.png"
+        cp ../src/assets/FULL-LOGO.png res/icon.png
+        
+        # Also create different sizes for Android (optional but better)
+        mkdir -p res/android
+        cp ../src/assets/FULL-LOGO.png res/android/icon.png
+        
         cordova platform add android
-        # Create minimal HTML that redirects to your app
-        echo '<html><head><meta http-equiv="refresh" content="0; url=https://terrence0909.github.io/art-burst/"></head></html>' > www/index.html
         cordova build android
+        
+        echo "✅ APK built with ArtBurst logo!"
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: ArtBurst-APK
-        path: myapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+        name: ArtBurst-APK-With-Logo
+        path: ArtBurst-APK/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+        
+    - name: Completion Message
+      run: |
+        echo "🎉 ArtBurst APK with custom logo built successfully!"
+        echo "📱 Download from the Artifacts section above"
+        echo "🏆 Ready for FNB App of the Year submission!"
