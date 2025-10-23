@@ -11,14 +11,22 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '18'
+        cache: 'npm'
         
     - name: Install dependencies
-      run: npm install
+      run: npm ci
       
     - name: Build web app
       run: npm run build
       
-    - name: Setup Android
+    - name: Verify build output
+      run: |
+        echo "Build contents:"
+        ls -la dist/
+        echo "Project structure:"
+        find . -name "*.tsx" -o -name "*.ts" | head -10
+      
+    - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       
     - name: Build APK with Cordova
@@ -27,9 +35,16 @@ jobs:
         cordova create temp-app com.artburst.app ArtBurst
         cd temp-app
         cordova platform add android
-        # Replace www folder with your built app
+        
+        # Copy the built React app to Cordova www folder
+        echo "Copying built React app to Cordova..."
         rm -rf www/*
         cp -r ../dist/* www/
+        
+        # Verify the files were copied
+        echo "Cordova www contents:"
+        ls -la www/
+        
         cordova build android
         
     - name: Upload APK
@@ -37,3 +52,4 @@ jobs:
       with:
         name: ArtBurst-APK
         path: temp-app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+        retention-days: 7
