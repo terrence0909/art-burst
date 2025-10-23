@@ -7,51 +7,21 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup Android SDK
+    - name: Setup Android
       uses: android-actions/setup-android@v3
       
-    - name: Create WebView APK
+    - name: Build APK
       run: |
         npm install -g cordova
-        cordova create ArtBurst-APK com.artburst.app ArtBurst
-        cd ArtBurst-APK
-        
-        # Create a simple HTML file that loads your deployed app
-        cat > www/index.html << 'HTMLFILE'
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ArtBurst</title>
-    <style>
-        body, html { margin: 0; padding: 0; height: 100%; }
-        iframe { border: 0; width: 100%; height: 100%; }
-    </style>
-</head>
-<body>
-    <iframe src="https://terrence0909.github.io/art-burst/"></iframe>
-    <script>
-        setTimeout(function() {
-            window.location.href = "https://terrence0909.github.io/art-burst/";
-        }, 3000);
-    </script>
-</body>
-</html>
-HTMLFILE
-
+        cordova create myapp com.artburst.app ArtBurst
+        cd myapp
         cordova platform add android
+        # Create minimal HTML that redirects to your app
+        echo '<html><head><meta http-equiv="refresh" content="0; url=https://terrence0909.github.io/art-burst/"></head></html>' > www/index.html
         cordova build android
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: ArtBurst-APK
-        path: ArtBurst-APK/platforms/android/app/build/outputs/apk/debug/app-debug.apk
-        retention-days: 7
-        
-    - name: Show APK info
-      run: |
-        echo "✅ APK built successfully!"
-        echo "📱 Download the APK from the Artifacts section above"
-        echo "🌐 The APK will load: https://terrence0909.github.io/art-burst/"
+        path: myapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
