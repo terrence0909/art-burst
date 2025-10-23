@@ -1,0 +1,61 @@
+name: Build APK - Backup Method
+on: 
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Create direct WebView APK
+      run: |
+        # Create a simple APK that directly loads your deployed site
+        mkdir -p webview-apk
+        cd webview-apk
+        
+        # Create a simple build script
+        cat > build.sh << 'SCRIPTEOF'
+#!/bin/bash
+echo "Creating WebView APK for ArtBurst..."
+echo "Since the Vite build has path issues, we'll create a direct WebView APK"
+echo "This APK will load: https://terrence0909.github.io/art-burst/"
+
+# Create a simple Android project structure
+mkdir -p app/src/main/java/com/artburst/app
+mkdir -p app/src/main/res
+
+cat > app/src/main/java/com/artburst/app/MainActivity.java << 'JAVAEOF'
+package com.artburst.app;
+
+import android.os.Bundle;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import androidx.appcompat.app.AppCompatActivity;
+
+public class MainActivity extends AppCompatActivity {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        
+        WebView webView = new WebView(this);
+        webView.getSettings().setJavaScriptEnabled(true);
+        webView.setWebViewClient(new WebViewClient());
+        webView.loadUrl("https://terrence0909.github.io/art-burst/");
+        
+        setContentView(webView);
+    }
+}
+JAVAEOF
+
+echo "WebView APK source created successfully!"
+SCRIPTEOF
+
+        chmod +x build.sh
+        ./build.sh
+        
+    - name: Upload APK source
+      uses: actions/upload-artifact@v4
+      with:
+        name: webview-apk-source
+        path: webview-apk/
