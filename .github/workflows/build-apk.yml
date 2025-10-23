@@ -7,49 +7,54 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-        
-    - name: Install dependencies
-      run: npm ci
-      
-    - name: Build web app
-      run: npm run build
-      
-    - name: Verify build output
-      run: |
-        echo "Build contents:"
-        ls -la dist/
-        echo "Project structure:"
-        find . -name "*.tsx" -o -name "*.ts" | head -10
-      
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       
-    - name: Build APK with Cordova
+    - name: Create WebView APK
       run: |
+        # Create a simple Cordova app that loads your deployed website
         npm install -g cordova
-        cordova create temp-app com.artburst.app ArtBurst
-        cd temp-app
-        cordova platform add android
+        cordova create ArtBurst-APK com.artburst.app ArtBurst
+        cd ArtBurst-APK
         
-        # Copy the built React app to Cordova www folder
-        echo "Copying built React app to Cordova..."
+        # Replace the www folder with a simple HTML that loads your app
         rm -rf www/*
-        cp -r ../dist/* www/
-        
-        # Verify the files were copied
-        echo "Cordova www contents:"
-        ls -la www/
-        
+        cat > www/index.html << 'HTMLEOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArtBurst</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; }
+        iframe { border: 0; width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+    <iframe src="https://terrence0909.github.io/art-burst/"></iframe>
+    <script>
+        // Fallback if iframe doesn't load
+        setTimeout(function() {
+            window.location.href = "https://terrence0909.github.io/art-burst/";
+        }, 3000);
+    </script>
+</body>
+</html>
+HTMLEOF
+
+        cordova platform add android
         cordova build android
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: ArtBurst-APK
-        path: temp-app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+        path: ArtBurst-APK/platforms/android/app/build/outputs/apk/debug/app-debug.apk
         retention-days: 7
+        
+    - name: Show APK info
+      run: |
+        echo "✅ APK built successfully!"
+        echo "📱 Download the APK from the Artifacts section above"
+        echo "🌐 The APK will load: https://terrence0909.github.io/art-burst/"
