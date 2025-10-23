@@ -1,0 +1,39 @@
+name: Build Android APK
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Build web app
+      run: npm run build
+      
+    - name: Setup Android
+      uses: android-actions/setup-android@v2
+      
+    - name: Build APK with Cordova
+      run: |
+        npm install -g cordova
+        cordova create temp-app com.artburst.app ArtBurst
+        cd temp-app
+        cordova platform add android
+        # Replace www folder with your built app
+        rm -rf www/*
+        cp -r ../dist/* www/
+        cordova build android
+        
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: ArtBurst-APK
+        path: temp-app/platforms/android/app/build/outputs/apk/debug/app-debug.apk

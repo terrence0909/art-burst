@@ -201,3 +201,27 @@ export const placeBid = async (auctionId: string, amount: number): Promise<any> 
     throw error;
   }
 };
+
+// Artist API functions
+export const fetchArtistById = async (artistId: string): Promise<any> => {
+  try {
+    const data = await handleFetch(`${API_BASE_URL}/artists/${artistId}`);
+    return data;
+  } catch (error) {
+    console.error("Error fetching artist:", error);
+    throw error;
+  }
+};
+
+export const createOrUpdateArtist = async (artistData: any): Promise<any> => {
+  try {
+    const response = await handleFetch(`${API_BASE_URL}/artists`, {
+      method: 'POST',
+      body: JSON.stringify(artistData),
+    });
+    return response;
+  } catch (error) {
+    console.error("Error creating/updating artist:", error);
+    throw error;
+  }
+};
