@@ -16,6 +16,9 @@ jobs:
         cordova create ArtBurst-APK com.artburst.app ArtBurst
         cd ArtBurst-APK
         
+        # Create the res directory first
+        mkdir -p res
+        
         # Create a simple HTML file that redirects to your app
         echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=https://terrence0909.github.io/art-burst/"></head><body><p>Loading ArtBurst...</p></body></html>' > www/index.html
         
@@ -24,6 +27,11 @@ jobs:
         cp ../src/assets/FULL-LOGO.png res/icon.png
         
         cordova platform add android
+        
+        # Copy the logo to Android specific resources after platform is added
+        mkdir -p platforms/android/app/src/main/res/drawable
+        cp ../src/assets/FULL-LOGO.png platforms/android/app/src/main/res/drawable/icon.png
+        
         cordova build android
         
         echo "✅ APK built with ArtBurst logo!"
