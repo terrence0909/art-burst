@@ -12,14 +12,12 @@ jobs:
       
     - name: Create WebView APK
       run: |
-        # Create a simple Cordova app that loads your deployed website
         npm install -g cordova
         cordova create ArtBurst-APK com.artburst.app ArtBurst
         cd ArtBurst-APK
         
-        # Replace the www folder with a simple HTML that loads your app
-        rm -rf www/*
-        cat > www/index.html << 'HTMLEOF'
+        # Create a simple HTML file that loads your deployed app
+        cat > www/index.html << 'HTMLFILE'
 <!DOCTYPE html>
 <html>
 <head>
@@ -34,14 +32,13 @@ jobs:
 <body>
     <iframe src="https://terrence0909.github.io/art-burst/"></iframe>
     <script>
-        // Fallback if iframe doesn't load
         setTimeout(function() {
             window.location.href = "https://terrence0909.github.io/art-burst/";
         }, 3000);
     </script>
 </body>
 </html>
-HTMLEOF
+HTMLFILE
 
         cordova platform add android
         cordova build android
