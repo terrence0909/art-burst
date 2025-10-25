@@ -319,10 +319,22 @@ export class WebSocketAuctionService {
     // ADD THIS: Call the REST API to save message and create notification
     try {
       const API_BASE_URL = 'https://wckv09j9eg.execute-api.us-east-1.amazonaws.com/prod';
+      
+      // Get authentication token like your other API calls
+      const { fetchAuthSession } = await import('aws-amplify/auth');
+      const session = await fetchAuthSession();
+      const token = session.tokens?.accessToken?.toString();
+      
+      if (!token) {
+        console.error('No authentication token available');
+        throw new Error('Authentication required');
+      }
+      
       const response = await fetch(`${API_BASE_URL}/sendMessage`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` // Add auth header
         },
         body: JSON.stringify({
           conversationId,
