@@ -44,9 +44,11 @@ export default function Settings() {
   }, []);
 
   // 🔥 NEW: Sync artist profile function
+  // 🔥 UPDATED: Sync artist profile function with proper artistId
   const syncArtistProfile = async () => {
     try {
       const artistData = {
+        artistId: user.userId, // 🔥 FIX: Include artistId
         userId: user.userId,
         name: profile.name || `${profile.given_name} ${profile.family_name}`.trim(),
         bio: profile.bio,

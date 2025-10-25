@@ -230,12 +230,15 @@ export const createOrUpdateArtist = async (artistData: any): Promise<any> => {
 export const updateArtistFromSettings = async (userId: string, settings: any): Promise<any> => {
   try {
     const artistData = {
+      artistId: userId, // 🔥 FIX: Include artistId
       userId: userId,
-      name: settings.displayName || settings.username,
+      name: settings.name || settings.displayName || `${settings.given_name} ${settings.family_name}`.trim(),
       bio: settings.bio || '',
       location: settings.location,
       website: settings.website,
-      socialMedia: settings.socialMedia,
+      socialMedia: {
+        instagram: settings.instagram
+      },
       avatar: settings.avatar_url,
     };
     
