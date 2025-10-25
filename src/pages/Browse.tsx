@@ -27,6 +27,7 @@ interface Auction {
   title: string;
   artist: string;
   artistId?: string;
+  artistAvatar?: string;
   currentBid: number;
   timeRemaining: string;
   image: string;
@@ -167,7 +168,7 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
         `;
         document.head.appendChild(style);
         
-        const createCustomIcon = (status: string, artistId?: string, artistName?: string) => {
+        const createCustomIcon = (status: string, artistAvatar?: string, artistName?: string) => {
           const colors = {
             live: '#10b981',
             closed: '#8b5cf6',
@@ -177,10 +178,8 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
           
           const color = colors[status as keyof typeof colors] || '#6b7280';
           
-          // 🔥 FIX: Use the same profile picture approach as Header component
-          // Since we can't easily fetch other users' Cognito attributes client-side,
-          // we'll use the same professional profile photo that Header uses as fallback
-          const profileImageUrl = "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face";
+          // 🔥 FIX: Use actual artist profile picture from auction data
+          const profileImageUrl = artistAvatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face";
           
           return L.divIcon({
             className: 'glass-marker',
@@ -250,7 +249,7 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
 
           const marker = L.marker(
             [auction.coordinates.lat, auction.coordinates.lng],
-            { icon: createCustomIcon(auction.status, auction.artistId, auction.artist) }
+            { icon: createCustomIcon(auction.status, auction.artistAvatar, auction.artist) }
           ).addTo(map);
 
           const popupContent = `
@@ -482,6 +481,7 @@ const Browse = () => {
           title: auction.title || `Auction ${auction.auctionId}`,
           artist: auction.artistName || auction.artist || "Unknown Artist",
           artistId: auction.artistId,
+          artistAvatar: auction.artistAvatar || auction.artistProfileImage,
           currentBid: auction.currentBid || auction.startingBid || 0,
           timeRemaining: auction.timeRemaining || "",
           image: auction.image || (auction.images && auction.images[0]) || '/placeholder-artwork.jpg',
