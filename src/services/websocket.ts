@@ -316,6 +316,31 @@ export class WebSocketAuctionService {
       }
     };
     
+    // ADD THIS: Call the REST API to save message and create notification
+    try {
+      const API_BASE_URL = 'https://wckv09j9eg.execute-api.us-east-1.amazonaws.com/prod';
+      const response = await fetch(`${API_BASE_URL}/sendMessage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversationId,
+          message: content,
+          receiverId
+        })
+      });
+      
+      if (response.ok) {
+        console.log('Message saved and notification created via REST API');
+      } else {
+        console.error('Failed to save message via REST API:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error calling sendMessage API:', error);
+    }
+    
+    // Continue with WebSocket message for real-time updates
     await this.sendMessage(message);
   }
 
