@@ -11,15 +11,15 @@ import { AuctionCard } from "@/components/AuctionCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/use-toast";
 import { ShareProfileButton } from "@/components/ShareProfileButton";
-import { fetchAuctions, fetchArtistById } from "@/api/auctions"; // 🔥 UPDATED
+import { fetchAuctions, fetchArtistById } from "@/api/auctions";
 
 interface Artist {
   artistId: string;
-  userId?: string; // 🔥 ADDED
+  userId?: string;
   name: string;
   email: string;
   profileImage?: string;
-  avatar?: string; // 🔥 ADDED
+  avatar?: string;
   bio?: string;
   location?: string;
   createdAt: string;
@@ -27,7 +27,7 @@ interface Artist {
   achievements?: string[];
   website?: string;
   instagram?: string;
-  socialMedia?: { // 🔥 ADDED
+  socialMedia?: {
     instagram?: string;
   };
   stats?: {
@@ -67,7 +67,6 @@ const ArtistProfile = () => {
       setLoading(true);
       setError("");
       
-      // 🔥 UPDATED: Try to fetch actual artist profile first
       let artistData: Artist | null = null;
       try {
         const actualArtist = await fetchArtistById(id!);
@@ -77,7 +76,7 @@ const ArtistProfile = () => {
             userId: actualArtist.userId,
             name: actualArtist.name || "Unknown Artist",
             email: actualArtist.email || "",
-            profileImage: actualArtist.avatar || actualArtist.profileImage || "/placeholder-avatar.jpg",
+            profileImage: actualArtist.avatar || actualArtist.profileImage,
             avatar: actualArtist.avatar,
             bio: actualArtist.bio || "A talented artist creating beautiful works.",
             location: actualArtist.location || "Location not specified",
@@ -99,7 +98,6 @@ const ArtistProfile = () => {
         console.log("No dedicated artist profile found, falling back to auction data");
       }
       
-      // 🔥 UPDATED: Fetch auctions for stats and fallback data
       const auctionData = await fetchAuctions();
       
       if (!Array.isArray(auctionData)) {
@@ -110,7 +108,6 @@ const ArtistProfile = () => {
         auction.creatorId === id
       );
       
-      // Calculate stats from auctions
       const totalAuctions = artistAuctions.length;
       const soldAuctions = artistAuctions.filter((a: any) => 
         a.status === "ended" || a.status === "closed"
@@ -122,7 +119,6 @@ const ArtistProfile = () => {
         ? Math.round(totalSales / soldAuctions.length)
         : 0;
 
-      // If we didn't get artist data from the API, create it from auctions
       if (!artistData) {
         const firstAuction = artistAuctions[0];
         
@@ -130,7 +126,8 @@ const ArtistProfile = () => {
           artistId: id!,
           name: firstAuction?.artistName || "Unknown Artist",
           email: "",
-          profileImage: "/placeholder-avatar.jpg",
+          profileImage: undefined,
+          avatar: undefined,
           bio: "A talented artist creating beautiful works. More information coming soon.",
           location: firstAuction?.location || "Location not specified",
           createdAt: firstAuction?.createdAt || new Date().toISOString(),
@@ -144,7 +141,6 @@ const ArtistProfile = () => {
           }
         };
       } else {
-        // Update stats with actual auction data
         artistData.stats = {
           totalAuctions,
           totalSales,
@@ -258,27 +254,34 @@ const ArtistProfile = () => {
     followers: 0
   };
 
+  // 🔥 FIX: Use avatar first, then profileImage as fallback
+  const artistAvatar = artist.avatar || artist.profileImage;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-300 to-gray-500">
       <Header />
       
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10 max-w-7xl">
-        {/* Hero Header Section with Gradient Background */}
         <div className="rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 mb-8 shadow-lg backdrop-blur-xl bg-white/20 border border-white/30">
           <div className="flex flex-col md:flex-row gap-6 md:gap-8">
-            {/* Enhanced Profile Image with Glow Effect */}
             <div className="flex-shrink-0 mx-auto md:mx-0">
               <div className="relative group">
                 <div className="absolute inset-0 bg-gradient-to-br from-accent to-accent/50 rounded-2xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity" />
+                {/* 🔥 FIX: Use artistAvatar variable */}
                 <img 
-                  src={artist.avatar || artist.profileImage || "/placeholder-avatar.jpg"} 
+                  src={artistAvatar || "/images/placeholder-avatar.jpg"} 
                   alt={artist.name}
                   className="relative w-32 h-32 md:w-40 md:h-40 rounded-2xl object-cover border-4 border-white shadow-xl"
+                  onError={(e) => {
+                    // Fallback if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.src = "/images/placeholder-avatar.jpg";
+                    target.onerror = null; // Prevent infinite loop
+                  }}
                 />
               </div>
             </div>
             
-            {/* Artist Info - Enhanced Typography */}
             <div className="flex-1 space-y-4">
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                 <div className="space-y-3 text-center md:text-left">
@@ -309,7 +312,6 @@ const ArtistProfile = () => {
                   )}
                 </div>
                 
-                {/* Enhanced Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-2 lg:gap-3 justify-center lg:justify-end">
                   <Button 
                     variant={isFollowing ? "default" : "outline"} 
@@ -340,7 +342,6 @@ const ArtistProfile = () => {
           </div>
         </div>
 
-        {/* Enhanced Stats Grid with Hover Effects */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-6 mb-10">
           {[
             { label: 'Total Auctions', value: stats.totalAuctions, prefix: '' },
@@ -361,7 +362,6 @@ const ArtistProfile = () => {
           ))}
         </div>
 
-        {/* Enhanced Tabs */}
         <Tabs defaultValue="auctions" className="space-y-8">
           <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto p-1 backdrop-blur-xl bg-white/20 border border-white/30">
             <TabsTrigger value="auctions" className="text-sm md:text-base py-3 md:py-4 data-[state=active]:bg-accent data-[state=active]:text-white">
