@@ -2,8 +2,8 @@
 import { toast } from 'react-toastify';
 
 export interface WebSocketMessage {
-  action?: 'bidUpdate' | 'subscribe' | 'placeBid' | 'ping' | 'pong' | 'unsubscribe' | 'auctionEnded' | 'notification' | 'createNotification';
-  type?: 'NEW_BID' | 'AUCTION_UPDATE' | 'SUBSCRIPTION_CONFIRMED' | 'ERROR' | 'AUCTION_ENDED' | 'NOTIFICATION';
+  action?: 'bidUpdate' | 'subscribe' | 'placeBid' | 'ping' | 'pong' | 'unsubscribe' | 'auctionEnded' | 'notification' | 'createNotification' | 'sendMessage' | 'subscribeToConversation' | 'newMessage';
+  type?: 'NEW_BID' | 'AUCTION_UPDATE' | 'SUBSCRIPTION_CONFIRMED' | 'ERROR' | 'AUCTION_ENDED' | 'NOTIFICATION' | 'NEW_MESSAGE' | 'CONVERSATION_UPDATE';
   message?: string;
   auctionId?: string;
   bid?: {
@@ -26,6 +26,24 @@ export interface WebSocketMessage {
     userId: string;
     relatedId?: string;
     metadata?: any;
+  };
+  // ADD MESSAGING SUPPORT:
+  messageData?: {
+    conversationId: string;
+    messageId: string;
+    senderId: string;
+    receiverId: string;
+    content: string;
+    timestamp: string;
+    read: boolean;
+    auctionId?: string;
+  };
+  conversation?: {
+    id: string;
+    participants: string[];
+    lastMessage: string;
+    lastMessageTimestamp: string;
+    auctionId?: string;
   };
 }
 
@@ -217,8 +235,15 @@ export class WebSocketAuctionService {
   private async resubscribeToAll() {
     const oldSubs = Array.from(this.subscriptions);
     this.subscriptions.clear();
-    for (const auctionId of oldSubs) {
-      await this.sendMessage({ action: 'subscribe', auctionId, userId: this.getUserIdFromUrl() });
+    for (const subscriptionId of oldSubs) {
+      if (subscriptionId.startsWith('conversation-')) {
+        // Handle conversation subscriptions
+        const conversationId = subscriptionId.replace('conversation-', '');
+        await this.sendMessage({ action: 'subscribeToConversation', conversationId });
+      } else {
+        // Handle auction subscriptions
+        await this.sendMessage({ action: 'subscribe', auctionId: subscriptionId, userId: this.getUserIdFromUrl() });
+      }
     }
   }
 
@@ -275,6 +300,44 @@ export class WebSocketAuctionService {
     return () => this.unsubscribe(auctionId, callback);
   }
 
+  // MESSAGING METHODS - ADDED ONLY THESE
+  async sendChatMessage(conversationId: string, receiverId: string, content: string, auctionId?: string) {
+    const message = {
+      action: 'sendMessage' as const,
+      messageData: {
+        conversationId,
+        messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        senderId: this.getUserIdFromUrl(),
+        receiverId,
+        content,
+        timestamp: new Date().toISOString(),
+        read: false,
+        auctionId
+      }
+    };
+    
+    await this.sendMessage(message);
+  }
+
+  subscribeToConversation(conversationId: string, callback: (msg: WebSocketMessage) => void): () => void {
+    const subscriptionId = `conversation-${conversationId}`;
+    
+    if (!this.subscribers.has(subscriptionId)) this.subscribers.set(subscriptionId, new Set());
+    this.subscribers.get(subscriptionId)!.add(callback);
+
+    if (!this.subscriptions.has(subscriptionId)) {
+      this.subscriptions.add(subscriptionId);
+      if (this.isConnected()) {
+        this.sendMessage({ 
+          action: 'subscribeToConversation', 
+          conversationId
+        }).catch(console.error);
+      }
+    }
+
+    return () => this.unsubscribe(subscriptionId, callback);
+  }
+
   private unsubscribe(auctionId: string, callback: (msg: WebSocketMessage) => void) {
     const subs = this.subscribers.get(auctionId);
     if (!subs) return;
@@ -283,7 +346,14 @@ export class WebSocketAuctionService {
     if (subs.size === 0) {
       this.subscribers.delete(auctionId);
       this.subscriptions.delete(auctionId);
-      if (this.isConnected()) this.sendMessage({ action: 'unsubscribe', auctionId }).catch(console.error);
+      if (this.isConnected()) {
+        if (auctionId.startsWith('conversation-')) {
+          const conversationId = auctionId.replace('conversation-', '');
+          this.sendMessage({ action: 'unsubscribe', conversationId }).catch(console.error);
+        } else {
+          this.sendMessage({ action: 'unsubscribe', auctionId }).catch(console.error);
+        }
+      }
     }
   }
 
@@ -299,6 +369,13 @@ export class WebSocketAuctionService {
       }).catch(error => {
         console.error('❌ Error handling createNotification:', error);
       });
+    }
+    
+    // Handle new messages
+    if (message.type === 'NEW_MESSAGE' && message.messageData) {
+      const conversationId = `conversation-${message.messageData.conversationId}`;
+      const conversationSubs = this.subscribers.get(conversationId);
+      conversationSubs?.forEach(cb => cb(message));
     }
     
     // Forward to subscribers

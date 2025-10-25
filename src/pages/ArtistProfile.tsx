@@ -13,6 +13,7 @@ import { toast } from "@/components/ui/use-toast";
 import { ShareProfileButton } from "@/components/ShareProfileButton";
 import { fetchAuctions, fetchArtistById } from "@/api/auctions";
 import { fetchUserAttributes } from "aws-amplify/auth"; // 🔥 ADDED
+import { MessageButton } from "@/components/MessageButton"; // 🔥 ADDED MESSAGE BUTTON
 
 interface Artist {
   artistId: string;
@@ -182,13 +183,6 @@ const ArtistProfile = () => {
     });
   };
 
-  const handleMessage = () => {
-    toast({
-      title: "Message",
-      description: "Message feature coming soon!",
-    });
-  };
-
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -342,9 +336,12 @@ const ArtistProfile = () => {
                     artistId={artist.artistId} 
                     artistName={artist.name} 
                   />
-                  <Button className="btn-primary gap-2 backdrop-blur-xl bg-white/20 border border-white/30" size="lg" onClick={handleMessage}>
-                    Message
-                  </Button>
+                  <MessageButton
+                    receiverId={artist.userId || artist.artistId}
+                    receiverName={artist.name}
+                    variant="default"
+                    size="lg"
+                  />
                 </div>
               </div>
               
