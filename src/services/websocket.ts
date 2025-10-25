@@ -345,6 +345,31 @@ export class WebSocketAuctionService {
       
       if (response.ok) {
         console.log('Message saved and notification created via REST API');
+        
+        // 🔥 ADD THIS: Also create frontend notification for the receiver
+        try {
+          const { notificationService } = await import('@/services/notificationService');
+          const currentUserId = this.getUserIdFromUrl();
+          
+          // Create notification for the receiver (if current user is the receiver)
+          if (receiverId === currentUserId) {
+            notificationService.addNotification({
+              type: 'NEW_MESSAGE',
+              title: 'New Message',
+              message: `You have a new message: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`,
+              userId: receiverId,
+              relatedId: conversationId,
+              metadata: {
+                conversationId,
+                senderId: this.getUserIdFromUrl(),
+                messagePreview: content.substring(0, 100)
+              }
+            });
+            console.log('📱 Created frontend notification for new message');
+          }
+        } catch (error) {
+          console.error('Error creating frontend notification:', error);
+        }
       } else {
         console.error('Failed to save message via REST API:', await response.text());
       }
