@@ -167,7 +167,7 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
         `;
         document.head.appendChild(style);
         
-        const createCustomIcon = (status: string, artistId?: string) => {
+        const createCustomIcon = (status: string, artistId?: string, artistName?: string) => {
           const colors = {
             live: '#10b981',
             closed: '#8b5cf6',
@@ -177,7 +177,9 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
           
           const color = colors[status as keyof typeof colors] || '#6b7280';
           
-          // 🔥 FIX: Use profile picture like artist profiles page
+          // 🔥 FIX: Use the same profile picture approach as Header component
+          // Since we can't easily fetch other users' Cognito attributes client-side,
+          // we'll use the same professional profile photo that Header uses as fallback
           const profileImageUrl = "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face";
           
           return L.divIcon({
@@ -199,7 +201,7 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
                 ">
                   <img 
                     src="${profileImageUrl}" 
-                    alt="Artist"
+                    alt="${artistName || 'Artist'}"
                     style="width: 100%; height: 100%; object-fit: cover;"
                     onerror="this.src='https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face'"
                   />
@@ -248,7 +250,7 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
 
           const marker = L.marker(
             [auction.coordinates.lat, auction.coordinates.lng],
-            { icon: createCustomIcon(auction.status, auction.artistId) }
+            { icon: createCustomIcon(auction.status, auction.artistId, auction.artist) }
           ).addTo(map);
 
           const popupContent = `
