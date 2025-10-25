@@ -1,4 +1,4 @@
-import { MapPin, User, Search, Bell, LogOut, Home, Gavel, Menu, Plus, Loader2, Settings, CheckCircle, XCircle, AlertCircle, Trophy, CreditCard } from "lucide-react";
+import { MapPin, User, Search, Bell, LogOut, Home, Gavel, Menu, Plus, Loader2, Settings, CheckCircle, XCircle, AlertCircle, Trophy, CreditCard, MessageCircle } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Link, useNavigate, useLocation } from "react-router-dom";
@@ -40,7 +40,7 @@ interface LocationData {
 
 interface Notification {
   id: string;
-  type: 'OUTBID' | 'AUCTION_ENDING' | 'AUCTION_WON' | 'NEW_BID' | 'BID_CONFIRMED' | 'PAYMENT_REMINDER' | 'AUCTION_SOLD';
+  type: 'OUTBID' | 'AUCTION_ENDING' | 'AUCTION_WON' | 'NEW_BID' | 'BID_CONFIRMED' | 'PAYMENT_REMINDER' | 'AUCTION_SOLD' | 'NEW_MESSAGE';
   title: string;
   message: string;
   userId: string;
@@ -166,6 +166,7 @@ export const Header = () => {
       case 'BID_CONFIRMED': return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'PAYMENT_REMINDER': return <CreditCard className="w-4 h-4 text-orange-500" />;
       case 'AUCTION_SOLD': return <Trophy className="w-4 h-4 text-green-500" />;
+      case 'NEW_MESSAGE': return <MessageCircle className="w-4 h-4 text-purple-500" />;
       default: return <Bell className="w-4 h-4 text-primary" />;
     }
   };

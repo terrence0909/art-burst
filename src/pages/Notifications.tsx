@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, CheckCircle, XCircle, Info, AlertCircle, Trophy, CreditCard, Trash2, ArrowLeft } from "lucide-react";
+import { Bell, CheckCircle, XCircle, Info, AlertCircle, Trophy, CreditCard, Trash2, ArrowLeft, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,7 @@ export default function Notifications() {
       case 'BID_CONFIRMED': return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'PAYMENT_REMINDER': return <CreditCard className="w-4 h-4 text-orange-500" />;
       case 'AUCTION_SOLD': return <Trophy className="w-4 h-4 text-purple-500" />;
+      case 'NEW_MESSAGE': return <MessageCircle className="w-4 h-4 text-blue-500" />;
       default: return <Info className="w-4 h-4 text-slate-500" />;
     }
   };
@@ -63,6 +64,7 @@ export default function Notifications() {
       case 'PAYMENT_REMINDER': return 'bg-orange-50 dark:bg-orange-950/20 border-l-orange-500';
       case 'NEW_BID': return 'bg-blue-50 dark:bg-blue-950/20 border-l-blue-500';
       case 'AUCTION_SOLD': return 'bg-purple-50 dark:bg-purple-950/20 border-l-purple-500';
+      case 'NEW_MESSAGE': return 'bg-blue-50 dark:bg-blue-950/20 border-l-blue-500';
       default: return 'bg-slate-50 dark:bg-slate-950/20 border-l-slate-500';
     }
   };

@@ -1,12 +1,9 @@
-// Use the built-in AWS SDK that comes with Lambda
 const AWS = require('aws-sdk');
 const dynamodb = new AWS.DynamoDB.DocumentClient();
-
-// Note: ApiGatewayManagementApi might not be available in older runtimes
-// We'll use the full AWS SDK method
+const ApiGatewayManagementApi = require('aws-sdk/clients/apigatewaymanagementapi');
 
 exports.handler = async (event) => {
-  console.log('=== WebSocketSubscribe CLEAN START ===');
+  console.log('=== WebSocketSubscribe START ===');
   
   try {
     const { action, message, receiverId, senderId } = event;
@@ -48,22 +45,15 @@ exports.handler = async (event) => {
     console.log(`Sending to ${uniqueConnections.length} unique connections`);
     
     // Send to each connection
-    let successful = 0;
-    let failed = 0;
+    const results = await Promise.allSettled(
+      uniqueConnections.map(conn => sendToConnection(conn, { action, message }))
+    );
     
-    for (const connection of uniqueConnections) {
-      try {
-        await sendToConnection(connection, { action, message });
-        successful++;
-        console.log(`✅ Sent to ${connection.connectionId}`);
-      } catch (error) {
-        failed++;
-        console.log(`❌ Failed to send to ${connection.connectionId}: ${error.message}`);
-      }
-    }
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
     
     console.log(`Results: ${successful} successful, ${failed} failed`);
-    console.log('=== WebSocketSubscribe CLEAN END ===');
+    console.log('=== WebSocketSubscribe END ===');
     
     return {
       success: true,
@@ -73,7 +63,7 @@ exports.handler = async (event) => {
     };
     
   } catch (error) {
-    console.error('Top-level error:', error);
+    console.error('Error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -90,29 +80,23 @@ async function getConnectionsByUserId(userId) {
     return result.Items || [];
   } catch (indexError) {
     // Fallback to scan
-    try {
-      const scanResult = await dynamodb.scan({
-        TableName: 'WebSocketConnections',
-        FilterExpression: 'userId = :userId',
-        ExpressionAttributeValues: { ':userId': userId }
-      }).promise();
-      return scanResult.Items || [];
-    } catch (scanError) {
-      console.error(`Error getting connections for ${userId}:`, scanError.message);
-      return [];
-    }
+    const scanResult = await dynamodb.scan({
+      TableName: 'WebSocketConnections',
+      FilterExpression: 'userId = :userId',
+      ExpressionAttributeValues: { ':userId': userId }
+    }).promise();
+    return scanResult.Items || [];
   }
 }
 
 async function sendToConnection(connection, data) {
   const { connectionId, domainName, stage } = connection;
   
-  // Create ApiGatewayManagementApi client for WebSocket connections
-  const apiGateway = new AWS.ApiGatewayManagementApi({
-    endpoint: `https://${domainName}/${stage}`
-  });
-  
   try {
+    const apiGateway = new ApiGatewayManagementApi({
+      endpoint: `https://${domainName}/${stage}`
+    });
+    
     await apiGateway.postToConnection({
       ConnectionId: connectionId,
       Data: JSON.stringify(data)
@@ -120,21 +104,13 @@ async function sendToConnection(connection, data) {
     
     return { success: true, connectionId };
   } catch (error) {
-    console.log(`WebSocket error for ${connectionId}:`, error.message);
-    
-    // Remove stale connections (410 status)
     if (error.statusCode === 410) {
-      console.log(`Removing stale connection: ${connectionId}`);
-      try {
-        await dynamodb.delete({
-          TableName: 'WebSocketConnections',
-          Key: { connectionId }
-        }).promise();
-      } catch (deleteError) {
-        console.log(`Failed to remove connection: ${deleteError.message}`);
-      }
+      // Remove stale connection
+      await dynamodb.delete({
+        TableName: 'WebSocketConnections',
+        Key: { connectionId }
+      }).promise();
     }
-    
     throw error;
   }
 }
