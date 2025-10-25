@@ -14,6 +14,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { getCurrentUser, fetchUserAttributes, updateUserAttributes } from "aws-amplify/auth";
 import { uploadData } from "aws-amplify/storage";
+import { createOrUpdateArtist } from "@/api/auctions"; // 🔥 ADDED
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -41,6 +42,29 @@ export default function Settings() {
   useEffect(() => {
     checkUser();
   }, []);
+
+  // 🔥 NEW: Sync artist profile function
+  const syncArtistProfile = async () => {
+    try {
+      const artistData = {
+        userId: user.userId,
+        name: profile.name || `${profile.given_name} ${profile.family_name}`.trim(),
+        bio: profile.bio,
+        location: profile.location,
+        website: profile.instagram ? `https://instagram.com/${profile.instagram}` : '',
+        socialMedia: {
+          instagram: profile.instagram
+        },
+        avatar: profile.avatar_url,
+      };
+
+      await createOrUpdateArtist(artistData);
+      return true;
+    } catch (error) {
+      console.error("Error syncing artist profile:", error);
+      return false;
+    }
+  };
 
   const checkUser = async () => {
     try {
@@ -80,24 +104,30 @@ export default function Settings() {
   const handleProfileUpdate = async () => {
     setSaving(true);
     try {
+      // Update Cognito user attributes (existing code)
       await updateUserAttributes({
         userAttributes: {
           given_name: profile.given_name,
           family_name: profile.family_name,
           name: profile.name,
-          profile: profile.bio,           // Map to 'profile' instead of 'bio'
-          address: profile.location,      // Map to 'address' instead of 'location'
-          website: profile.instagram,     // Map to 'website' instead of 'instagram'
+          profile: profile.bio,
+          address: profile.location,
+          website: profile.instagram,
           picture: profile.avatar_url,
         }
       });
 
+      // 🔥 NEW: Sync with artist profile
+      const artistSyncSuccess = await syncArtistProfile();
+      
       // Also save to localStorage for immediate access
       localStorage.setItem('userDisplayName', `${profile.given_name} ${profile.family_name}`.trim() || profile.name);
 
       toast({
         title: "Profile updated",
-        description: "Your profile has been updated successfully.",
+        description: artistSyncSuccess 
+          ? "Your profile and artist information have been updated successfully."
+          : "Your profile has been updated, but there was an issue updating your artist profile.",
       });
     } catch (error: any) {
       console.error("Error updating profile:", error);
@@ -173,12 +203,15 @@ export default function Settings() {
         }
       });
 
+      // 🔥 NEW: Sync artist profile with new avatar
+      await syncArtistProfile();
+
       // Also save to localStorage for immediate access
       localStorage.setItem('userAvatar', s3Url);
 
       toast({
         title: "Avatar uploaded",
-        description: "Your profile picture has been updated successfully.",
+        description: "Your profile picture has been updated across all platforms.",
       });
 
     } catch (error: any) {

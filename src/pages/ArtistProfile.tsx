@@ -11,13 +11,15 @@ import { AuctionCard } from "@/components/AuctionCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/use-toast";
 import { ShareProfileButton } from "@/components/ShareProfileButton";
-import { fetchAuctions } from "@/api/auctions";
+import { fetchAuctions, fetchArtistById } from "@/api/auctions"; // 🔥 UPDATED
 
 interface Artist {
   artistId: string;
+  userId?: string; // 🔥 ADDED
   name: string;
   email: string;
   profileImage?: string;
+  avatar?: string; // 🔥 ADDED
   bio?: string;
   location?: string;
   createdAt: string;
@@ -25,6 +27,9 @@ interface Artist {
   achievements?: string[];
   website?: string;
   instagram?: string;
+  socialMedia?: { // 🔥 ADDED
+    instagram?: string;
+  };
   stats?: {
     totalAuctions: number;
     totalSales: number;
@@ -62,6 +67,39 @@ const ArtistProfile = () => {
       setLoading(true);
       setError("");
       
+      // 🔥 UPDATED: Try to fetch actual artist profile first
+      let artistData: Artist | null = null;
+      try {
+        const actualArtist = await fetchArtistById(id!);
+        if (actualArtist) {
+          artistData = {
+            artistId: id!,
+            userId: actualArtist.userId,
+            name: actualArtist.name || "Unknown Artist",
+            email: actualArtist.email || "",
+            profileImage: actualArtist.avatar || actualArtist.profileImage || "/placeholder-avatar.jpg",
+            avatar: actualArtist.avatar,
+            bio: actualArtist.bio || "A talented artist creating beautiful works.",
+            location: actualArtist.location || "Location not specified",
+            createdAt: actualArtist.createdAt || new Date().toISOString(),
+            specialties: actualArtist.specialties || [],
+            achievements: actualArtist.achievements || ["Featured Artist on ArtBurst"],
+            website: actualArtist.website,
+            instagram: actualArtist.socialMedia?.instagram || actualArtist.instagram,
+            socialMedia: actualArtist.socialMedia,
+            stats: actualArtist.stats || {
+              totalAuctions: 0,
+              totalSales: 0,
+              avgSalePrice: 0,
+              followers: Math.floor(Math.random() * 100) + 50
+            }
+          };
+        }
+      } catch (artistError) {
+        console.log("No dedicated artist profile found, falling back to auction data");
+      }
+      
+      // 🔥 UPDATED: Fetch auctions for stats and fallback data
       const auctionData = await fetchAuctions();
       
       if (!Array.isArray(auctionData)) {
@@ -72,29 +110,31 @@ const ArtistProfile = () => {
         auction.creatorId === id
       );
       
-      if (artistAuctions.length > 0) {
+      // Calculate stats from auctions
+      const totalAuctions = artistAuctions.length;
+      const soldAuctions = artistAuctions.filter((a: any) => 
+        a.status === "ended" || a.status === "closed"
+      );
+      const totalSales = soldAuctions.reduce((sum: number, auction: any) => 
+        sum + (auction.currentBid || auction.startingBid || 0), 0
+      );
+      const avgSalePrice = soldAuctions.length > 0 
+        ? Math.round(totalSales / soldAuctions.length)
+        : 0;
+
+      // If we didn't get artist data from the API, create it from auctions
+      if (!artistData) {
         const firstAuction = artistAuctions[0];
         
-        const totalAuctions = artistAuctions.length;
-        const soldAuctions = artistAuctions.filter((a: any) => 
-          a.status === "ended" || a.status === "closed"
-        );
-        const totalSales = soldAuctions.reduce((sum: number, auction: any) => 
-          sum + (auction.currentBid || auction.startingBid || 0), 0
-        );
-        const avgSalePrice = soldAuctions.length > 0 
-          ? Math.round(totalSales / soldAuctions.length)
-          : 0;
-
-        const artistData: Artist = {
+        artistData = {
           artistId: id!,
-          name: firstAuction.artistName || "Unknown Artist",
+          name: firstAuction?.artistName || "Unknown Artist",
           email: "",
           profileImage: "/placeholder-avatar.jpg",
           bio: "A talented artist creating beautiful works. More information coming soon.",
-          location: firstAuction.location || "Location not specified",
-          createdAt: firstAuction.createdAt || new Date().toISOString(),
-          specialties: firstAuction.medium ? [firstAuction.medium] : ["Various Art Forms"],
+          location: firstAuction?.location || "Location not specified",
+          createdAt: firstAuction?.createdAt || new Date().toISOString(),
+          specialties: firstAuction?.medium ? [firstAuction.medium] : ["Various Art Forms"],
           achievements: ["Featured Artist on ArtBurst"],
           stats: {
             totalAuctions,
@@ -103,31 +143,18 @@ const ArtistProfile = () => {
             followers: Math.floor(Math.random() * 100) + 50
           }
         };
-        
-        setArtist(artistData);
-        setArtistAuctions(artistAuctions);
       } else {
-        const artistData: Artist = {
-          artistId: id!,
-          name: "Unknown Artist",
-          email: "",
-          profileImage: "/placeholder-avatar.jpg",
-          bio: "This artist hasn't created any auctions yet.",
-          location: "Location not specified",
-          createdAt: new Date().toISOString(),
-          specialties: ["Various Art Forms"],
-          achievements: ["Featured Artist on ArtBurst"],
-          stats: {
-            totalAuctions: 0,
-            totalSales: 0,
-            avgSalePrice: 0,
-            followers: Math.floor(Math.random() * 100) + 50
-          }
+        // Update stats with actual auction data
+        artistData.stats = {
+          totalAuctions,
+          totalSales,
+          avgSalePrice,
+          followers: artistData.stats?.followers || Math.floor(Math.random() * 100) + 50
         };
-        
-        setArtist(artistData);
-        setArtistAuctions([]);
       }
+      
+      setArtist(artistData);
+      setArtistAuctions(artistAuctions);
       
     } catch (err) {
       console.error('Error fetching artist:', err);
@@ -244,7 +271,7 @@ const ArtistProfile = () => {
               <div className="relative group">
                 <div className="absolute inset-0 bg-gradient-to-br from-accent to-accent/50 rounded-2xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity" />
                 <img 
-                  src={artist.profileImage || "/placeholder-avatar.jpg"} 
+                  src={artist.avatar || artist.profileImage || "/placeholder-avatar.jpg"} 
                   alt={artist.name}
                   className="relative w-32 h-32 md:w-40 md:h-40 rounded-2xl object-cover border-4 border-white shadow-xl"
                 />

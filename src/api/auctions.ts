@@ -225,3 +225,23 @@ export const createOrUpdateArtist = async (artistData: any): Promise<any> => {
     throw error;
   }
 };
+
+// 🔥 NEW: Sync artist profile with user settings
+export const updateArtistFromSettings = async (userId: string, settings: any): Promise<any> => {
+  try {
+    const artistData = {
+      userId: userId,
+      name: settings.displayName || settings.username,
+      bio: settings.bio || '',
+      location: settings.location,
+      website: settings.website,
+      socialMedia: settings.socialMedia,
+      avatar: settings.avatar_url,
+    };
+    
+    return await createOrUpdateArtist(artistData);
+  } catch (error) {
+    console.error("Error updating artist from settings:", error);
+    throw error;
+  }
+};
