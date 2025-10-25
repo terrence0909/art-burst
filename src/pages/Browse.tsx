@@ -167,7 +167,7 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
         `;
         document.head.appendChild(style);
         
-        const createCustomIcon = (status: string) => {
+        const createCustomIcon = (status: string, artistId?: string) => {
           const colors = {
             live: '#10b981',
             closed: '#8b5cf6',
@@ -177,24 +177,32 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
           
           const color = colors[status as keyof typeof colors] || '#6b7280';
           
+          // 🔥 FIX: Use profile picture like artist profiles page
+          const profileImageUrl = "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face";
+          
           return L.divIcon({
             className: 'glass-marker',
             html: `
               <div style="position: relative;">
                 <div style="
-                  background: ${color};
-                  width: 32px;
-                  height: 32px;
+                  width: 48px;
+                  height: 48px;
                   border-radius: 50%;
-                  border: 3px solid rgba(255, 255, 255, 0.8);
+                  border: 3px solid ${color};
                   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
                   display: flex;
                   align-items: center;
                   justify-content: center;
                   backdrop-filter: blur(10px);
+                  overflow: hidden;
                   ${status === 'live' ? 'animation: pulse-marker 2s infinite;' : ''}
                 ">
-                  <span style="font-size: 14px; color: white;">🎨</span>
+                  <img 
+                    src="${profileImageUrl}" 
+                    alt="Artist"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                    onerror="this.src='https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face'"
+                  />
                 </div>
                 ${status === 'live' ? `
                   <div style="
@@ -211,9 +219,9 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
                 ` : ''}
               </div>
             `,
-            iconSize: [32, 32],
-            iconAnchor: [16, 16],
-            popupAnchor: [0, -16]
+            iconSize: [48, 48],
+            iconAnchor: [24, 24],
+            popupAnchor: [0, -24]
           });
         };
 
@@ -240,7 +248,7 @@ const AuctionMap = ({ auctions }: { auctions: Auction[] }) => {
 
           const marker = L.marker(
             [auction.coordinates.lat, auction.coordinates.lng],
-            { icon: createCustomIcon(auction.status) }
+            { icon: createCustomIcon(auction.status, auction.artistId) }
           ).addTo(map);
 
           const popupContent = `
@@ -819,7 +827,7 @@ const Browse = () => {
               {searchQuery && (
                 <Badge variant="secondary" className="backdrop-blur-xl bg-white/20 border border-white/30">
                   <Search className="w-3 h-3 mr-1" />
-                  "{searchQuery}"
+                  "${searchQuery}"
                   <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => handleSearchChange('')} />
                 </Badge>
               )}
