@@ -56,7 +56,7 @@ export class NotificationService {
       );
       
       if (!response.ok) {
-        throw new Error('Failed to fetch notifications from API');
+        throw new Error(`Failed to fetch notifications from API: ${response.status}`);
       }
       
       const data = await response.json();
@@ -88,7 +88,7 @@ export class NotificationService {
 
     } catch (error) {
       console.error('Error syncing notifications from API:', error);
-      // Fallback to local storage if API fails
+      // Silently fail - we'll use local storage data
     }
   }
 
@@ -144,10 +144,15 @@ export class NotificationService {
 
   // Get notifications for user (with API sync)
   async getUserNotifications(userId: string): Promise<Notification[]> {
-    // Sync with API first to get latest notifications
-    await this.syncNotificationsFromAPI(userId);
+    try {
+      // Sync with API first to get latest notifications
+      await this.syncNotificationsFromAPI(userId);
+    } catch (error) {
+      console.error('Error in getUserNotifications:', error);
+      // Continue with local data if API fails
+    }
     
-    // Return from local storage (which now has API data)
+    // Always return an array, never undefined
     return this.notifications.get(userId) || [];
   }
 
