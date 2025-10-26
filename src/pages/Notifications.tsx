@@ -15,30 +15,39 @@ export default function Notifications() {
 
   // Load real notifications
   useEffect(() => {
-    const userId = localStorage.getItem('auction-user-id');
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
+    const loadNotifications = async () => {
+      const userId = localStorage.getItem('auction-user-id');
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
 
-    // Load initial notifications
-    const userNotifications = notificationService.getUserNotifications(userId);
-    setNotifications(userNotifications);
-    setLoading(false);
+      try {
+        // Load initial notifications
+        const userNotifications = await notificationService.getUserNotifications(userId);
+        setNotifications(userNotifications);
+      } catch (error) {
+        console.error('Error loading notifications:', error);
+      } finally {
+        setLoading(false);
+      }
 
-    // Subscribe to real-time notifications
-    const unsubscribe = notificationService.subscribe(userId, (newNotification) => {
-      setNotifications(prev => {
-        const exists = prev.find(n => n.id === newNotification.id);
-        if (exists) {
-          return prev.map(n => n.id === newNotification.id ? newNotification : n);
-        } else {
-          return [newNotification, ...prev];
-        }
+      // Subscribe to real-time notifications
+      const unsubscribe = notificationService.subscribe(userId, (newNotification) => {
+        setNotifications(prev => {
+          const exists = prev.find(n => n.id === newNotification.id);
+          if (exists) {
+            return prev.map(n => n.id === newNotification.id ? newNotification : n);
+          } else {
+            return [newNotification, ...prev];
+          }
+        });
       });
-    });
 
-    return unsubscribe;
+      return unsubscribe;
+    };
+
+    loadNotifications();
   }, []);
 
   const getNotificationIcon = (type: string) => {

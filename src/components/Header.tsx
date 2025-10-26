@@ -147,7 +147,7 @@ export const Header = () => {
       const service = await import('@/services/notificationService').then(m => m.notificationService);
       const userId = localStorage.getItem('auction-user-id');
       if (userId) {
-        const userNotifications = service.getUserNotifications(userId);
+        const userNotifications = await service.getUserNotifications(userId);
         const unread = userNotifications.filter(n => !n.read).length;
         setUnreadCount(unread);
         setNotifications(userNotifications.slice(0, 10)); // Show latest 10 in dropdown
