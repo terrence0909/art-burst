@@ -48,68 +48,6 @@ export class NotificationService {
     }
   }
 
-  // Get notifications from API and sync with local storage
-  async syncNotificationsFromAPI(userId: string): Promise<void> {
-    try {
-      const response = await fetch(
-        `https://wckv09j9eg.execute-api.us-east-1.amazonaws.com/prod/sendMessage?action=getNotifications&userId=${userId}`
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch notifications from API: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      const apiNotifications = data.notifications || [];
-      
-      // Convert API notifications to our format
-      const convertedNotifications: Notification[] = apiNotifications.map((apiNotif: any) => ({
-        id: apiNotif.notificationId,
-        type: this.mapNotificationType(apiNotif.type),
-        title: this.getNotificationTitle(apiNotif.type),
-        message: apiNotif.message,
-        userId: apiNotif.userId,
-        read: apiNotif.read,
-        createdAt: apiNotif.timestamp,
-        metadata: {
-          originalType: apiNotif.type,
-          ...apiNotif
-        }
-      }));
-
-      // Update local storage with API data
-      this.notifications.set(userId, convertedNotifications);
-      this.saveToStorage();
-
-      // Notify listeners about the new notifications
-      convertedNotifications.forEach(notification => {
-        this.notifyUser(userId, notification);
-      });
-
-    } catch (error) {
-      console.error('Error syncing notifications from API:', error);
-      // Silently fail - we'll use local storage data
-    }
-  }
-
-  // Map API notification types to our types
-  private mapNotificationType(apiType: string): Notification['type'] {
-    const typeMap: { [key: string]: Notification['type'] } = {
-      'message': 'NEW_MESSAGE',
-      'AUCTION_SOLD': 'AUCTION_SOLD'
-    };
-    return typeMap[apiType] || 'NEW_MESSAGE';
-  }
-
-  // Generate title based on notification type
-  private getNotificationTitle(type: string): string {
-    const titleMap: { [key: string]: string } = {
-      'message': 'New Message',
-      'AUCTION_SOLD': 'Auction Sold'
-    };
-    return titleMap[type] || 'Notification';
-  }
-
   // Add notification and broadcast to listeners
   addNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'read'>): void {
     const fullNotification: Notification = {
@@ -142,17 +80,10 @@ export class NotificationService {
     }
   }
 
-  // Get notifications for user (with API sync)
+  // Get notifications for user
   async getUserNotifications(userId: string): Promise<Notification[]> {
-    try {
-      // Sync with API first to get latest notifications
-      await this.syncNotificationsFromAPI(userId);
-    } catch (error) {
-      console.error('Error in getUserNotifications:', error);
-      // Continue with local data if API fails
-    }
-    
-    // Always return an array, never undefined
+    // For now, just return from local storage without API sync
+    // We'll fix the API integration separately
     return this.notifications.get(userId) || [];
   }
 
