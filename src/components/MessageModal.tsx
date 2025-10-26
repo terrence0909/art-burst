@@ -95,17 +95,22 @@ export const MessageModal: React.FC<MessageModalProps> = ({
   };
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !conversationId || !wsService) return;
+    if (!newMessage.trim() || !conversationId) return;
 
     setIsLoading(true);
     try {
-      // Send message via WebSocket for real-time
-      await wsService.sendChatMessage(conversationId, receiverId, newMessage.trim(), auctionId);
+      // Save message to database using your working API
+      const savedMessage = await messagingService.saveMessage(
+        conversationId, 
+        newMessage.trim(), 
+        receiverId, 
+        auctionId
+      );
       
-      // Also save to database for persistence
-      await messagingService.saveMessage(conversationId, newMessage.trim(), receiverId, auctionId);
-      
+      // Add the saved message to local state
+      setMessages(prev => [...prev, savedMessage]);
       setNewMessage("");
+      
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {
