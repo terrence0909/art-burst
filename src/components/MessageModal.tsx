@@ -99,14 +99,43 @@ export const MessageModal: React.FC<MessageModalProps> = ({
 
     setIsLoading(true);
     try {
-      // Save message to database using your working API
-      const savedMessage = await messagingService.saveMessage(
-        conversationId, 
-        newMessage.trim(), 
-        receiverId, 
-        auctionId
-      );
+      // Get current user ID
+      const user = await fetchUserAttributes();
+      const userId = user.sub;
+
+      // Send message directly to your working API endpoint
+      const response = await fetch('https://wckv09j9eg.execute-api.us-east-1.amazonaws.com/prod/sendMessage', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,        // Required field
+          message: newMessage.trim(), // Required field
+          email: '',             // Optional field
+          receiverId: receiverId, // Additional context
+          auctionId: auctionId   // Additional context
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to send message: ${await response.text()}`);
+      }
+
+      const result = await response.json();
       
+      // Create a message object for local state
+      const savedMessage: Message = {
+        messageId: result.messageId,
+        conversationId: conversationId,
+        senderId: userId,
+        receiverId: receiverId,
+        content: newMessage.trim(),
+        timestamp: new Date().toISOString(),
+        auctionId: auctionId,
+        read: false
+      };
+
       // Add the saved message to local state
       setMessages(prev => [...prev, savedMessage]);
       setNewMessage("");

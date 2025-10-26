@@ -1,203 +1,231 @@
-const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
-const { DynamoDBDocumentClient, PutCommand, UpdateCommand } = require("@aws-sdk/lib-dynamodb");
-const { LambdaClient, InvokeCommand } = require("@aws-sdk/client-lambda");
+const { DynamoDBClient, QueryCommand, PutItemCommand, ScanCommand } = require("@aws-sdk/client-dynamodb");
+const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
 
-const dynamoClient = new DynamoDBClient({});
-const dynamodb = DynamoDBDocumentClient.from(dynamoClient);
-const lambdaClient = new LambdaClient({});
+const dynamodb = new DynamoDBClient({ region: "us-east-1" });
+const ses = new SESClient({ region: "us-east-1" });
 
 exports.handler = async (event) => {
-  console.log('Real SendMessage function started');
-  console.log('HTTP Method:', event.httpMethod);
-  console.log('Event:', JSON.stringify(event, null, 2));
-  
-  const headers = {
-    'Access-Control-Allow-Origin': 'https://terrence0909.github.io',
-    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,x-amz-security-token',
-    'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE',
-    'Access-Control-Allow-Credentials': 'true'
-  };
-
-  // Handle OPTIONS request for CORS preflight
-  if (event.httpMethod === 'OPTIONS') {
-    console.log('Handling OPTIONS preflight request');
-    return {
-      statusCode: 200,
-      headers: headers,
-      body: ''
+    console.log('Event:', JSON.stringify(event, null, 2));
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
     };
-  }
 
-  // Handle POST request
-  if (event.httpMethod === 'POST') {
-    try {
-      const body = JSON.parse(event.body);
-      const { conversationId, message, receiverId, test, isTest } = body;
-      
-      console.log('Body received:', { conversationId, message, receiverId, test, isTest });
-      
-      // Handle authentication - FIXED: Check if there's no requestContext (direct invoke)
-      let senderId = event.requestContext?.authorizer?.claims?.sub;
-      
-      console.log('Initial senderId from authorizer:', senderId);
-      console.log('Has requestContext:', !!event.requestContext);
-      console.log('Has authorizer:', !!event.requestContext?.authorizer);
-      
-      // Test mode logic - allow when test=true OR when there's no requestContext (direct invoke)
-      if (!senderId && (test === true || isTest === true || !event.requestContext)) {
-        senderId = "test-user-" + Date.now();
-        console.log('TEST MODE: Using test sender ID:', senderId);
-      }
-      
-      console.log('Final senderId:', senderId);
-      
-      if (!conversationId || !message || !receiverId) {
-        return {
-          statusCode: 400,
-          headers: headers,
-          body: JSON.stringify({ 
-            error: 'Missing required fields',
-            required: ['conversationId', 'message', 'receiverId'],
-            received: { conversationId, message, receiverId }
-          })
-        };
-      }
-      
-      if (!senderId) {
-        return {
-          statusCode: 401,
-          headers: headers,
-          body: JSON.stringify({ 
-            error: 'Missing authentication',
-            message: 'Valid Cognito authentication required. Use test=true for testing.',
-            debug: {
-              hasRequestContext: !!event.requestContext,
-              hasAuthorizer: !!event.requestContext?.authorizer,
-              testFlag: test
-            }
-          })
-        };
-      }
-      
-      // 1. Save the message to DynamoDB
-      const messageId = `msg_${Date.now()}`;
-      const messageItem = {
-        messageId,
-        conversationId,
-        senderId,
-        receiverId,
-        content: message,
-        timestamp: new Date().toISOString(),
-        type: 'text',
-        isTest: !!(test || isTest || !event.requestContext) // Mark test messages
-      };
-      
-      // Only save to DynamoDB if we're not in test mode or table exists
-      const isTestMode = test === true || isTest === true || !event.requestContext;
-      
-      if (process.env.MESSAGES_TABLE && !isTestMode) {
-        await dynamodb.send(new PutCommand({
-          TableName: process.env.MESSAGES_TABLE,
-          Item: messageItem
-        }));
-        console.log('Message saved to database');
-      } else if (isTestMode) {
-        console.log('Test mode - skipping database save');
-      } else {
-        console.log('MESSAGES_TABLE not configured - skipping database save');
-      }
-      
-      // 2. Create NEW_MESSAGE notification for the receiver
-      const notification = {
-        notificationId: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'NEW_MESSAGE',
-        title: 'New Message',
-        message: `You have a new message: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`,
-        userId: receiverId,
-        relatedId: conversationId,
-        read: false,
-        createdAt: new Date().toISOString(),
-        metadata: {
-          conversationId,
-          senderId,
-          messagePreview: message.substring(0, 100),
-          messageId: messageId,
-          isTest: isTestMode
-        }
-      };
-      
-      // Save notification to DynamoDB (only if not in test mode)
-      if (process.env.NOTIFICATIONS_TABLE && !isTestMode) {
-        await dynamodb.send(new PutCommand({
-          TableName: process.env.NOTIFICATIONS_TABLE,
-          Item: notification
-        }));
-        console.log('NEW_MESSAGE notification created');
-      } else if (isTestMode) {
-        console.log('Test mode - skipping notification save');
-      }
-      
-      // 3. Update conversation last message (only if not in test mode)
-      if (process.env.CONVERSATIONS_TABLE && !isTestMode) {
-        await dynamodb.send(new UpdateCommand({
-          TableName: process.env.CONVERSATIONS_TABLE,
-          Key: { conversationId },
-          UpdateExpression: 'SET lastMessage = :lastMessage, lastMessageTimestamp = :timestamp',
-          ExpressionAttributeValues: {
-            ':lastMessage': message.substring(0, 100),
-            ':timestamp': new Date().toISOString()
-          }
-        }));
-        console.log('Conversation updated');
-      } else if (isTestMode) {
-        console.log('Test mode - skipping conversation update');
-      }
-      
-      // 4. Call WebSocket function to broadcast (only if not in test mode)
-      if (process.env.WEBSOCKET_FUNCTION && !isTestMode) {
-        await lambdaClient.send(new InvokeCommand({
-          FunctionName: process.env.WEBSOCKET_FUNCTION,
-          InvocationType: 'Event',
-          Payload: JSON.stringify({
-            action: 'newMessage',
-            message: messageItem,
-            receiverId: receiverId,
-            senderId: senderId
-          })
-        }));
-        console.log('WebSocket broadcast triggered');
-      } else if (isTestMode) {
-        console.log('Test mode - skipping WebSocket broadcast');
-      }
-      
-      return {
-        statusCode: 200,
-        headers: headers,
-        body: JSON.stringify({
-          success: true,
-          message: messageItem,
-          notification: notification,
-          mode: isTestMode ? 'test' : 'production'
-        })
-      };
-      
-    } catch (error) {
-      console.error('Error in sendMessage:', error);
-      return {
-        statusCode: 500,
-        headers: headers,
-        body: JSON.stringify({ 
-          error: 'Internal server error',
-          details: error.message
-        })
-      };
+    // Handle OPTIONS for CORS
+    if (event.httpMethod === 'OPTIONS') {
+        return { statusCode: 200, headers, body: '' };
     }
-  }
-  
-  // Handle other HTTP methods
-  return {
-    statusCode: 405,
-    headers: headers,
-    body: JSON.stringify({ error: 'Method not allowed' })
-  };
+
+    // Handle GET requests for notifications
+    if (event.httpMethod === 'GET' && event.path === '/sendMessage') {
+        try {
+            console.log('GET request received for notifications');
+            const userId = event.queryStringParameters?.userId;
+            const action = event.queryStringParameters?.action;
+            
+            console.log('Query params:', { userId, action });
+            console.log('NOTIFICATIONS_TABLE:', process.env.NOTIFICATIONS_TABLE);
+            
+            if (action === 'getNotifications') {
+                if (!userId) {
+                    return {
+                        statusCode: 400,
+                        headers: headers,
+                        body: JSON.stringify({ error: 'Missing userId parameter' })
+                    };
+                }
+
+                console.log('Querying notifications for user:', userId);
+                
+                // Option 1: Try with GSI if it exists
+                try {
+                    const result = await dynamodb.send(new QueryCommand({
+                        TableName: process.env.NOTIFICATIONS_TABLE,
+                        IndexName: 'userId-index', // Try common GSI name
+                        KeyConditionExpression: 'userId = :userId',
+                        ExpressionAttributeValues: {
+                            ':userId': { S: userId }
+                        },
+                        ScanIndexForward: false // Most recent first
+                    }));
+
+                    console.log('GSI Query result count:', result.Items ? result.Items.length : 0);
+                    
+                    // Convert DynamoDB items to plain objects safely
+                    const notifications = result.Items ? result.Items.map(item => {
+                        const notification = {};
+                        if (item.notificationId && item.notificationId.S) notification.notificationId = item.notificationId.S;
+                        if (item.userId && item.userId.S) notification.userId = item.userId.S;
+                        if (item.message && item.message.S) notification.message = item.message.S;
+                        if (item.timestamp && item.timestamp.S) notification.timestamp = item.timestamp.S;
+                        if (item.type && item.type.S) notification.type = item.type.S;
+                        if (item.read && item.read.BOOL !== undefined) notification.read = item.read.BOOL;
+                        return notification;
+                    }) : [];
+
+                    console.log('Processed notifications:', notifications);
+
+                    return {
+                        statusCode: 200,
+                        headers: headers,
+                        body: JSON.stringify({
+                            message: 'Notifications retrieved successfully',
+                            notifications: notifications
+                        })
+                    };
+                } catch (gsiError) {
+                    console.log('GSI query failed, trying scan with filter:', gsiError.message);
+                    
+                    // Option 2: Use scan with filter (less efficient but works)
+                    const scanResult = await dynamodb.send(new ScanCommand({
+                        TableName: process.env.NOTIFICATIONS_TABLE,
+                        FilterExpression: 'userId = :userId',
+                        ExpressionAttributeValues: {
+                            ':userId': { S: userId }
+                        }
+                    }));
+
+                    console.log('Scan result count:', scanResult.Items ? scanResult.Items.length : 0);
+                    
+                    // Convert DynamoDB items to plain objects safely
+                    const notifications = scanResult.Items ? scanResult.Items.map(item => {
+                        const notification = {};
+                        if (item.notificationId && item.notificationId.S) notification.notificationId = item.notificationId.S;
+                        if (item.userId && item.userId.S) notification.userId = item.userId.S;
+                        if (item.message && item.message.S) notification.message = item.message.S;
+                        if (item.timestamp && item.timestamp.S) notification.timestamp = item.timestamp.S;
+                        if (item.type && item.type.S) notification.type = item.type.S;
+                        if (item.read && item.read.BOOL !== undefined) notification.read = item.read.BOOL;
+                        return notification;
+                    }) : [];
+
+                    // Sort by timestamp descending (most recent first)
+                    notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                    return {
+                        statusCode: 200,
+                        headers: headers,
+                        body: JSON.stringify({
+                            message: 'Notifications retrieved successfully',
+                            notifications: notifications
+                        })
+                    };
+                }
+            } else {
+                return {
+                    statusCode: 400,
+                    headers: headers,
+                    body: JSON.stringify({ error: 'Missing action parameter. Use action=getNotifications' })
+                };
+            }
+        } catch (error) {
+            console.error('Error fetching notifications:', error);
+            console.error('Error stack:', error.stack);
+            return {
+                statusCode: 500,
+                headers: headers,
+                body: JSON.stringify({ 
+                    error: 'Failed to fetch notifications',
+                    details: error.message 
+                })
+            };
+        }
+    }
+
+    // Handle POST requests to /sendMessage
+    if (event.httpMethod === 'POST' && event.path === '/sendMessage') {
+        try {
+            const body = JSON.parse(event.body);
+            const { userId, message, email } = body;
+
+            if (!userId || !message) {
+                return {
+                    statusCode: 400,
+                    headers: headers,
+                    body: JSON.stringify({ error: 'Missing required fields: userId and message are required' })
+                };
+            }
+
+            // Store message in DynamoDB
+            const timestamp = new Date().toISOString();
+            const messageId = `${userId}-${timestamp}`;
+
+            await dynamodb.send(new PutItemCommand({
+                TableName: process.env.MESSAGES_TABLE,
+                Item: {
+                    messageId: { S: messageId },
+                    userId: { S: userId },
+                    message: { S: message },
+                    timestamp: { S: timestamp },
+                    email: { S: email || '' }
+                }
+            }));
+
+            // Store notification in Notifications table
+            const notificationId = `${userId}-${Date.now()}`;
+            await dynamodb.send(new PutItemCommand({
+                TableName: process.env.NOTIFICATIONS_TABLE,
+                Item: {
+                    notificationId: { S: notificationId },
+                    userId: { S: userId },
+                    message: { S: message },
+                    timestamp: { S: timestamp },
+                    type: { S: 'message' },
+                    read: { BOOL: false }
+                }
+            }));
+
+            // Send email notification if email is provided
+            if (email) {
+                try {
+                    await ses.send(new SendEmailCommand({
+                        Source: 'noreply@artburst.com',
+                        Destination: {
+                            ToAddresses: [email]
+                        },
+                        Message: {
+                            Subject: {
+                                Data: 'New Message from ArtBurst'
+                            },
+                            Body: {
+                                Text: {
+                                    Data: `You have a new message: ${message}`
+                                }
+                            }
+                        }
+                    }));
+                } catch (emailError) {
+                    console.error('Error sending email:', emailError);
+                }
+            }
+
+            return {
+                statusCode: 200,
+                headers: headers,
+                body: JSON.stringify({ 
+                    message: 'Message sent successfully',
+                    messageId: messageId,
+                    notificationId: notificationId
+                })
+            };
+
+        } catch (error) {
+            console.error('Error:', error);
+            return {
+                statusCode: 500,
+                headers: headers,
+                body: JSON.stringify({ error: 'Failed to send message' })
+            };
+        }
+    }
+
+    // Return 404 for unsupported routes
+    return {
+        statusCode: 404,
+        headers: headers,
+        body: JSON.stringify({ error: 'Route not found' })
+    };
 };
