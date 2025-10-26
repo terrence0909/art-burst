@@ -147,18 +147,13 @@ export const Header = () => {
       const service = await import('@/services/notificationService').then(m => m.notificationService);
       const userId = localStorage.getItem('auction-user-id');
       if (userId) {
-        const userNotifications = await service.getUserNotifications(userId);
-        // Ensure we always have an array
-        const notificationsArray = Array.isArray(userNotifications) ? userNotifications : [];
-        const unread = notificationsArray.filter(n => !n.read).length;
+        const userNotifications = service.getUserNotifications(userId); // REMOVED AWAIT
+        const unread = userNotifications.filter(n => !n.read).length;
         setUnreadCount(unread);
-        setNotifications(notificationsArray.slice(0, 10)); // Show latest 10 in dropdown
+        setNotifications(userNotifications.slice(0, 10)); // Show latest 10 in dropdown
       }
     } catch (error) {
       console.error('Error checking notifications:', error);
-      // Set empty arrays on error
-      setUnreadCount(0);
-      setNotifications([]);
     }
   };
 
@@ -607,7 +602,7 @@ export const Header = () => {
                 )}
               </div>
               
-              {(!notifications || notifications.length === 0) ? (
+              {notifications.length === 0 ? (
                 <div className="px-2 py-4 text-center text-muted-foreground">
                   <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">No notifications yet</p>

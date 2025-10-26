@@ -81,9 +81,7 @@ export class NotificationService {
   }
 
   // Get notifications for user
-  async getUserNotifications(userId: string): Promise<Notification[]> {
-    // For now, just return from local storage without API sync
-    // We'll fix the API integration separately
+  getUserNotifications(userId: string): Notification[] {
     return this.notifications.get(userId) || [];
   }
 
