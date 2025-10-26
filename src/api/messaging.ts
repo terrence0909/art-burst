@@ -26,9 +26,34 @@ export interface Conversation {
 export const messagingService = {
   async startConversation(receiverId: string, auctionId?: string): Promise<string> {
     try {
-      // For now, generate a conversation ID
-      const conversationId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      return conversationId;
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString();
+      
+      const currentUser = await fetchUserAttributes();
+      const currentUserId = currentUser.sub;
+
+      if (currentUserId === receiverId) {
+        throw new Error("Cannot start conversation with yourself");
+      }
+
+      const response = await fetch(`${API_BASE_URL}/conversations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken && { 'Authorization': `Bearer ${idToken}` }),
+        },
+        body: JSON.stringify({
+          participants: [currentUserId, receiverId],
+          auctionId: auctionId || null
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to start conversation');
+      }
+
+      const data = await response.json();
+      return data.conversationId;
     } catch (error) {
       console.error('Error starting conversation:', error);
       throw error;
@@ -37,9 +62,21 @@ export const messagingService = {
 
   async getConversations(): Promise<Conversation[]> {
     try {
-      // TODO: Implement this when you have a getConversations API
-      console.log('getConversations not implemented yet');
-      return [];
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString();
+
+      const response = await fetch(`${API_BASE_URL}/conversations`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken && { 'Authorization': `Bearer ${idToken}` }),
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch conversations');
+      }
+
+      return await response.json();
     } catch (error) {
       console.error('Error fetching conversations:', error);
       return [];
@@ -48,9 +85,21 @@ export const messagingService = {
 
   async getMessages(conversationId: string): Promise<Message[]> {
     try {
-      // TODO: Implement this when you have a getMessages API
-      console.log('getMessages not implemented yet for conversation:', conversationId);
-      return [];
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString();
+
+      const response = await fetch(`${API_BASE_URL}/conversations/messages`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken && { 'Authorization': `Bearer ${idToken}` }),
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch messages');
+      }
+
+      return await response.json();
     } catch (error) {
       console.error('Error fetching messages:', error);
       return [];
@@ -62,7 +111,6 @@ export const messagingService = {
       const session = await fetchAuthSession();
       const idToken = session.tokens?.idToken?.toString();
 
-      // Use your working sendMessage endpoint
       const response = await fetch(`${API_BASE_URL}/sendMessage`, {
         method: 'POST',
         headers: {
@@ -74,7 +122,7 @@ export const messagingService = {
           message: content,
           receiverId,
           auctionId: auctionId || null,
-          test: !idToken // Use test mode if no auth token
+          test: true
         })
       });
 
