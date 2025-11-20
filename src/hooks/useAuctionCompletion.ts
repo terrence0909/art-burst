@@ -1,4 +1,4 @@
-// src/hooks/useAuctionCompletion.ts - SIMPLE FIX
+// src/hooks/useAuctionCompletion.ts - SIMPLE STRING FIX
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -10,11 +10,11 @@ interface AuctionCompletionProps {
   isHighestBidder: boolean;
   auctionTitle: string;
   startDate?: string;
-  status?: 'live' | 'upcoming' | 'ended' | 'closed';
+  status?: string; // Use string to avoid type issues
 }
 
 interface UseAuctionCompletionReturn {
-  auctionStatus: 'live' | 'ended' | 'upcoming' | 'closed';
+  auctionStatus: string;
   timeUntilEnd: number;
   isAuctionActive: boolean;
   timeUntilStart: number;
@@ -32,7 +32,7 @@ export const useAuctionCompletion = ({
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const [auctionStatus, setAuctionStatus] = useState<'live' | 'ended' | 'upcoming' | 'closed'>(status);
+  const [auctionStatus, setAuctionStatus] = useState<string>(status);
   const [timeUntilEnd, setTimeUntilEnd] = useState(0);
   const [timeUntilStart, setTimeUntilStart] = useState(0);
   const hasNotifiedRef = useRef(false);
@@ -41,6 +41,14 @@ export const useAuctionCompletion = ({
   const checkAuctionCompletion = useCallback(() => {
     const now = new Date();
     
+    // Handle draft status - don't process time calculations for drafts
+    if (status === 'draft') {
+      setAuctionStatus('draft');
+      setTimeUntilEnd(0);
+      setTimeUntilStart(0);
+      return;
+    }
+
     // Simple date parsing - no modifications
     const auctionStart = startDate ? new Date(startDate) : null;
     const auctionEnd = new Date(endDate);
@@ -58,9 +66,11 @@ export const useAuctionCompletion = ({
     setTimeUntilEnd(timeUntilEnd);
     setTimeUntilStart(timeUntilStart);
 
-    let newStatus: 'live' | 'ended' | 'upcoming' | 'closed';
+    let newStatus: string;
     
-    if (status === 'closed') {
+    if (status === 'draft') {
+      newStatus = 'draft';
+    } else if (status === 'closed') {
       newStatus = 'closed';
     } else if (timeUntilEnd <= 0) {
       newStatus = 'ended';
@@ -72,8 +82,8 @@ export const useAuctionCompletion = ({
 
     setAuctionStatus(newStatus);
 
-    // Handle notifications for ended auctions
-    if (newStatus === 'ended') {
+    // Handle notifications for ended auctions (skip drafts)
+    if (newStatus === 'ended' && status !== 'draft') {
       const notificationKey = `auction-${auctionId}-notified`;
       if (!hasNotifiedRef.current && !localStorage.getItem(notificationKey)) {
         hasNotifiedRef.current = true;
@@ -128,6 +138,8 @@ export const useAuctionCompletion = ({
   }, []);
 
   useEffect(() => {
+    // Skip interval for drafts
+    if (status === 'draft') return;
     if (!endDate) return;
 
     checkAuctionCompletion();
@@ -143,7 +155,7 @@ export const useAuctionCompletion = ({
         clearInterval(intervalRef.current);
       }
     };
-  }, [checkAuctionCompletion, endDate, startDate, auctionId]);
+  }, [checkAuctionCompletion, endDate, startDate, auctionId, status]);
 
   useEffect(() => {
     hasNotifiedRef.current = false;

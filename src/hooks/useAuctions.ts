@@ -1,16 +1,15 @@
-// src/hooks/useAuctions.ts - FIXED VERSION
-import { useState, useEffect, useCallback } from 'react';
+// src/hooks/useAuctions.ts - WITH DRAFT FILTER
+import { useState, useEffect, useCallback, useMemo } from 'react'; // ADD useMemo HERE
 import { Auction } from '../types/auction';
 import { fetchAuctions } from '../api/auctions';
 
 export const useAuctions = () => {
-  const [auctions, setAuctions] = useState<Auction[]>([]);
+  const [allAuctions, setAllAuctions] = useState<Auction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // FIXED: Don't strip out fields - the transformAuction function already normalizes everything
   const normalizeAuction = useCallback((auction: any): Auction => ({
-    ...auction, // Keep all existing fields from transformAuction
+    ...auction,
     id: auction.auctionId || auction.id || auction._id || "",
     auctionId: auction.auctionId || auction.id || auction._id || "",
     title: auction.title || "Untitled",
@@ -19,22 +18,28 @@ export const useAuctions = () => {
     startingBid: auction.startingBid ?? auction.currentBid ?? 0,
     timeRemaining: auction.timeRemaining ?? "",
     image: auction.image ?? "",
-    status: auction.status || "upcoming", // FIXED: Don't override API status
+    status: auction.status || "upcoming",
     location: auction.location ?? "",
     distance: auction.distance ?? "",
     bidders: auction.bidders ?? auction.bidCount ?? 0,
     medium: auction.medium ?? "",
     year: auction.year ?? "",
     bidIncrement: auction.bidIncrement ?? 100,
-    // These are already set by transformAuction, but we preserve them
     endDate: auction.endDate,
     startDate: auction.startDate,
     endTime: auction.endTime,
     startTime: auction.startTime,
-    
-    // 🔥 ADD THIS: Handle creatorId from various possible field names
     creatorId: auction.creatorId || auction.userId || auction.ownerId || auction.createdBy,
   }), []);
+
+  // 🔥 ADD THIS: Filter out draft auctions
+  const publishedAuctions = useMemo(() => {
+    return allAuctions.filter(auction => {
+      // Only show active, upcoming, live, or ended auctions
+      const validStatuses = ['active', 'upcoming', 'live', 'ended', 'closed'];
+      return validStatuses.includes(auction.status?.toLowerCase() || '');
+    });
+  }, [allAuctions]);
 
   const loadAuctions = useCallback(async () => {
     try {
@@ -42,34 +47,29 @@ export const useAuctions = () => {
       setError(null);
       const data = await fetchAuctions();
       
-      // ADDED: Debug logging to see what's coming from API
-      console.log('🔍 API Response - Raw data:', data);
-      console.log('🔍 Looking for auction 840199022:', 
-        data.find(a => (a.auctionId || a.id) === '840199022')
-      );
-      
-      // FIX: Sort auctions by createdAt date (newest first)
       const sortedAuctions = data
         .map(normalizeAuction)
         .sort((a, b) => {
           const dateA = new Date(a.createdAt || a.startDate || 0);
           const dateB = new Date(b.createdAt || b.startDate || 0);
-          return dateB.getTime() - dateA.getTime(); // Newest first
+          return dateB.getTime() - dateA.getTime();
         });
       
-      // ADDED: Debug logging to see after normalization
-      console.log('🔍 After normalization - auction 840199022:', 
-        sortedAuctions.find(a => a.auctionId === '840199022')
-      );
+      setAllAuctions(sortedAuctions);
       
-      setAuctions(sortedAuctions);
+      console.log('📊 Auctions loaded:', {
+        total: sortedAuctions.length,
+        published: publishedAuctions.length,
+        drafts: sortedAuctions.filter(a => a.status === 'draft').length
+      });
+      
     } catch (err) {
       console.error('Error in useAuctions hook:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch auctions');
     } finally {
       setLoading(false);
     }
-  }, [normalizeAuction]);
+  }, [normalizeAuction, publishedAuctions]);
 
   useEffect(() => {
     loadAuctions();
@@ -80,34 +80,32 @@ export const useAuctions = () => {
       setError(null);
       const data = await fetchAuctions();
       
-      // FIX: Apply same sorting to refetch
       const sortedAuctions = data
         .map(normalizeAuction)
         .sort((a, b) => {
           const dateA = new Date(a.createdAt || a.startDate || 0);
           const dateB = new Date(b.createdAt || b.startDate || 0);
-          return dateB.getTime() - dateA.getTime(); // Newest first
+          return dateB.getTime() - dateA.getTime();
         });
       
-      setAuctions(sortedAuctions);
+      setAllAuctions(sortedAuctions);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refetch auctions');
     }
   }, [normalizeAuction]);
 
-  // Add this function to update a single auction
   const updateAuction = useCallback((auctionId: string, updates: Partial<Auction>) => {
-    setAuctions(prev => prev.map(auction => 
+    setAllAuctions(prev => prev.map(auction => 
       auction.auctionId === auctionId ? { ...auction, ...updates } : auction
     ));
   }, []);
 
   return {
-    auctions,
+    // 🔥 Return filtered auctions (no drafts) for the main grid
+    auctions: publishedAuctions,
     loading,
     error,
     refetch,
-    setAuctions,
     updateAuction,
   };
 };

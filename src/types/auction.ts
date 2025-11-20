@@ -19,7 +19,7 @@ export interface Auction {
   bidders: number;
   bidCount?: number;
   image: string;
-  status: "live" | "upcoming" | "ended" | "closed";
+  status: "live" | "upcoming" | "ended" | "closed" | "draft" ;
   description?: string;
   bidIncrement?: number;
   distance?: string;

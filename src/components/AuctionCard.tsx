@@ -26,7 +26,7 @@ interface AuctionCardProps {
   location: string;
   bidders?: number;
   image: string;
-  status: "live" | "upcoming" | "ended" | "closed";
+  status: "live" | "upcoming" | "ended" | "closed" | "draft";
   distance?: string;
   onPlaceBid?: (auctionId: string) => void;
   isBidding?: boolean;
