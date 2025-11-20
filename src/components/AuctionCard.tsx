@@ -57,6 +57,7 @@ const BidHistoryTooltip = ({
   const [tooltipSide, setTooltipSide] = useState<'right' | 'left'>('right');
   const tooltipRef = useRef<HTMLDivElement>(null);
   const hasFetchedRef = useRef(false);
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const stableAuctionId = useMemo(() => auctionId, [auctionId]);
 
@@ -141,18 +142,26 @@ const BidHistoryTooltip = ({
     }
   }, [auctionId, loading]);
 
+  // ✅ FIXED: Only fetch when tooltip becomes visible, refresh every 5 seconds (not 2)
   useEffect(() => {
-    if (isVisible && stableAuctionId) {
-      fetchRealBidHistory();
-      
-      const interval = setInterval(() => {
-        hasFetchedRef.current = false;
-        setLoading(false);
-        fetchRealBidHistory();
-      }, 2000);
-      
-      return () => clearInterval(interval);
+    if (!isVisible || !stableAuctionId) {
+      if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
+      return;
     }
+
+    // Initial fetch
+    fetchRealBidHistory();
+    
+    // ✅ FIXED: Reduced refresh rate from 2 seconds to 5 seconds
+    refreshIntervalRef.current = setInterval(() => {
+      hasFetchedRef.current = false;
+      setLoading(false);
+      fetchRealBidHistory();
+    }, 5000);
+    
+    return () => {
+      if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
+    };
   }, [isVisible, stableAuctionId, fetchRealBidHistory]);
 
   useEffect(() => {
