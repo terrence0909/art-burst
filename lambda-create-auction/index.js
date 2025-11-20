@@ -1,4 +1,4 @@
-// lambdas/index.js - COMPLETE FIXED VERSION
+// lambdas/index.js - FIXED WITH DRAFT/PUBLISH LOGIC
 const { v4: uuidv4 } = require("uuid");
 const AWS = require("aws-sdk");
 
@@ -38,6 +38,20 @@ exports.handler = async (event) => {
 
     // ---- CREATE AUCTION ----
     if (event.httpMethod === "POST" && event.path === "/auctions") {
+      // ✅ FIXED: Validate and sanitize the status field
+      const validStatuses = ["draft", "upcoming", "active", "live", "ended", "closed"];
+      let status = body.status || "draft";
+      
+      // Ensure status is one of the valid values
+      if (!validStatuses.includes(status.toLowerCase())) {
+        console.warn(`Invalid status "${status}" provided, defaulting to "draft"`);
+        status = "draft";
+      }
+      
+      status = status.toLowerCase();
+      
+      console.log(`✅ Creating auction with status: "${status}"`);
+
       // Generate unique ID
       const auctionId = uuidv4();
 
@@ -45,6 +59,10 @@ exports.handler = async (event) => {
         ...body,
         id: auctionId,
         auctionId,
+        // ✅ FIXED: Explicitly set the validated status
+        status: status,
+        // ✅ FIXED: Add itemType for GSI queries if needed
+        itemType: "auction",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -57,13 +75,16 @@ exports.handler = async (event) => {
         Item: auctionWithId,
       }).promise();
 
+      console.log(`✅ Auction created with status "${status}":`, auctionId);
+
       return {
-        statusCode: 200,
+        statusCode: 201,
         headers: corsHeaders(),
         body: JSON.stringify({
-          message: "Auction created successfully",
+          message: status === "draft" ? "Draft saved successfully" : "Auction published successfully",
           id: auctionId,
           auctionId,
+          status: status,
           auction: auctionWithId,
         }),
       };
@@ -71,7 +92,14 @@ exports.handler = async (event) => {
 
     // ---- FETCH ALL AUCTIONS ----
     if (event.httpMethod === "GET" && event.path === "/auctions") {
-      console.log("Fetching all auctions");
+      console.log("Fetching auctions");
+      
+      // ✅ FIXED: Check for query parameter to filter by status
+      const publishedOnly = event.queryStringParameters?.publishedOnly === 'true';
+      
+      if (publishedOnly) {
+        console.log("Fetching only published auctions (excluding drafts)");
+      }
       
       try {
         // Scan DynamoDB table to get all auctions
@@ -79,7 +107,7 @@ exports.handler = async (event) => {
           TableName: TABLE_NAME,
         }).promise();
         
-        console.log("Found auctions:", result.Items?.length || 0);
+        console.log("Found total auctions:", result.Items?.length || 0);
         
         if (!result.Items || result.Items.length === 0) {
           return {
@@ -88,10 +116,21 @@ exports.handler = async (event) => {
             body: JSON.stringify([]),
           };
         }
+
+        // ✅ FIXED: Filter out drafts on the backend
+        let auctions = result.Items;
+        if (publishedOnly) {
+          auctions = auctions.filter(auction => {
+            const status = auction.status || "draft";
+            const isDraft = status.toLowerCase() === "draft";
+            return !isDraft;
+          });
+          console.log(`Filtered to ${auctions.length} published auctions (removed ${result.Items.length - auctions.length} drafts)`);
+        }
         
         // Generate presigned URLs for images in each auction
         const auctionsWithUrls = await Promise.all(
-          result.Items.map(async (auction) => {
+          auctions.map(async (auction) => {
             if (auction.images && auction.images.length > 0) {
               try {
                 const imageUrls = await Promise.all(
