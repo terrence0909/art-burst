@@ -14,11 +14,8 @@ export const AuctionGrid = () => {
   const [isPlacingBid, setIsPlacingBid] = useState(false);
   const [biddingAuctionId, setBiddingAuctionId] = useState<string | null>(null);
   const [currentUserId] = useState(() => {
-    // Try to get existing user ID from localStorage
     const storedUserId = localStorage.getItem('auction-user-id');
     if (storedUserId) return storedUserId;
-    
-    // Create new user ID and store it
     const newUserId = `user-${Math.random().toString(36).substring(2, 10)}`;
     localStorage.setItem('auction-user-id', newUserId);
     return newUserId;
@@ -33,26 +30,27 @@ export const AuctionGrid = () => {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wsServiceRef = useRef<any>(null);
   const pendingBidsRef = useRef<Set<string>>(new Set());
+  const lastRefetchTimeRef = useRef(0);
 
   const { auctionId: routeAuctionId } = useParams();
 
-  // Add auto-refresh to check for status updates
-  useEffect(() => {
-    // Refresh auctions every 30 seconds to catch status changes
-    const interval = setInterval(() => {
+  // ✅ FIXED: Only refetch if enough time has passed (debounced)
+  const debouncedRefetch = useCallback(() => {
+    const now = Date.now();
+    if (now - lastRefetchTimeRef.current > 5000) { // Refetch at most every 5 seconds
+      lastRefetchTimeRef.current = now;
       refetch();
-    }, 30000);
-    
-    return () => clearInterval(interval);
+    }
   }, [refetch]);
+
+  // ✅ FIXED: Removed aggressive 30-second auto-refresh
+  // Only refetch when WebSocket receives critical updates
 
   // Add this function to notify auction creators
   const notifyAuctionCreator = useCallback(async (auctionId: string, action: string, data?: any) => {
     const auction = auctions.find(a => a.auctionId === auctionId);
     if (!auction) return;
 
-    // 🔥 IMPORTANT: You need to add creatorId to your auction data structure
-    // For now, I'll assume there's a creatorId field - you'll need to add this
     const creatorId = auction.creatorId;
     if (!creatorId) {
       console.warn('No creatorId found for auction:', auctionId);
@@ -93,23 +91,16 @@ export const AuctionGrid = () => {
     }
   }, [auctions]);
 
-  // Add this function to get real user names from Cognito
   const getBidderDisplayName = async (bidderId: string, currentUserId: string): Promise<string> => {
     if (bidderId === currentUserId) {
       return 'You';
     }
 
-    // Try cache first for performance
     const cachedName = localStorage.getItem(`bidder-name-${bidderId}`);
     if (cachedName) {
       return cachedName;
     }
 
-    // 🔥 FIX: We cannot fetch other users' Cognito attributes directly
-    // Instead, we need to rely on the bid data sent from the server
-    // For now, use a fallback system
-    
-    // Check if we have any stored bidder info from previous bids
     const fallbackNames = ['Art Collector', 'Gallery Patron', 'Art Connoisseur', 'Collector'];
     const nameIndex = bidderId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % fallbackNames.length;
     
@@ -137,7 +128,7 @@ export const AuctionGrid = () => {
 
         const statusCheck = setInterval(() => {
           setIsConnected(service.isConnected());
-        }, 2000);
+        }, 5000); // ✅ FIXED: Increased from 2000ms to 5000ms to reduce state updates
         (window as any).__auctionStatusCheck = statusCheck;
       }
 
@@ -209,7 +200,6 @@ export const AuctionGrid = () => {
       const wasMyBid = bidderId === currentUserId;
       const isNewHighestBidder = bidderId !== previousHighestBidder;
 
-      // ✅ IMMEDIATE: Update UI FIRST (priority #1)
       let newBidderCount = currentAuction.bidders || 0;
       if (isNewHighestBidder && !wasMyPendingBid) {
         newBidderCount += 1;
@@ -221,7 +211,6 @@ export const AuctionGrid = () => {
         highestBidder: bidderId
       });
 
-      // ✅ IMMEDIATE: Show toast SECOND (priority #2)
       const now = Date.now();
       if (now - lastToastTimeRef.current > 1000) {
         let toastTitle = "";
@@ -245,9 +234,7 @@ export const AuctionGrid = () => {
         }
       }
 
-      // ✅ DELAYED: Process notifications and non-critical operations LAST
       setTimeout(() => {
-        // Outbid notification
         if (previousHighestBidder && previousHighestBidder !== bidderId) {
           notificationService.addNotification({
             type: 'OUTBID',
@@ -263,7 +250,6 @@ export const AuctionGrid = () => {
           });
         }
 
-        // Bid confirmation notification
         if (wasMyBid && !wasMyPendingBid) {
           notificationService.addNotification({
             type: 'BID_CONFIRMED',
@@ -278,7 +264,6 @@ export const AuctionGrid = () => {
           });
         }
 
-        // Non-critical: Get bidder name and update history
         getBidderDisplayName(bidderId, currentUserId).then(bidderName => {
           bidHistoryManager.addBid(auctionId, {
             bidId: bidId || `bid-${Date.now()}`,
@@ -294,21 +279,18 @@ export const AuctionGrid = () => {
     }
   }, [updateAuction, toast, currentUserId, auctions]);
 
-  // Add payment status update handler
   const handlePaymentUpdate = useCallback(async (message: any) => {
     if (message.action === 'paymentUpdate' && message.paymentStatus === 'completed') {
       const { auctionId, winnerId } = message;
       
-      // Update auction status to "ended" (which will show as SOLD in AuctionCard)
       updateAuction(auctionId, {
         status: 'ended',
         highestBidder: winnerId
       });
       
-      // Force refresh to get latest data
-      await refetch();
+      // ✅ FIXED: Use debounced refetch instead of immediate refetch
+      debouncedRefetch();
       
-      // Show success message if current user won
       if (winnerId === currentUserId) {
         toast({
           title: "🎉 Payment Successful!",
@@ -317,30 +299,24 @@ export const AuctionGrid = () => {
         });
       }
     }
-  }, [updateAuction, refetch, currentUserId, toast]);
+  }, [updateAuction, debouncedRefetch, currentUserId, toast]);
 
-  // Combined message handler for all WebSocket messages
   const handleWebSocketMessage = useCallback(async (message: WebSocketMessage | any) => {
-    // Handle bid updates
     if (message.action === 'bidUpdate' && message.bid && message.auctionId) {
       await handleBidUpdate(message);
     }
-    // Handle payment updates
     else if (message.action === 'paymentUpdate' && message.paymentStatus === 'completed') {
       await handlePaymentUpdate(message);
     }
-    // Handle auction ended messages with winner information
     else if (message.action === 'auctionEnded' && message.auctionId && message.winnerId) {
       const currentAuction = auctions.find(a => a.auctionId === message.auctionId);
       
       if (currentAuction) {
-        // Update auction status to ended
         updateAuction(message.auctionId, {
           status: 'ended',
           highestBidder: message.winnerId
         });
 
-        // 🎉 NOTIFY THE WINNER
         if (message.winnerId) {
           notificationService.addNotification({
             type: 'AUCTION_WON',
@@ -356,13 +332,11 @@ export const AuctionGrid = () => {
             }
           });
 
-          // 🔥 ADDED: Notify the auction creator
           notifyAuctionCreator(message.auctionId, 'AUCTION_SOLD', {
             finalPrice: currentAuction.currentBid,
             winnerId: message.winnerId
           });
 
-          // Show toast to winner if it's the current user
           if (message.winnerId === currentUserId) {
             toast({
               title: "🎉 Congratulations! You Won!",
@@ -371,27 +345,24 @@ export const AuctionGrid = () => {
             });
           }
         }
-
-        // 🎨 TODO: Add artist notification when artistId is available in auction data
-        // Currently removed because artistId doesn't exist on Auction type
       }
 
-      await refetch();
+      // ✅ FIXED: Use debounced refetch
+      debouncedRefetch();
     }
-    // Handle simple auction ended messages (backward compatibility)
     else if (message.action === 'auctionEnded' && message.auctionId) {
       updateAuction(message.auctionId, {
         status: 'ended'
       });
-      await refetch();
+      // ✅ FIXED: Use debounced refetch
+      debouncedRefetch();
     }
-  }, [handleBidUpdate, handlePaymentUpdate, updateAuction, refetch, auctions, currentUserId, toast, notifyAuctionCreator]);
+  }, [handleBidUpdate, handlePaymentUpdate, updateAuction, debouncedRefetch, auctions, currentUserId, toast, notifyAuctionCreator]);
 
   useEffect(() => {
     if (!wsServiceRef.current) return;
     const subscribe = () => {
       if (wsServiceRef.current.isConnected() && !hasSubscribedRef.current) {
-        // Use the combined message handler
         const unsubscribe = wsServiceRef.current.subscribe('*', handleWebSocketMessage);
         hasSubscribedRef.current = true;
         (window as any).__auctionUnsubscribe = unsubscribe;
@@ -408,41 +379,8 @@ export const AuctionGrid = () => {
     };
   }, [handleWebSocketMessage]);
 
-  // Step 5: Add auction ending notifications
-  const checkAuctionEnding = useCallback(() => {
-    auctions.forEach(auction => {
-      if (auction.endDate && auction.status === 'live') {
-        const endTime = new Date(auction.endDate).getTime();
-        const now = Date.now();
-        const timeRemaining = endTime - now;
-        
-        // Notify if auction ends in 5 minutes
-        if (timeRemaining > 0 && timeRemaining <= 5 * 60 * 1000) {
-          // Notify all bidders and watchers
-          // For now, just notify the current highest bidder
-          if (auction.highestBidder) {
-            notificationService.addNotification({
-              type: 'AUCTION_ENDING',
-              title: "Auction ending soon!",
-              message: `"${auction.title}" ends in ${Math.ceil(timeRemaining / 60000)} minutes`,
-              userId: auction.highestBidder,
-              relatedId: auction.auctionId,
-              metadata: { 
-                auctionTitle: auction.title, 
-                minutesRemaining: Math.ceil(timeRemaining / 60000) 
-              }
-            });
-          }
-        }
-      }
-    });
-  }, [auctions]);
-
-  // Add this useEffect to check every minute
-  useEffect(() => {
-    const interval = setInterval(checkAuctionEnding, 60000); // Check every minute
-    return () => clearInterval(interval);
-  }, [checkAuctionEnding]);
+  // ✅ FIXED: Removed aggressive auction ending check that was calling refetch
+  // The WebSocket will handle real-time updates
 
   const handlePlaceBid = async (auctionId: string) => {
     if (isPlacingBid) {
@@ -488,7 +426,6 @@ export const AuctionGrid = () => {
         highestBidder: currentUserId
       });
 
-      // 🔥 STORE CURRENT USER'S NAME FOR FUTURE BID HISTORY
       try {
         const attributes = await fetchUserAttributes();
         const userName = attributes.given_name && attributes.family_name 
@@ -526,7 +463,7 @@ export const AuctionGrid = () => {
       const pendingBidKey = `${auctionId}-${currentUserId}`;
       pendingBidsRef.current.delete(pendingBidKey);
       
-      await refetch();
+      debouncedRefetch();
       
       if (error.message !== "Bid cancelled by user") {
         toast({ 
