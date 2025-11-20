@@ -1,5 +1,5 @@
-// src/hooks/useAuctions.ts - WITH DRAFT FILTER
-import { useState, useEffect, useCallback, useMemo } from 'react'; // ADD useMemo HERE
+// src/hooks/useAuctions.ts - FIXED VERSION
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Auction } from '../types/auction';
 import { fetchAuctions } from '../api/auctions';
 
@@ -32,10 +32,9 @@ export const useAuctions = () => {
     creatorId: auction.creatorId || auction.userId || auction.ownerId || auction.createdBy,
   }), []);
 
-  // 🔥 ADD THIS: Filter out draft auctions
+  // 🔥 Filter out draft auctions
   const publishedAuctions = useMemo(() => {
     return allAuctions.filter(auction => {
-      // Only show active, upcoming, live, or ended auctions
       const validStatuses = ['active', 'upcoming', 'live', 'ended', 'closed'];
       return validStatuses.includes(auction.status?.toLowerCase() || '');
     });
@@ -69,7 +68,7 @@ export const useAuctions = () => {
     } finally {
       setLoading(false);
     }
-  }, [normalizeAuction, publishedAuctions]);
+  }, [normalizeAuction]); // 🔥 REMOVED: publishedAuctions from dependencies
 
   useEffect(() => {
     loadAuctions();
@@ -101,7 +100,6 @@ export const useAuctions = () => {
   }, []);
 
   return {
-    // 🔥 Return filtered auctions (no drafts) for the main grid
     auctions: publishedAuctions,
     loading,
     error,
