@@ -38,7 +38,7 @@ exports.handler = async (event) => {
 
     // ---- CREATE AUCTION ----
     if (event.httpMethod === "POST" && event.path === "/auctions") {
-      // ✅ FIXED: Validate and sanitize the status field
+      // FIXED: Validate and sanitize the status field
       const validStatuses = ["draft", "upcoming", "active", "live", "ended", "closed"];
       let status = body.status || "draft";
       
@@ -50,7 +50,7 @@ exports.handler = async (event) => {
       
       status = status.toLowerCase();
       
-      console.log(`✅ Creating auction with status: "${status}"`);
+      console.log(`Creating auction with status: "${status}"`);
 
       // Generate unique ID
       const auctionId = uuidv4();
@@ -59,9 +59,9 @@ exports.handler = async (event) => {
         ...body,
         id: auctionId,
         auctionId,
-        // ✅ FIXED: Explicitly set the validated status
+        // FIXED: Explicitly set the validated status
         status: status,
-        // ✅ FIXED: Add itemType for GSI queries if needed
+        // FIXED: Add itemType for GSI queries if needed
         itemType: "auction",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -75,7 +75,7 @@ exports.handler = async (event) => {
         Item: auctionWithId,
       }).promise();
 
-      console.log(`✅ Auction created with status "${status}":`, auctionId);
+      console.log(`Auction created with status "${status}":`, auctionId);
 
       return {
         statusCode: 201,
@@ -94,7 +94,7 @@ exports.handler = async (event) => {
     if (event.httpMethod === "GET" && event.path === "/auctions") {
       console.log("Fetching auctions");
       
-      // ✅ FIXED: Check for query parameter to filter by status
+      // FIXED: Check for query parameter to filter by status
       const publishedOnly = event.queryStringParameters?.publishedOnly === 'true';
       
       if (publishedOnly) {
@@ -117,7 +117,7 @@ exports.handler = async (event) => {
           };
         }
 
-        // ✅ FIXED: Filter out drafts on the backend
+        // FIXED: Filter out drafts on the backend
         let auctions = result.Items;
         if (publishedOnly) {
           auctions = auctions.filter(auction => {

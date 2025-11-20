@@ -138,12 +138,15 @@ const transformAuction = (item: any): Auction => {
 // Fetch auctions with proper transformation to match Auction type
 export const fetchAuctions = async (): Promise<Auction[]> => {
   try {
-    const url = `${API_BASE_URL}/auctions`;
-    console.log('🔍 Fetching auctions from:', url);
-    console.log('🔍 Full API Base URL:', import.meta.env.VITE_API_BASE_URL);
+    // FIXED: Add ?publishedOnly=true to filter out drafts
+    const url = `${API_BASE_URL}/auctions?publishedOnly=true`;
+    console.log("🔍 Fetching auctions from:", url);
+    console.log("🔍 Full API Base URL:", import.meta.env.VITE_API_BASE_URL);
     
     const data = await handleFetch(url);
-    console.log('🔍 API response received:', data);
+    console.log("🔍 API response received:", data);
+    console.log("📊 Total auctions after filtering:", data.length);
+    
     return data.map(transformAuction);
   } catch (error) {
     console.error("Error fetching auctions:", error);
