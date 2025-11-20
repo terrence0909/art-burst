@@ -552,7 +552,7 @@ export const AuctionCard = ({
         <CardHeader className="p-0">
           <div className="artwork-frame">
             <img 
-              src={imageError ? '/placeholder-image.jpg' : image} 
+              src={imageError ? 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIiBmaWxsPSIjOTk5OTk5Ij5BcnR3b3JrIEltYWdlPC90ZXh0Pjwvc3ZnPg==' : image} 
               alt={title} 
               onError={() => setImageError(true)}
             />
