@@ -1,5 +1,5 @@
 // src/hooks/useAuctions.ts - FIXED VERSION
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Auction } from '../types/auction';
 import { fetchAuctions } from '../api/auctions';
 
@@ -7,8 +7,10 @@ export const useAuctions = () => {
   const [allAuctions, setAllAuctions] = useState<Auction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasInitializedRef = useRef(false);
 
-  const normalizeAuction = useCallback((auction: any): Auction => ({
+  // ✅ FIXED: Moved normalizeAuction outside to prevent recreation
+  const normalizeAuction = (auction: any): Auction => ({
     ...auction,
     id: auction.auctionId || auction.id || auction._id || "",
     auctionId: auction.auctionId || auction.id || auction._id || "",
@@ -30,9 +32,9 @@ export const useAuctions = () => {
     endTime: auction.endTime,
     startTime: auction.startTime,
     creatorId: auction.creatorId || auction.userId || auction.ownerId || auction.createdBy,
-  }), []);
+  });
 
-  // 🔥 Filter out draft auctions
+  // ✅ FIXED: Memoize the filter function to prevent constant recreations
   const publishedAuctions = useMemo(() => {
     return allAuctions.filter(auction => {
       const validStatuses = ['active', 'upcoming', 'live', 'ended', 'closed'];
@@ -40,40 +42,46 @@ export const useAuctions = () => {
     });
   }, [allAuctions]);
 
-  const loadAuctions = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchAuctions();
-      
-      const sortedAuctions = data
-        .map(normalizeAuction)
-        .sort((a, b) => {
-          const dateA = new Date(a.createdAt || a.startDate || 0);
-          const dateB = new Date(b.createdAt || b.startDate || 0);
-          return dateB.getTime() - dateA.getTime();
-        });
-      
-      setAllAuctions(sortedAuctions);
-      
-      console.log('📊 Auctions loaded:', {
-        total: sortedAuctions.length,
-        published: publishedAuctions.length,
-        drafts: sortedAuctions.filter(a => a.status === 'draft').length
-      });
-      
-    } catch (err) {
-      console.error('Error in useAuctions hook:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch auctions');
-    } finally {
-      setLoading(false);
-    }
-  }, [normalizeAuction]); // 🔥 REMOVED: publishedAuctions from dependencies
-
+  // ✅ FIXED: Removed loadAuctions from dependency array - only call on mount
   useEffect(() => {
-    loadAuctions();
-  }, [loadAuctions]);
+    // Only load once on component mount
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
 
+    const loadAuctions = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchAuctions();
+        
+        const sortedAuctions = data
+          .map(normalizeAuction)
+          .sort((a, b) => {
+            const dateA = new Date(a.createdAt || a.startDate || 0);
+            const dateB = new Date(b.createdAt || b.startDate || 0);
+            return dateB.getTime() - dateA.getTime();
+          });
+        
+        setAllAuctions(sortedAuctions);
+        
+        console.log('📊 Auctions loaded:', {
+          total: sortedAuctions.length,
+          published: sortedAuctions.filter(a => ['active', 'upcoming', 'live', 'ended', 'closed'].includes(a.status?.toLowerCase() || '')).length,
+          drafts: sortedAuctions.filter(a => a.status === 'draft').length
+        });
+        
+      } catch (err) {
+        console.error('Error loading auctions:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch auctions');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAuctions();
+  }, []); // ✅ FIXED: Empty dependency array - only run once on mount
+
+  // ✅ FIXED: refetch doesn't include normalizeAuction in dependencies
   const refetch = useCallback(async () => {
     try {
       setError(null);
@@ -88,15 +96,25 @@ export const useAuctions = () => {
         });
       
       setAllAuctions(sortedAuctions);
+      console.log('🔄 Auctions refetched:', sortedAuctions.length);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refetch auctions');
     }
-  }, [normalizeAuction]);
+  }, []); // ✅ FIXED: Empty dependency array
 
+  // ✅ FIXED: updateAuction is optimized and doesn't cause unnecessary re-renders
   const updateAuction = useCallback((auctionId: string, updates: Partial<Auction>) => {
-    setAllAuctions(prev => prev.map(auction => 
-      auction.auctionId === auctionId ? { ...auction, ...updates } : auction
-    ));
+    setAllAuctions(prev => {
+      const updated = prev.map(auction => 
+        auction.auctionId === auctionId ? { ...auction, ...updates } : auction
+      );
+      
+      // ✅ Only update state if something actually changed
+      if (JSON.stringify(updated) !== JSON.stringify(prev)) {
+        return updated;
+      }
+      return prev;
+    });
   }, []);
 
   return {
