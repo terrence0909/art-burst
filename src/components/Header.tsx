@@ -1,4 +1,4 @@
-import { MapPin, User, Search, Bell, LogOut, Home, Gavel, Menu, Plus, Loader2, Settings, CheckCircle, XCircle, AlertCircle, Trophy, CreditCard, MessageCircle } from "lucide-react";
+import { MapPin, User, Search, Bell, LogOut, Home, Gavel, Menu, Plus, Loader2, Settings, CheckCircle, XCircle, AlertCircle, Trophy, CreditCard, MessageCircle, FileText } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Link, useNavigate, useLocation } from "react-router-dom";
@@ -701,6 +701,12 @@ export const Header = () => {
                   <Link to="/settings" className="cursor-pointer">
                     <Settings className="w-4 h-4 mr-2" />
                     Account Settings
+                <DropdownMenuItem asChild>
+                  <Link to="/my-drafts" className="cursor-pointer">
+                    <FileText className="w-4 h-4 mr-2" />
+                    My Drafts
+                  </Link>
+                </DropdownMenuItem>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
@@ -808,6 +814,12 @@ export const Header = () => {
                       >
                         <Settings className="w-4 h-4 mr-3" />
                         Account Settings
+                <DropdownMenuItem asChild>
+                  <Link to="/my-drafts" className="cursor-pointer">
+                    <FileText className="w-4 h-4 mr-2" />
+                    My Drafts
+                  </Link>
+                </DropdownMenuItem>
                       </Button>
                       <Button
                         variant="ghost"

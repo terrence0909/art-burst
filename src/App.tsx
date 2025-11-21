@@ -76,6 +76,7 @@ const App = () => {
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/payment-cancelled" element={<PaymentCancelled />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/my-drafts" element={<MyDrafts />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </NotificationsProvider>
