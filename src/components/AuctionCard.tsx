@@ -6,6 +6,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuctionCompletion } from "../hooks/useAuctionCompletion";
 import { bidHistoryManager } from "../services/bidHistoryManager";
+import { getCurrentUser } from "aws-amplify/auth";
 
 interface BidHistoryItem {
   id: string;
@@ -142,17 +143,14 @@ const BidHistoryTooltip = ({
     }
   }, [auctionId, loading]);
 
-  // ✅ FIXED: Only fetch when tooltip becomes visible, refresh every 5 seconds (not 2)
   useEffect(() => {
     if (!isVisible || !stableAuctionId) {
       if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
       return;
     }
 
-    // Initial fetch
     fetchRealBidHistory();
     
-    // ✅ FIXED: Reduced refresh rate from 2 seconds to 5 seconds
     refreshIntervalRef.current = setInterval(() => {
       hasFetchedRef.current = false;
       setLoading(false);
@@ -332,10 +330,19 @@ export const AuctionCard = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
+  const checkAuthStatus = async () => {
+    try {
+      await getCurrentUser();
+      setIsAuthenticated(true);
+    } catch (err) {
+      setIsAuthenticated(false);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // Mock auth check - assume authenticated for now
-    setIsAuthenticated(true);
-    setAuthLoading(false);
+    checkAuthStatus();
   }, []);
 
   const { auctionStatus, timeUntilEnd, isAuctionActive, timeUntilStart } = useAuctionCompletion({
