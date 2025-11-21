@@ -226,7 +226,7 @@ export const SplashScreen = ({
               transition={{ delay: 1.2 }}
               className="text-gray-500/70 text-sm mt-4 font-light tracking-wide"
             >
-              Loading your art experience...
+              Ready For The BURST?
             </motion.p>
 
             {/* Copyright */}
@@ -242,7 +242,7 @@ export const SplashScreen = ({
               }}
             >
               <p className="text-gray-500/60 text-xs mt-8 font-light tracking-wide">
-                © 2024 ArtBurst • Premium Digital Art Marketplace
+                © 2025 ArtBurst • Premium Digital Art Marketplace
               </p>
             </motion.div>
           </div>
