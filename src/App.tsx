@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Routes, Route } from "react-router-dom"; 
-import { SplashScreen } from "./components/SplashScreen"; // Add this import
+import { SplashScreen } from "./components/SplashScreen";
 import Index from "./pages/Index";
 import AuctionDetails from "./pages/AuctionDetails";
 import Browse from "./pages/Browse";
@@ -30,6 +30,9 @@ const App = () => {
 
   useEffect(() => {
     const getUserId = async () => {
+      const startTime = Date.now();
+      const minimumLoadTime = 2500; // 2.5 seconds for premium experience
+      
       try {
         const user = await getCurrentUser();
         setCurrentUserId(user.username);
@@ -48,14 +51,19 @@ const App = () => {
           console.log('🔑 App - Created new user ID:', newUserId);
         }
       } finally {
-        setIsLoading(false);
+        const elapsed = Date.now() - startTime;
+        const remainingTime = Math.max(0, minimumLoadTime - elapsed);
+        
+        setTimeout(() => {
+          setIsLoading(false);
+        }, remainingTime);
       }
     };
     getUserId();
   }, []);
 
   if (isLoading) {
-    return <SplashScreen />; // 🔥 REPLACE THIS LINE
+    return <SplashScreen />;
   }
 
   return (
