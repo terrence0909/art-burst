@@ -9,7 +9,7 @@ export const SplashScreen = () => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700"
     >
       {/* Animated background particles */}
       <div className="absolute inset-0 overflow-hidden">
@@ -36,7 +36,7 @@ export const SplashScreen = () => {
 
       {/* Main content */}
       <div className="relative text-center">
-        {/* Logo with premium animation */}
+        {/* Logo with premium animation - BIGGER SIZE */}
         <motion.div
           initial={{ scale: 0.8, opacity: 0, rotateY: 180 }}
           animate={{ scale: 1, opacity: 1, rotateY: 0 }}
@@ -51,7 +51,7 @@ export const SplashScreen = () => {
           <img 
             src={FULL_LOGO} 
             alt="ArtBurst" 
-            className="h-40 w-auto object-contain mx-auto filter drop-shadow-2xl"
+            className="h-64 w-auto object-contain mx-auto filter drop-shadow-2xl"
           />
         </motion.div>
 
@@ -70,7 +70,7 @@ export const SplashScreen = () => {
           initial={{ width: 0 }}
           animate={{ width: "200px" }}
           transition={{ delay: 1, duration: 2, ease: "easeInOut" }}
-          className="h-1 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full mx-auto overflow-hidden"
+          className="h-1 bg-gradient-to-r from-gray-400 to-gray-300 rounded-full mx-auto overflow-hidden"
         >
           <motion.div
             animate={{ x: [-200, 200] }}
@@ -79,7 +79,7 @@ export const SplashScreen = () => {
               repeat: Infinity,
               ease: "easeInOut"
             }}
-            className="w-20 h-full bg-white/30 blur-sm"
+            className="w-20 h-full bg-white/40 blur-sm"
           />
         </motion.div>
 
@@ -90,7 +90,7 @@ export const SplashScreen = () => {
           transition={{ delay: 1.5 }}
           className="text-white/40 text-xs mt-8 font-light"
         >
-          © 2024 ArtBurst • Premium Digital Art Marketplace
+          © 2025 ArtBurst • Premium Digital Art Marketplace
         </motion.p>
       </div>
     </motion.div>
