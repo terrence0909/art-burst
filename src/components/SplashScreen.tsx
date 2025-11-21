@@ -12,7 +12,6 @@ export const SplashScreen = ({
   isLoading = true, 
   minimumDisplayTime = 2000 
 }: SplashScreenProps) => {
-  // Memoize particles to prevent unnecessary re-renders
   const particles = useMemo(() => 
     Array.from({ length: 15 }, (_, i) => ({
       id: i,
@@ -34,7 +33,7 @@ export const SplashScreen = ({
           aria-label="Loading ArtBurst"
           role="status"
         >
-          {/* Performance-optimized particles */}
+          {/* Particles */}
           <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
             {particles.map((particle) => (
               <motion.div
@@ -63,7 +62,7 @@ export const SplashScreen = ({
 
           {/* Main content */}
           <div className="relative text-center">
-            {/* Enhanced logo animation */}
+            {/* Logo animation */}
             <motion.div
               initial={{ 
                 scale: 0.8, 
@@ -96,7 +95,7 @@ export const SplashScreen = ({
               />
             </motion.div>
 
-            {/* Staggered text animation */}
+            {/* Text */}
             <motion.div
               initial="hidden"
               animate="visible"
@@ -121,54 +120,78 @@ export const SplashScreen = ({
               </motion.p>
             </motion.div>
 
-            {/* Enhanced loading bar with glow effect */}
+            {/* Paintbrush Stroke Loading Indicator */}
             <motion.div
-              initial={{ opacity: 0, scaleX: 0 }}
-              animate={{ opacity: 1, scaleX: 1 }}
-              transition={{ delay: 0.8, duration: 0.8 }}
-              className="relative"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className="relative w-64 h-4 mx-auto"
             >
-              <div className="w-64 h-1.5 bg-gray-300/50 rounded-full overflow-hidden mx-auto">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: "100%" }}
-                  transition={{ 
-                    duration: 2, 
-                    ease: "easeInOut",
-                    repeat: isLoading ? Infinity : 0,
-                    repeatType: "reverse"
+              {/* Background track */}
+              <div className="absolute inset-0 bg-gray-300/30 rounded-full" />
+              
+              {/* Animated paintbrush stroke */}
+              <motion.div
+                initial={{ scaleX: 0, transformOrigin: "left" }}
+                animate={{ scaleX: 1 }}
+                transition={{ 
+                  duration: 2.5, 
+                  ease: "easeInOut",
+                  repeat: isLoading ? Infinity : 0,
+                  repeatType: "reverse"
+                }}
+                className="relative h-full"
+              >
+                {/* Main stroke with brush texture */}
+                <div 
+                  className="h-full w-full relative overflow-hidden rounded-full"
+                  style={{
+                    background: 'linear-gradient(90deg, #4b5563, #374151, #4b5563)',
+                    filter: 'url(#brushFilter)',
                   }}
-                  className="h-full bg-gradient-to-r from-gray-400 via-gray-600 to-gray-400 relative"
                 >
-                  {/* Shimmer effect */}
+                  {/* Wet paint effect */}
                   <motion.div
-                    animate={{ x: [-100, 300] }}
+                    animate={{ 
+                      x: [-100, 300],
+                      opacity: [0, 0.8, 0]
+                    }}
                     transition={{
                       duration: 2,
                       repeat: Infinity,
                       ease: "easeInOut"
                     }}
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent blur-sm"
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent blur-[1px]"
                   />
-                </motion.div>
-              </div>
-              
-              {/* Pulsing dot */}
-              <motion.div
-                animate={{ 
-                  scale: [1, 1.2, 1],
-                  opacity: [0.7, 1, 0.7]
-                }}
-                transition={{
-                  duration: 1.5,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-                className="w-2 h-2 bg-gray-600 rounded-full mx-auto mt-2"
-              />
+                  
+                  {/* Paint texture overlay */}
+                  <div 
+                    className="absolute inset-0 opacity-30"
+                    style={{
+                      backgroundImage: `
+                        radial-gradient(circle at 20% 50%, rgba(255,255,255,0.3) 1px, transparent 1px),
+                        radial-gradient(circle at 50% 70%, rgba(255,255,255,0.2) 1px, transparent 1px),
+                        radial-gradient(circle at 80% 30%, rgba(255,255,255,0.3) 1px, transparent 1px)
+                      `,
+                      backgroundSize: '20px 20px, 15px 15px, 25px 25px'
+                    }}
+                  />
+                </div>
+              </motion.div>
+
+              {/* SVG Filters for brush texture */}
+              <svg className="absolute inset-0 pointer-events-none">
+                <defs>
+                  <filter id="brushFilter" x="0" y="0">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" result="noise"/>
+                    <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" />
+                    <feGaussianBlur stdDeviation="0.5" />
+                  </filter>
+                </defs>
+              </svg>
             </motion.div>
 
-            {/* Enhanced copyright with fade sequence */}
+            {/* Copyright */}
             <motion.div
               initial="hidden"
               animate="visible"
@@ -186,7 +209,7 @@ export const SplashScreen = ({
             </motion.div>
           </div>
 
-          {/* Accessibility: Screen reader announcement */}
+          {/* Accessibility */}
           <div className="sr-only" aria-live="polite">
             Loading ArtBurst digital art marketplace
           </div>
