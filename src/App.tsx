@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Routes, Route } from "react-router-dom"; 
+import { SplashScreen } from "./components/SplashScreen"; // Add this import
 import Index from "./pages/Index";
 import AuctionDetails from "./pages/AuctionDetails";
 import Browse from "./pages/Browse";
@@ -54,7 +55,7 @@ const App = () => {
   }, []);
 
   if (isLoading) {
-    return <div>Loading...</div>; // Or your loading component
+    return <SplashScreen />; // 🔥 REPLACE THIS LINE
   }
 
   return (
@@ -63,7 +64,6 @@ const App = () => {
         <NotificationsProvider userId={currentUserId}>
           <Toaster />
           <Sonner />
-          {/* Removed BrowserRouter wrapper - it will be in main.tsx */}
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auction/:id" element={<AuctionDetails />} />
