@@ -15,6 +15,7 @@ import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentCancelled from "./pages/PaymentCancelled";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
+import MyDrafts from "./pages/MyDrafts";
 import Notifications from "./pages/Notifications";
 import { NotificationsProvider } from "./context/NotificationsContext";
 import { getCurrentUser } from "aws-amplify/auth";
