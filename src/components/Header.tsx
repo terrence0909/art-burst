@@ -96,11 +96,34 @@ export const Header = () => {
           const service = await import('@/services/notificationService').then(m => m.notificationService);
           const userId = localStorage.getItem('auction-user-id');
           if (userId) {
-            // Subscribe to real-time notifications for this user
             const unsubscribe = service.subscribe(userId, (newNotification) => {
-              // Update badge count in real-time when new notification arrives
-              setUnreadCount(prev => prev + 1);
-              setNotifications(prev => [newNotification, ...prev]);
+              // 🔥 FIX: Handle deletion events properly with type safety
+              const isDeletionEvent = newNotification.metadata?.deletedNotificationId;
+              
+              if (isDeletionEvent) {
+                // Remove the deleted notification from state
+                setNotifications(prev => 
+                  prev.filter(n => n.id !== newNotification.metadata.deletedNotificationId)
+                );
+                
+                // Update unread count if the deleted notification was unread
+                if (newNotification.metadata?.wasUnread) {
+                  setUnreadCount(prev => Math.max(0, prev - 1));
+                }
+                
+                // Force refresh the notification count to be sure
+                checkUnreadNotifications();
+              } else if (newNotification.read) {
+                // Handle read status updates
+                setNotifications(prev => prev.map(n => 
+                  n.id === newNotification.id ? { ...n, read: true } : n
+                ));
+                setUnreadCount(prev => Math.max(0, prev - 1));
+              } else {
+                // Only increment for new unread notifications
+                setUnreadCount(prev => prev + 1);
+                setNotifications(prev => [newNotification, ...prev]);
+              }
             });
             
             return unsubscribe;
@@ -147,7 +170,7 @@ export const Header = () => {
       const service = await import('@/services/notificationService').then(m => m.notificationService);
       const userId = localStorage.getItem('auction-user-id');
       if (userId) {
-        const userNotifications = service.getUserNotifications(userId); // REMOVED AWAIT
+        const userNotifications = service.getUserNotifications(userId);
         const unread = userNotifications.filter(n => !n.read).length;
         setUnreadCount(unread);
         setNotifications(userNotifications.slice(0, 10)); // Show latest 10 in dropdown
@@ -177,10 +200,7 @@ export const Header = () => {
       const userId = localStorage.getItem('auction-user-id');
       if (userId) {
         service.markAsRead(notificationId, userId);
-        setUnreadCount(prev => Math.max(0, prev - 1));
-        setNotifications(prev => prev.map(n => 
-          n.id === notificationId ? { ...n, read: true } : n
-        ));
+        // The real-time subscription will handle the count update
       }
     } catch (error) {
       console.error('Error marking notification as read:', error);
