@@ -701,12 +701,12 @@ export const Header = () => {
                   <Link to="/settings" className="cursor-pointer">
                     <Settings className="w-4 h-4 mr-2" />
                     Account Settings
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/my-drafts" className="cursor-pointer">
                     <FileText className="w-4 h-4 mr-2" />
                     My Drafts
-                  </Link>
-                </DropdownMenuItem>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
@@ -736,7 +736,7 @@ export const Header = () => {
             </Link>
           )}
 
-          {/* Mobile Menu for additional actions */}
+          {/* Mobile Menu for additional actions - FIXED VERSION */}
           <Sheet>
             <SheetTrigger asChild>
               <Button
@@ -747,7 +747,7 @@ export const Header = () => {
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-64 backdrop-blur-xl bg-white/20 border border-white/30">
+            <SheetContent side="right" className="w-64 bg-white z-[100] fixed top-0 bottom-0 right-0 transform-none">
               <div className="flex flex-col h-full">
                 {/* User Info */}
                 {isAuthenticated && (
@@ -770,10 +770,9 @@ export const Header = () => {
                 <nav className="flex-1 space-y-2 p-4">
                   <Button
                     variant="ghost"
-                    className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
+                    className="w-full justify-start"
                     onClick={() => {
                       navigate('/');
-                      setMobileMenuOpen(false);
                     }}
                   >
                     <Home className="w-4 h-4 mr-3" />
@@ -784,10 +783,9 @@ export const Header = () => {
                     <>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
+                        className="w-full justify-start"
                         onClick={() => {
                           navigate('/dashboard');
-                          setMobileMenuOpen(false);
                         }}
                       >
                         <User className="w-4 h-4 mr-3" />
@@ -795,10 +793,9 @@ export const Header = () => {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
+                        className="w-full justify-start"
                         onClick={() => {
                           navigate('/auctions');
-                          setMobileMenuOpen(false);
                         }}
                       >
                         <Gavel className="w-4 h-4 mr-3" />
@@ -806,27 +803,29 @@ export const Header = () => {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
+                        className="w-full justify-start"
                         onClick={() => {
                           navigate('/settings');
-                          setMobileMenuOpen(false);
                         }}
                       >
                         <Settings className="w-4 h-4 mr-3" />
                         Account Settings
-                <DropdownMenuItem asChild>
-                  <Link to="/my-drafts" className="cursor-pointer">
-                    <FileText className="w-4 h-4 mr-2" />
-                    My Drafts
-                  </Link>
-                </DropdownMenuItem>
                       </Button>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          navigate('/my-drafts');
+                        }}
+                      >
+                        <FileText className="w-4 h-4 mr-3" />
+                        My Drafts
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start"
                         onClick={() => {
                           navigate('/notifications');
-                          setMobileMenuOpen(false);
                         }}
                       >
                         <Bell className="w-4 h-4 mr-3" />
@@ -845,10 +844,9 @@ export const Header = () => {
                 <div className="p-4 space-y-3 border-t">
                   {!isAuthenticated && (
                     <Button
-                      className="w-full backdrop-blur-xl bg-white/20 border border-white/30"
+                      className="w-full"
                       onClick={() => {
                         navigate('/auth');
-                        setMobileMenuOpen(false);
                       }}
                     >
                       <User className="w-4 h-4 mr-2" />
@@ -857,10 +855,9 @@ export const Header = () => {
                   )}
                   
                   <Button
-                    className="w-full btn-primary backdrop-blur-xl bg-white/20 border border-white/30"
+                    className="w-full btn-primary"
                     onClick={() => {
                       navigate('/create');
-                      setMobileMenuOpen(false);
                     }}
                   >
                     <Plus className="w-4 h-4 mr-2" />
@@ -870,10 +867,9 @@ export const Header = () => {
                   {isAuthenticated && (
                     <Button
                       variant="outline"
-                      className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 backdrop-blur-xl bg-white/20 border border-white/30"
+                      className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
                       onClick={() => {
                         handleSignOut();
-                        setMobileMenuOpen(false);
                       }}
                     >
                       <LogOut className="w-4 h-4 mr-2" />
