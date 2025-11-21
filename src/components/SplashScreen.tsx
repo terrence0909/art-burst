@@ -30,7 +30,7 @@ export const SplashScreen = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-100 via-gray-50 to-gray-200"
           aria-label="Loading ArtBurst"
           role="status"
         >
@@ -39,7 +39,7 @@ export const SplashScreen = ({
             {particles.map((particle) => (
               <motion.div
                 key={particle.id}
-                className="absolute bg-white/10 rounded-full"
+                className="absolute bg-gray-400/20 rounded-full"
                 style={{
                   width: particle.size,
                   height: particle.size,
@@ -48,7 +48,7 @@ export const SplashScreen = ({
                 }}
                 animate={{
                   y: [null, -40, 0],
-                  opacity: [0, 0.8, 0],
+                  opacity: [0, 0.6, 0],
                   scale: [1, 1.2, 1],
                 }}
                 transition={{
@@ -115,7 +115,7 @@ export const SplashScreen = ({
                   visible: { opacity: 1, y: 0 }
                 }}
                 transition={{ duration: 0.6 }}
-                className="text-white/80 text-lg font-light mb-6 tracking-wider"
+                className="text-gray-700/80 text-lg font-light mb-6 tracking-wider"
               >
                 CURATING DIGITAL ART MASTERPIECES
               </motion.p>
@@ -128,7 +128,7 @@ export const SplashScreen = ({
               transition={{ delay: 0.8, duration: 0.8 }}
               className="relative"
             >
-              <div className="w-64 h-1.5 bg-gray-600/50 rounded-full overflow-hidden mx-auto">
+              <div className="w-64 h-1.5 bg-gray-300/50 rounded-full overflow-hidden mx-auto">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: "100%" }}
@@ -138,7 +138,7 @@ export const SplashScreen = ({
                     repeat: isLoading ? Infinity : 0,
                     repeatType: "reverse"
                   }}
-                  className="h-full bg-gradient-to-r from-gray-400 via-white to-gray-400 relative"
+                  className="h-full bg-gradient-to-r from-gray-400 via-gray-600 to-gray-400 relative"
                 >
                   {/* Shimmer effect */}
                   <motion.div
@@ -148,7 +148,7 @@ export const SplashScreen = ({
                       repeat: Infinity,
                       ease: "easeInOut"
                     }}
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent blur-sm"
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent blur-sm"
                   />
                 </motion.div>
               </div>
@@ -164,7 +164,7 @@ export const SplashScreen = ({
                   repeat: Infinity,
                   ease: "easeInOut"
                 }}
-                className="w-2 h-2 bg-white rounded-full mx-auto mt-2"
+                className="w-2 h-2 bg-gray-600 rounded-full mx-auto mt-2"
               />
             </motion.div>
 
@@ -180,7 +180,7 @@ export const SplashScreen = ({
                 }
               }}
             >
-              <p className="text-white/40 text-xs mt-8 font-light tracking-wide">
+              <p className="text-gray-500/60 text-xs mt-8 font-light tracking-wide">
                 © 2024 ArtBurst • Premium Digital Art Marketplace
               </p>
             </motion.div>
