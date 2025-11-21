@@ -736,7 +736,7 @@ export const Header = () => {
             </Link>
           )}
 
-          {/* Mobile Menu for additional actions - FIXED VERSION */}
+          {/* Mobile Menu for additional actions - WITH GLASSY EFFECT */}
           <Sheet>
             <SheetTrigger asChild>
               <Button
@@ -747,11 +747,11 @@ export const Header = () => {
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-64 bg-white z-[100] fixed top-0 bottom-0 right-0 transform-none">
+            <SheetContent side="right" className="w-64 backdrop-blur-xl bg-white/20 border border-white/30 z-[100] fixed top-0 bottom-0 right-0 transform-none">
               <div className="flex flex-col h-full">
                 {/* User Info */}
                 {isAuthenticated && (
-                  <div className="flex items-center space-x-3 p-4 border-b">
+                  <div className="flex items-center space-x-3 p-4 border-b border-white/30">
                     <img
                       src={userProfileImage}
                       alt={userName}
@@ -770,7 +770,7 @@ export const Header = () => {
                 <nav className="flex-1 space-y-2 p-4">
                   <Button
                     variant="ghost"
-                    className="w-full justify-start"
+                    className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
                     onClick={() => {
                       navigate('/');
                     }}
@@ -783,7 +783,7 @@ export const Header = () => {
                     <>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start"
+                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
                         onClick={() => {
                           navigate('/dashboard');
                         }}
@@ -793,7 +793,7 @@ export const Header = () => {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start"
+                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
                         onClick={() => {
                           navigate('/auctions');
                         }}
@@ -803,7 +803,7 @@ export const Header = () => {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start"
+                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
                         onClick={() => {
                           navigate('/settings');
                         }}
@@ -813,7 +813,7 @@ export const Header = () => {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start"
+                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
                         onClick={() => {
                           navigate('/my-drafts');
                         }}
@@ -823,7 +823,7 @@ export const Header = () => {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start"
+                        className="w-full justify-start backdrop-blur-xl bg-white/20 border border-white/30"
                         onClick={() => {
                           navigate('/notifications');
                         }}
@@ -841,10 +841,10 @@ export const Header = () => {
                 </nav>
 
                 {/* Bottom Actions */}
-                <div className="p-4 space-y-3 border-t">
+                <div className="p-4 space-y-3 border-t border-white/30">
                   {!isAuthenticated && (
                     <Button
-                      className="w-full"
+                      className="w-full backdrop-blur-xl bg-white/20 border border-white/30"
                       onClick={() => {
                         navigate('/auth');
                       }}
@@ -855,7 +855,7 @@ export const Header = () => {
                   )}
                   
                   <Button
-                    className="w-full btn-primary"
+                    className="w-full btn-primary backdrop-blur-xl bg-white/20 border border-white/30"
                     onClick={() => {
                       navigate('/create');
                     }}
@@ -867,7 +867,7 @@ export const Header = () => {
                   {isAuthenticated && (
                     <Button
                       variant="outline"
-                      className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                      className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 backdrop-blur-xl bg-white/20 border border-white/30"
                       onClick={() => {
                         handleSignOut();
                       }}
