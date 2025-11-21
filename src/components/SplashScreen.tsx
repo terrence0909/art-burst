@@ -114,21 +114,21 @@ export const SplashScreen = ({
                   visible: { opacity: 1, y: 0 }
                 }}
                 transition={{ duration: 0.6 }}
-                className="text-gray-700/80 text-lg font-light mb-6 tracking-wider"
+                className="text-gray-700/80 text-lg font-light mb-8 tracking-wider"
               >
                 CURATING DIGITAL ART MASTERPIECES
               </motion.p>
             </motion.div>
 
-            {/* Realistic Paintbrush Stroke */}
+            {/* Realistic Paintbrush Stroke with EXACT Button Gradient */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.8 }}
-              className="relative w-64 h-2 mx-auto mb-2"
+              className="relative w-64 h-1.5 mx-auto"
             >
               {/* Background track - very subtle */}
-              <div className="absolute inset-0 bg-gray-300/10 rounded-full" />
+              <div className="absolute inset-0 bg-gray-300/5 rounded-full" />
               
               {/* Animated paintbrush stroke */}
               <motion.div
@@ -142,43 +142,24 @@ export const SplashScreen = ({
                 }}
                 className="relative h-full overflow-hidden"
               >
-                {/* Main stroke with Explore Auctions button gradient */}
-                <div className="h-full w-full relative">
-                  {/* Base gradient matching your button */}
-                  <div 
-                    className="h-full w-full rounded-full"
-                    style={{
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    }}
-                  />
-                  
+                {/* Main stroke using the EXACT btn-auction gradient */}
+                <div className="h-full w-full bg-gradient-auction rounded-full shadow-auction">
                   {/* Brush bristle texture */}
                   <div className="absolute inset-0 flex justify-between items-end px-0.5">
-                    {Array.from({ length: 40 }).map((_, i) => (
+                    {Array.from({ length: 35 }).map((_, i) => (
                       <div
                         key={i}
-                        className="w-[1px] bg-white/30"
+                        className="w-[0.5px] bg-white/30"
                         style={{
-                          height: `${30 + Math.random() * 70}%`,
-                          transform: `translateY(${Math.random() * 4}px)`
+                          height: `${20 + Math.random() * 80}%`,
+                          transform: `translateY(${Math.random() * 2}px)`
                         }}
                       />
                     ))}
                   </div>
                   
                   {/* Paint texture variation */}
-                  <div 
-                    className="absolute inset-0 opacity-40 rounded-full"
-                    style={{
-                      backgroundImage: `
-                        radial-gradient(circle at 10% 20%, rgba(255,255,255,0.3) 1px, transparent 1px),
-                        radial-gradient(circle at 30% 80%, rgba(0,0,0,0.2) 1px, transparent 1px),
-                        radial-gradient(circle at 70% 40%, rgba(255,255,255,0.4) 1px, transparent 1px),
-                        radial-gradient(circle at 90% 60%, rgba(0,0,0,0.1) 1px, transparent 1px)
-                      `,
-                      backgroundSize: '15px 15px, 20px 20px, 25px 25px, 18px 18px'
-                    }}
-                  />
+                  <div className="absolute inset-0 opacity-20 bg-art-pattern rounded-full" />
                   
                   {/* Wet paint shine effect */}
                   <motion.div
@@ -188,40 +169,65 @@ export const SplashScreen = ({
                       repeat: Infinity,
                       ease: "easeInOut"
                     }}
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent blur-[0.3px] rounded-full"
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent blur-[0.2px] rounded-full"
                   />
                   
-                  {/* Edge feathering for brush stroke effect */}
-                  <div className="absolute -inset-y-1 left-0 w-4 bg-gradient-to-r from-transparent to-current opacity-20 rounded-l-full" />
-                  <div className="absolute -inset-y-1 right-0 w-4 bg-gradient-to-l from-transparent to-current opacity-20 rounded-r-full" />
+                  {/* Edge feathering */}
+                  <div className="absolute -inset-y-0.5 left-0 w-3 bg-gradient-to-r from-transparent to-current opacity-20 rounded-l-full" />
+                  <div className="absolute -inset-y-0.5 right-0 w-3 bg-gradient-to-l from-transparent to-current opacity-20 rounded-r-full" />
+                  
+                  {/* Gold shimmer particles */}
+                  <div className="absolute inset-0">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <motion.div
+                        key={i}
+                        className="absolute w-[1px] h-[1px] bg-gold rounded-full"
+                        style={{
+                          left: `${Math.random() * 100}%`,
+                          top: `${Math.random() * 100}%`,
+                        }}
+                        animate={{
+                          opacity: [0, 1, 0],
+                          scale: [0.5, 1.5, 0.5],
+                        }}
+                        transition={{
+                          duration: 2 + Math.random() * 2,
+                          repeat: Infinity,
+                          delay: Math.random() * 2,
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
               </motion.div>
+              
+              {/* Brush tip indicator */}
+              <motion.div
+                animate={{ 
+                  x: [0, 256],
+                }}
+                transition={{
+                  duration: 2.5,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  repeatType: "reverse"
+                }}
+                className="absolute -top-1 w-1.5 h-2 bg-gradient-to-b from-gray-800 to-gray-600 rounded-sm transform rotate-45"
+                style={{
+                  clipPath: 'polygon(0% 0%, 100% 0%, 100% 70%, 50% 100%, 0% 70%)'
+                }}
+              />
             </motion.div>
 
-            {/* Loading dots */}
-            <motion.div
+            {/* Loading text */}
+            <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 1 }}
-              className="flex justify-center space-x-1 mt-3"
+              transition={{ delay: 1.2 }}
+              className="text-gray-500/70 text-sm mt-4 font-light tracking-wide"
             >
-              {[0, 1, 2].map((dot) => (
-                <motion.div
-                  key={dot}
-                  animate={{ 
-                    scale: [1, 1.2, 1],
-                    opacity: [0.5, 1, 0.5]
-                  }}
-                  transition={{
-                    duration: 1.5,
-                    repeat: Infinity,
-                    delay: dot * 0.2,
-                    ease: "easeInOut"
-                  }}
-                  className="w-1 h-1 rounded-full bg-gradient-to-r from-purple-500 to-purple-700"
-                />
-              ))}
-            </motion.div>
+              Loading your art experience...
+            </motion.p>
 
             {/* Copyright */}
             <motion.div
@@ -231,7 +237,7 @@ export const SplashScreen = ({
                 hidden: { opacity: 0 },
                 visible: { 
                   opacity: 1,
-                  transition: { delay: 1.2 }
+                  transition: { delay: 1.5 }
                 }
               }}
             >
