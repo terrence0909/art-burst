@@ -120,15 +120,15 @@ export const SplashScreen = ({
               </motion.p>
             </motion.div>
 
-            {/* Paintbrush Stroke Loading Indicator */}
+            {/* Realistic Paintbrush Stroke */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.8 }}
-              className="relative w-64 h-4 mx-auto"
+              className="relative w-64 h-2 mx-auto mb-2"
             >
-              {/* Background track */}
-              <div className="absolute inset-0 bg-gray-300/30 rounded-full" />
+              {/* Background track - very subtle */}
+              <div className="absolute inset-0 bg-gray-300/10 rounded-full" />
               
               {/* Animated paintbrush stroke */}
               <motion.div
@@ -140,55 +140,87 @@ export const SplashScreen = ({
                   repeat: isLoading ? Infinity : 0,
                   repeatType: "reverse"
                 }}
-                className="relative h-full"
+                className="relative h-full overflow-hidden"
               >
-                {/* Main stroke with brush texture */}
-                <div 
-                  className="h-full w-full relative overflow-hidden rounded-full"
-                  style={{
-                    background: 'linear-gradient(90deg, #4b5563, #374151, #4b5563)',
-                    filter: 'url(#brushFilter)',
-                  }}
-                >
-                  {/* Wet paint effect */}
-                  <motion.div
-                    animate={{ 
-                      x: [-100, 300],
-                      opacity: [0, 0.8, 0]
+                {/* Main stroke with Explore Auctions button gradient */}
+                <div className="h-full w-full relative">
+                  {/* Base gradient matching your button */}
+                  <div 
+                    className="h-full w-full rounded-full"
+                    style={{
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                     }}
+                  />
+                  
+                  {/* Brush bristle texture */}
+                  <div className="absolute inset-0 flex justify-between items-end px-0.5">
+                    {Array.from({ length: 40 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="w-[1px] bg-white/30"
+                        style={{
+                          height: `${30 + Math.random() * 70}%`,
+                          transform: `translateY(${Math.random() * 4}px)`
+                        }}
+                      />
+                    ))}
+                  </div>
+                  
+                  {/* Paint texture variation */}
+                  <div 
+                    className="absolute inset-0 opacity-40 rounded-full"
+                    style={{
+                      backgroundImage: `
+                        radial-gradient(circle at 10% 20%, rgba(255,255,255,0.3) 1px, transparent 1px),
+                        radial-gradient(circle at 30% 80%, rgba(0,0,0,0.2) 1px, transparent 1px),
+                        radial-gradient(circle at 70% 40%, rgba(255,255,255,0.4) 1px, transparent 1px),
+                        radial-gradient(circle at 90% 60%, rgba(0,0,0,0.1) 1px, transparent 1px)
+                      `,
+                      backgroundSize: '15px 15px, 20px 20px, 25px 25px, 18px 18px'
+                    }}
+                  />
+                  
+                  {/* Wet paint shine effect */}
+                  <motion.div
+                    animate={{ x: [-100, 300] }}
                     transition={{
-                      duration: 2,
+                      duration: 1.8,
                       repeat: Infinity,
                       ease: "easeInOut"
                     }}
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent blur-[1px]"
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent blur-[0.3px] rounded-full"
                   />
                   
-                  {/* Paint texture overlay */}
-                  <div 
-                    className="absolute inset-0 opacity-30"
-                    style={{
-                      backgroundImage: `
-                        radial-gradient(circle at 20% 50%, rgba(255,255,255,0.3) 1px, transparent 1px),
-                        radial-gradient(circle at 50% 70%, rgba(255,255,255,0.2) 1px, transparent 1px),
-                        radial-gradient(circle at 80% 30%, rgba(255,255,255,0.3) 1px, transparent 1px)
-                      `,
-                      backgroundSize: '20px 20px, 15px 15px, 25px 25px'
-                    }}
-                  />
+                  {/* Edge feathering for brush stroke effect */}
+                  <div className="absolute -inset-y-1 left-0 w-4 bg-gradient-to-r from-transparent to-current opacity-20 rounded-l-full" />
+                  <div className="absolute -inset-y-1 right-0 w-4 bg-gradient-to-l from-transparent to-current opacity-20 rounded-r-full" />
                 </div>
               </motion.div>
+            </motion.div>
 
-              {/* SVG Filters for brush texture */}
-              <svg className="absolute inset-0 pointer-events-none">
-                <defs>
-                  <filter id="brushFilter" x="0" y="0">
-                    <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" result="noise"/>
-                    <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" />
-                    <feGaussianBlur stdDeviation="0.5" />
-                  </filter>
-                </defs>
-              </svg>
+            {/* Loading dots */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1 }}
+              className="flex justify-center space-x-1 mt-3"
+            >
+              {[0, 1, 2].map((dot) => (
+                <motion.div
+                  key={dot}
+                  animate={{ 
+                    scale: [1, 1.2, 1],
+                    opacity: [0.5, 1, 0.5]
+                  }}
+                  transition={{
+                    duration: 1.5,
+                    repeat: Infinity,
+                    delay: dot * 0.2,
+                    ease: "easeInOut"
+                  }}
+                  className="w-1 h-1 rounded-full bg-gradient-to-r from-purple-500 to-purple-700"
+                />
+              ))}
             </motion.div>
 
             {/* Copyright */}
