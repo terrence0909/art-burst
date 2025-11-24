@@ -12,8 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/use-toast";
 import { ShareProfileButton } from "@/components/ShareProfileButton";
 import { fetchAuctions, fetchArtistById } from "@/api/auctions";
-import { fetchUserAttributes } from "aws-amplify/auth"; // 🔥 ADDED
-import { MessageButton } from "@/components/MessageButton"; // 🔥 ADDED MESSAGE BUTTON
+import { fetchUserAttributes } from "aws-amplify/auth"; 
+import { MessageButton } from "@/components/MessageButton"; 
 
 interface Artist {
   artistId: string;
@@ -70,10 +70,10 @@ const ArtistProfile = () => {
       setError("");
       
       let artistData: Artist | null = null;
-      let cognitoAvatar = ""; // 🔥 NEW: Get avatar from Cognito
+      let cognitoAvatar = ""; 
       
       try {
-        // 🔥 NEW: Try to get avatar from Cognito user attributes
+        
         try {
           const attributes = await fetchUserAttributes();
           cognitoAvatar = attributes.picture || "";
@@ -89,7 +89,7 @@ const ArtistProfile = () => {
             name: actualArtist.name || "Unknown Artist",
             email: actualArtist.email || "",
             profileImage: actualArtist.avatar || actualArtist.profileImage,
-            // 🔥 FIX: Use Cognito avatar first, then artist API avatar
+            
             avatar: cognitoAvatar || actualArtist.avatar,
             bio: actualArtist.bio || "A talented artist creating beautiful works.",
             location: actualArtist.location || "Location not specified",
@@ -140,7 +140,7 @@ const ArtistProfile = () => {
           name: firstAuction?.artistName || "Unknown Artist",
           email: "",
           profileImage: undefined,
-          avatar: cognitoAvatar || undefined, // 🔥 FIX: Include Cognito avatar
+          avatar: cognitoAvatar || undefined, 
           bio: "A talented artist creating beautiful works. More information coming soon.",
           location: firstAuction?.location || "Location not specified",
           createdAt: firstAuction?.createdAt || new Date().toISOString(),
